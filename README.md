@@ -1,4 +1,4 @@
-# Paper title here # 
+# Paper title here 
 
 To reproduce the results of the
 paper, simply fetch the entire repository using Mercurial with the
@@ -7,13 +7,16 @@ command below (or download from the "download" link at the url
 
 	hg clone ssh://hg@bitbucket.org/lima1/ovrc4_signew
 
-Enter the newly created directory and start R: 
+
+Enter the newly created directory: 
 
      cd ovrc4_sigvalidation
-     R
-     
+
 Run the analysis with knitr in R:
-    
+
+    R    
+    source("src/install_needed_packages.R")
+    source("src/install_survHD.R")
     library(knitr)
     knit("metasig.Rnw")
 
@@ -33,7 +36,7 @@ Run the analysis with knitr in R:
 
     * **runEsetList.sh**: create ExpressionSet objects from curatedOvarianData
 
-    * **patientselection2...*: various patient filters for curatedOvarianData
+    * **patientselection2...**: various patient filters for curatedOvarianData
 
     * **TCGA_ovsig.RData**: The TCGA model as survHD object 
 
@@ -45,9 +48,5 @@ R/Bioconductor: Tested on R 2.15.0 and Bioconductor 2.10, but the
 pipeline should work on any relatively recent versions.
 
 All other needed packages will be installed automatically when running
-the pipeline, by the following scripts in src/:
-
-* install_needed_packages.R
-* install_survHD.R
-* createEsets.R   (installs curatedOvarianData)
+the install scripts shown above.
 
