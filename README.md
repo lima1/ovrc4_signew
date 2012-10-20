@@ -1,4 +1,4 @@
-# Reproducible analysis for the validation of published signatures of ovarian cancer survival #
+# Paper title here # 
 
 To reproduce the results of the
 paper, simply fetch the entire repository using Mercurial with the
@@ -31,7 +31,9 @@ Run the analysis with knitr in R:
 
 * **input/** - input files
 
-    * **createEsets.sh**: create ExpressionSet objects from curatedOvarianData
+    * **runEsetList.sh**: create ExpressionSet objects from curatedOvarianData
+
+    * **patientselection2...*: various patient filters for curatedOvarianData
 
     * **TCGA_ovsig.RData**: The TCGA model as survHD object 
 

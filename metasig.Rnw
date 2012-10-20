@@ -48,11 +48,11 @@ library(ROCR)
 # with the createEsetsList script
 library(curatedOvarianData)
 
-source("~/h/git/r-analyzR/metaCMA.R")
-source("utils.R")
+source("src/metaCMA.R")
+source("src/utils.R")
 @
 <<createesets, cache=TRUE>>=
-load("/Users/markus/home/hg/ovrc4_sigvalidation/src/eset.scaled.rda")
+load("input/eset.scaled.rda")
 esets    <- esets[-match("GSE19829.GPL8300_eset",names(esets))]
 esets.f  <- metaCMA.common.gene.esets(esets)
 @
@@ -127,7 +127,7 @@ n=200, filter.fun= function(eset) ncol(eset) > sizes.rev[i] ))
 
 \begin{figure}
 <<loadmodeltcga, cache=TRUE,results='hide'>>=
-load("~/Dropbox/ovrc4/RC4_levi_misc/TCGA11-ovsig.RData")
+load("input/TCGA11-ovsig.RData")
 model.tcga <- model.official
 data(TCGA_eset, package="curatedOvarianData")
 TCGA.validation.eset <- TCGA_eset[ ,TCGA_eset$batch %in% c("17", "18", "19", "21", "22", "24")]
@@ -254,8 +254,6 @@ dfrc$vital_status=="deceased"), dfrc$risk_tcga, dfrc$risk,tau=365.25*i))
 
 \begin{figure}
 <<forestplotntcga>>=
-load("22241791-TableS1.RData")
-model.yoshihara <- model.official
 # best signature size (n>=25)
 #leave-one-dataset-out cross-validation plot
 X <- esets.uf[-japan.idx]
@@ -370,11 +368,11 @@ dfrc$debulking[idx.agedeb], dfrc$risk[idx.agedeb]),tau=365.25*4)
 @
 
 <<loadvaldata,cache=TRUE>>=
-load("/Users/markus/home/hg/ovrc4_sigvalidation/src/eset.binary.scaled.rda")
+load("input/eset.binary.scaled.rda")
 esets.binary <- esets
-load("/Users/markus/home/hg/ovrc4_sigvalidation/src/eset.validation.scaled.rda")
+load("input/eset.validation.scaled.rda")
 esets.validation <- esets
-load("/Users/markus/home/hg/ovrc4_sigvalidation/src/eset.debulking.scaled.rda")
+load("input/eset.debulking.scaled.rda")
 esets.debulking <- esets
 @
 
@@ -657,36 +655,6 @@ See caption in the main paper for details.}
 \caption{Validation of the final signature in independent data. 
 See caption in the main paper for details.}
 \end{figure}
-
-%<<stage>>=
-%load("/Users/markus/home/hg/ovrc4_sigvalidation/src/eset.stage.scaled.rda")
-%esets.stage <- esets
-%esets.stage <- esets.stage[!sapply(esets.stage,.stageFilter)]
-%esets.stage <- metaCMA.common.gene.esets(esets.stage)
-%
-%coefs.stage <- metaCMA.coefs(esets.stage, y="tumorstage", family=binomial)
-%opt.stage <- metaCMA.opt(esets.stage,coef=coefs.stage,y="tumorstage",n=1000)
-%final.model.stage <- opt.stage$model
-%sig <- names(final.model.stage@coefficients)
-%probesets <- do.call(cbind, lapply(esets.stage, function(X)
-% as.character(featureData(X)[sig,]$maxmean_probeset)))
-%res <- .doDiffExpStage(esets.stage)
-%
-%
-%write.csv(data.frame(Genes=sig, probesets, 
-%"Pooled LogIt Coefficient"=
-%final.model.stage@coefficients,
-%"Mean T3"= apply(opt.stage$train$X[which(opt.stage$train$y=="3"),],2,mean),
-%"Mean T4"= apply(opt.stage$train$X[which(opt.stage$train$y=="4"),],2,mean),
-% P=head(sort(opt.stage$pvalues),length(sig)),
-% FDR=head(sort(p.adjust(opt.stage$pvalues,method="BH")),length(sig)),
-% "FDR (alternative method)"=res$fdr[match(sig, names(res$fdr))]),
-% file="final_signature_stage.csv",row.names=FALSE)
-%
-%cor.test(res$fdr[match(sig, names(res$fdr))],
-%head(sort(p.adjust(opt.stage$pvalues,method="BH")),length(sig)))
-%
-%@
 
 \clearpage
 \section{Session Info}
