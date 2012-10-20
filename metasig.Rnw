@@ -1,0 +1,697 @@
+\documentclass{article}
+\usepackage[sc]{mathpazo}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{2}
+\usepackage{url}
+\usepackage[unicode=true,pdfusetitle,bookmarks=true,bookmarksnumbered=true,bookmarksopen=true,bookmarksopenlevel=2,breaklinks=false,pdfborder={0 0 1},backref=false,colorlinks=false]{hyperref}
+\hypersetup{pdfstartview={XYZ null null 1}}
+\usepackage{breakurl}
+\usepackage{verbatim}
+\usepackage{subfigure}
+\usepackage{booktabs}
+\begin{document}
+
+<<setup, include=FALSE, cache=FALSE>>=
+# this is equivalent to \SweaveOpts{...}
+opts_chunk$set(fig.path='figure/metasig-', fig.align='center',
+fig.show='hold',warning=FALSE, echo=FALSE)
+options(replace.assign=TRUE,width=90)
+@
+
+\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\thetable}{S\arabic{table}}
+
+
+\title{Risk Prediction for Late-stage Ovarian Cancer Using the Corpus of
+Published Expression Data - Supplemental Figures}
+
+
+
+\author{Markus Riester, Levi Waldron, Aedin Culhane, \\
+Curtis Huttenhower, Giovanni Parmigiani, Michael Birrer}
+\maketitle
+
+<<load, include=FALSE>>=
+library(genefilter)
+library(survival)
+library(annotate)
+library(hgu133a.db)
+library(metafor)
+library(ggplot2)
+library(xtable)
+library(survIDINRI)
+library(ROCR)
+# only to print the version number in the Appendix. We load the data generated
+# with the createEsetsList script
+library(curatedOvarianData)
+
+source("~/h/git/r-analyzR/metaCMA.R")
+source("utils.R")
+@
+<<createesets, cache=TRUE>>=
+load("/Users/markus/home/hg/ovrc4_sigvalidation/src/eset.scaled.rda")
+esets    <- esets[-match("GSE19829.GPL8300_eset",names(esets))]
+esets.f  <- metaCMA.common.gene.esets(esets)
+@
+
+<<addsurvobj, results='hide'>>=
+esets.uf <- esets
+japan.idx <- match("GSE32062.GPL6480_eset",names(esets.f))
+esets.f <- esets.f[-japan.idx]
+
+.dichotomizeshortlong <- function(eset, s=365.25, l=365.2*4,
+label="os_my_binary") {
+    eset <- eset[, eset$y[,1] > s  |
+        eset$y[,2] == 1]
+
+    eset[[label]] <- as.factor(ifelse(eset$y[,1] < s, "short",
+    ifelse(eset$y[,1] > l,"long", NA)))
+    eset[, !is.na(eset[[label]])]
+}
+@
+
+<<optimizecoefs, cache=TRUE>>=
+coefs = metaCMA.coefs(esets.f)
+@
+
+
+<<optimizegrid, cache=TRUE,results='hide'>>=
+ma = lapply(c(5,10,seq(25,250,25)), function(i)
+    #metaCMA(esets.f,coefs=coefs,n=i,method="penalizedSurv",fold=5))
+    metaCMA(esets.f,coefs=coefs,n=i))
+@
+
+\clearpage
+\normalsize
+
+\begin{figure}
+<<validate, cache=TRUE>>=
+.plotN <- function(esets, ma) {
+    w <- sapply(esets,ncol)
+    cidx = lapply(ma, function(x) sapply(1:length(esets), function(i)
+        evaluate(object=new("UnoC"),pred.all=x$fits[[i]]$risk@lp,
+        yc=esets[[i]]$y, learnind=100000,add=list(tau=365.25*4) )))
+
+    dfCV <- stack(as.data.frame(do.call(rbind,cidx)))
+    dfCV <- cbind(dfCV, Genes=c(5,10,seq(25,250,25)))
+    dfCV$ind <- gsub("_eset$","",unlist(lapply(names(esets), rep, 12)))
+    ggplot(dfCV, aes(values, Genes))+geom_point()+facet_wrap(~ind) +
+    ylab("Number of Genes")+xlab("C-Statistic")
+}
+.plotN(esets.f,ma)
+@
+\caption{In the \textit{leave-one-dataset-out} cross-validation in
+\textbf{Figure 1-2}
+of the main paper, we used a fixed gene signature size of 200 genes.  Here we
+show the influence of this cutoff on the prediction concordance. Each point
+represents the prediction concordance of a model with $y$ genes in the
+corresponding dataset that was trained using the remaining datasets only.}
+\label{fig:cutoff:train}
+\end{figure}
+
+
+<<optimizesize, cache=TRUE,results='hide'>>=
+sizes <- sort(sapply(esets.f, ncol),decreasing=TRUE)
+ma.sizes <- lapply(1:length(sizes), function(i) metaCMA(esets.f,coefs=coefs,
+n=200, filter.fun= function(eset) ncol(eset) < sizes[i] ))
+@
+
+<<optimizesizerev, cache=TRUE, results='hide'>>=
+sizes.rev <- sort(sapply(esets.f, ncol))
+ma.sizes.rev <- lapply(1:length(sizes), function(i) metaCMA(esets.f,coefs=coefs,
+n=200, filter.fun= function(eset) ncol(eset) > sizes.rev[i] ))
+@
+
+\begin{figure}
+<<loadmodeltcga, cache=TRUE,results='hide'>>=
+load("~/Dropbox/ovrc4/RC4_levi_misc/TCGA11-ovsig.RData")
+model.tcga <- model.official
+data(TCGA_eset, package="curatedOvarianData")
+TCGA.validation.eset <- TCGA_eset[ ,TCGA_eset$batch %in% c("17", "18", "19", "21", "22", "24")]
+featureNames(TCGA.validation.eset) <- sub("-", "hyphen", featureNames(TCGA.validation.eset))
+TCGA.validation.eset <- TCGA.validation.eset[ ,!is.na(TCGA.validation.eset$days_to_death) &
+                                             !is.na(TCGA.validation.eset$vital_status)]
+TCGA.validation.eset$y <- Surv(TCGA.validation.eset$days_to_death / 30,
+                               TCGA.validation.eset$vital_status == "deceased")
+##Validation set 2:
+data(GSE9891_eset, package="curatedOvarianData")
+featureNames(GSE9891_eset) <- sub("-", "hyphen", featureNames(GSE9891_eset))
+GSE9891_eset <- GSE9891_eset[ ,!is.na(GSE9891_eset$days_to_death) &
+                             !is.na(GSE9891_eset$vital_status)]
+GSE9891_eset$y <- Surv(GSE9891_eset$days_to_death / 30, GSE9891_eset$vital_status == "deceased")
+
+#Validation set 3, Bonome et al. (2008):
+data(GSE26712_eset, package="curatedOvarianData")
+featureNames(GSE26712_eset) <- sub("-", "hyphen", featureNames(GSE26712_eset))
+GSE26712_eset <- GSE26712_eset[ ,!is.na(GSE26712_eset$days_to_death) &
+                               !is.na(GSE26712_eset$vital_status)]
+GSE26712_eset$y <- Surv(GSE26712_eset$days_to_death / 30,
+                        GSE26712_eset$vital_status == "deceased")
+data(PMID17290060_eset, package="curatedOvarianData")
+featureNames(PMID17290060_eset) <- sub("-", "hyphen", featureNames(PMID17290060_eset))
+PMID17290060_eset <- PMID17290060_eset[ ,!is.na(PMID17290060_eset$days_to_death) &
+                                       !is.na(PMID17290060_eset$vital_status)]
+PMID17290060_eset$y <- Surv(PMID17290060_eset$days_to_death / 30,
+                            PMID17290060_eset$vital_status == "deceased")
+@
+
+<<plotmodeltcgavalidation, cache=TRUE,results='hide'>>=
+par(mfrow=c(2,2))
+
+plot(model.tcga,newdata=TCGA.validation.eset,newy=TCGA.validation.eset$y,censor.at=60,
+            cex.base=1.4,show.n.risk=FALSE, show.HR=FALSE,
+            show.legend=FALSE,xlab="",ylab="Overall Survival (%)",main="TCGA test set")
+
+plot(model.tcga,newdata=GSE9891_eset,newy=GSE9891_eset$y,censor.at=60,
+            cex.base=1.4,show.n.risk=FALSE, show.HR=FALSE,
+            show.legend=FALSE,xlab="",ylab="",main="Tothill")
+            
+plot(model.tcga,newdata=GSE26712_eset,newy=GSE26712_eset$y,censor.at=60,
+            cex.base=1.4,show.n.risk=FALSE, show.HR=FALSE,
+            show.legend=FALSE,xlab="Time (Months)",ylab="Overall Survival (%)",main="Bonome")
+
+plot(model.tcga,newdata=PMID17290060_eset,newy=PMID17290060_eset$y,censor.at=60,
+            cex.base=1.4,show.n.risk=FALSE, show.HR=FALSE,
+            show.legend=FALSE,xlab="Time (Months)",ylab="",main="Dressman")
+@
+\caption{TCGA model applied to the author test sets shown in Figure 2c of the TCGA paper
+\cite{TCGA:2011}. The identical results show that our implementation of the
+TCGA model is correct.}
+\end{figure}
+
+\begin{figure}
+<<elmeta,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+Xs.all <- lapply(esets.f, .dichotomizeshortlong, l=365.25, label="os_1yr")
+preds <- lapply(1:length(Xs.all), function(i) predict(ma[[10]]$fits[[i]]$fit,
+newdata=Xs.all[[i]])@lp)
+
+labels <- lapply(Xs.all, function(X) X$os_1yr)
+titles <- lapply(Xs.all, function(X) experimentData(X)@lab)
+titles$TCGA_eset <- "TCGA 2011"
+idx <- c(1,2,5,6,8)
+preds.logit.age <- .p2logitMV(Xs.all[idx], preds=preds[idx],
+ fits=res.el$fits[idx],y="os_1yr",x1="age_at_initial_pathologic_diagnosis")
+
+.plotROCpanel(preds.logit.age,labels[idx],titles[idx],2,3)
+@
+\caption{Prediction of events within the first year in a
+\textit{leave-one-dataset-out}
+cross-validation. The prediction model calculates for each sample a score. The
+higher the score, the higher the probability the patient will die within the
+first year. For each dataset, the model is trained using only the remaining
+datasets. The model utilizes the overall survival gene signature
+(\textbf{Supplemental Table 1}) and the age of the patients. ROC curves visualize the
+true and false positive rates as a function of the probability cutoffs.}  
+\end{figure}
+
+\begin{figure}
+<<reclassification,cache=TRUE,fig.width=12,fig.height=3,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
+X <- esets.uf[-japan.idx]
+risk <- lapply(X, function(X) predict(model.tcga, newdata=X,
+ type="lp")@lp)
+for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
+for (i in 1:length(X)) 
+    X[[i]]$risk2 = ma[[10]]$fits[[i]]$risk@lp
+X <- X[-grep("TCGA",names(X))]
+dfrc <- .createClinical(X)
+par(mfrow=c(1,3))
+dfrc$risk_tcga <- unlist(sapply(X, function(x) x$risk))
+dfrc$risk <- unlist(sapply(X, function(x) x$risk2))  
+.reclassPlot(dfrc$y, dfrc$risk_tcga, dfrc$risk, t0=365.25, 
+title="All Training Datasets")
+.reclassPlot(dfrc$y, dfrc$risk_tcga, dfrc$risk, t0=365.25*3, 
+title="All Training Datasets")
+.reclassPlot(dfrc$y, dfrc$risk_tcga, dfrc$risk, t0=365.25*5, 
+title="All Training Datasets")
+@
+\caption{Comparison of all \textit{leave-one-dataset-out} cross-validated risk scores
+and the risk scores calculated by the TCGA model.  These plots visualize the
+Integrated Discrimination Improvement (IDI, \cite{Pencina:2008,Uno:2012}), a
+measure of discrimination of two competing nested survival models. Shown are
+plots for events within the first 1, 3 and 5 years, respectively. The y-axis
+shows the probability that the differences in predicted risk between the new
+and old models are smaller than $s$, $P(D \leq s)$. The bold curve shows this
+probability for patients who suffered from an event within the specified time,
+the thin line for those who did not. The new model is better when patients
+with events have a higher estimated risk (low probability that the risk
+difference is smaller than $s$) and those without event a lower risk (high
+probability that risk difference is smaller than $s$). The y-axis shows the
+discrimination improvement by varying $s$, with the grey dots representing the
+IDI. See also \cite{Uno:2012} for a more detailed explanation of these plots.
+Our model shows a small but consistent reclassification improvement over all
+three time points.}
+\label{fig:reclass:tcga}
+\end{figure}
+
+<<unocdiff, cache=TRUE>>=
+res.c.delta.tcga <- lapply(1:5, function(i)
+Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death),
+dfrc$vital_status=="deceased"), dfrc$risk_tcga, dfrc$risk,tau=365.25*i))
+@
+
+\begin{figure}
+<<forestplotntcga>>=
+load("22241791-TableS1.RData")
+model.yoshihara <- model.official
+# best signature size (n>=25)
+#leave-one-dataset-out cross-validation plot
+X <- esets.uf[-japan.idx]
+risk <- lapply(X, function(X) predict(model.tcga, newdata=X, type="lp")@lp)
+for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
+.lodocvPlot(X)
+for (i in 1:length(X)) 
+    X[[i]]$risk2 = ma[[10]]$fits[[i]]$risk@lp
+@
+\caption{Kaplan-Meier analysis of the TCGA signature. This is the same
+analysis as in \textbf{Figure 1} of the main paper, but uses the TCGA prediction model
+for patient stratification.
+}
+\label{fig:forest:train}
+\end{figure}
+
+
+%<<unocdifftable,results='asis'>>=
+%cdiff <- data.frame(do.call(rbind, res.c.delta.tcga))
+%cdiff <- cbind(Model=rep(c("Meta-Analysis", "TCGA", 
+%"Difference in C-statistic"),5), tau=do.call(c,lapply(1:5, function(i) c(i,"",""))), cdiff)
+% metaCMA.xtable(xtable(cdiff, digits=3, label="tbl:cdiff:tcga",
+% caption="Concordance differences between our meta-analysis model and TCGA"),include.rownames=FALSE)
+%@
+
+
+\begin{figure}
+<<clinical>>=
+ df <- .createClinical(esets.f)
+    par(mfrow=c(2,2))
+plotKMStratifyBy("Lau92",y=df$y,linearriskscore=df$age,censor.at=365.25*5, 
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="Age (>70 yes vs. no)")
+plotKM(y=df$y,strata=factor(df$debulking,levels=c("suboptimal", "optimal")),censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="Debulking (subopt. vs opt.)")
+plotKM(y=df$y, strata=factor(df$tumorstage,levels=c(4,3)),censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="Stage (4 vs. 3)")
+idx.agedeb <- !is.na(dfrc$age) & !is.na(dfrc$debulking)
+dfrc$debulking <- as.numeric(dfrc$debulking)
+@
+\caption{Kaplan-Meier curves for age, debulking status and stage for all patients in
+the training datasets combined.}
+\end{figure}
+
+\begin{figure}
+\centering
+\subfigure[]{
+<<kmplotstrainclinical,cache=TRUE,fig.width=7,fig.height=2.33,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
+esets.r <- addClinicalAll(esets.f, ma[[10]]$fits)
+idx <- sapply(esets.r, function(X) sum(!is.na(X$risk))> 20)
+.lodocvPlot(esets.r[idx],nrow=1)
+@
+}\\
+\subfigure[]{
+<<forestplottrainclinical,cache=TRUE,fig.width=3.5,fig.height=3.5,out.width="0.45\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
+.lodocvPlotForest(esets.r[idx])
+@
+}
+\caption{\textit{Leave-one-dataset-out} cross-validation of the novel
+signature combined with clinical factors debulking status and age. Panel (a)
+shows a Kaplan-Meier analysis of the
+multi-variate model with the patients stratified by median risk scores of the
+training data, panel (b) a forest plot of the prediction concordances.}
+\end{figure}
+
+\begin{figure}
+<<reclassificationclinical,cache=TRUE,fig.width=12,fig.height=3,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
+par(mfrow=c(1,3))
+.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
+"debulking" )]
+, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
+, t0=365.25*1, 
+title="All Training Datasets")
+.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
+"debulking" )]
+, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
+, t0=365.25*3, 
+title="All Training Datasets")
+.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
+"debulking" )]
+, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
+, t0=365.25*5, 
+title="All Training Datasets")
+@
+\caption{The additional value of our gene signature compared to age and
+debulking status alone. See \textbf{Supplemental
+Figure~\ref{fig:reclass:tcga}} and
+\cite{Uno:2012} for an
+explanation of these plots.  Shown are again plots for events within the first
+1, 3 and 5 years, respectively. Our gene signature improved for all three
+tested time points a model using only debulking status and age.} 
+\end{figure}
+
+<<concdeltaclinical1, cache=TRUE>>=
+res.dfrc <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.agedeb]),
+dfrc$vital_status[idx.agedeb]=="deceased"),
+cbind(dfrc$age_at_initial_pathologic_diagnosis[idx.agedeb], dfrc$debulking[idx.agedeb] ), 
+cbind(dfrc$age_at_initial_pathologic_diagnosis[idx.agedeb],
+dfrc$debulking[idx.agedeb], dfrc$risk[idx.agedeb]),tau=365.25*4)
+@
+<<concdeltaclinical2, cache=TRUE>>=
+res.dfrc2 <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.agedeb]),
+dfrc$vital_status[idx.agedeb]=="deceased"),
+dfrc$risk[idx.agedeb],
+cbind(dfrc$age_at_initial_pathologic_diagnosis[idx.agedeb],
+dfrc$debulking[idx.agedeb], dfrc$risk[idx.agedeb]),tau=365.25*4)
+@
+
+<<loadvaldata,cache=TRUE>>=
+load("/Users/markus/home/hg/ovrc4_sigvalidation/src/eset.binary.scaled.rda")
+esets.binary <- esets
+load("/Users/markus/home/hg/ovrc4_sigvalidation/src/eset.validation.scaled.rda")
+esets.validation <- esets
+load("/Users/markus/home/hg/ovrc4_sigvalidation/src/eset.debulking.scaled.rda")
+esets.debulking <- esets
+@
+
+<<finalmodel,cache=TRUE>>=
+tmp <- metaCMA.opt(esets.f,coef=coefs,n=200)
+final.model <- tmp$model
+@
+
+<<tablemodel>>=
+sig <- names(final.model@coefficients)
+esets.f.all <- esets.f
+esets.f.all$GSE32062.GPL6480_eset <- esets.validation$GSE32062.GPL6480_eset
+
+probesets <- do.call(cbind, lapply(esets.f.all, function(X)
+ as.character(featureData(X)[sig,]$maxmean_probeset)))
+
+write.csv(data.frame(Genes=sig, probesets, "Pooled Cox Coefficient"=
+ final.model@coefficients,
+ P=head(sort(tmp$pvalues),length(sig)),
+ FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig))
+), file="final_signature_1000.csv",
+row.names=FALSE)
+@
+
+\begin{figure}
+<<ngeneshm>>=
+genes <- lapply(ma[[10]]$fits, function(x) names(x$fit@coefficients))
+titles <- lapply(esets.f, function(X) experimentData(X)@lab)
+titles$TCGA_eset <- "TCGA 2011"
+names(genes) <- titles
+
+genes[["Final Model"]] <- names(final.model@coefficients)
+gmt.lodocv <- new("gsagenesets", genesets=genes, geneset.names=names(genes))
+plot(gmt.lodocv,main="Overlap of Signatures",cex=0.8)
+@
+\caption{
+In the cross-validation, 8 different models were trained (one for every
+validation data set), and this plot shows how similar the models are. This
+plot visualizes the overlap of the gene signatures. The more isolated a data
+sets is, the higher the influence on the final gene signature. So excluding
+TCGA or Bonome, for example, will change the signature
+significantly. GSE18520 and PMID17290060 were not used for training because
+both comprise less than 75 samples and are thus tested with the final model.
+}
+\label{fig:signature:overlap}
+\end{figure}
+
+\begin{figure}
+<<validationexternaltcga,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+library(ROCR)
+experimentData(esets.validation$GSE19829.GPL8300_eset)@lab <- 
+gsub(" hgu95| Cannistra","", experimentData(esets.validation$GSE19829.GPL8300_eset)@lab)
+
+ .valPlot(model.tcga)
+@
+\caption{Validation of the TCGA signature.  The first 3 panels show the
+performance in 3 datasets that were obtained after the model was frozen. We
+further tested the model in two datasets in which survival information was
+only available as binary outcome (long vs. short survivors). We show the
+prediction accuracy with ROC curves. True positives are correctly classified
+short survivors.}
+\end{figure}
+
+\begin{figure}
+<<forestplotsvalidation,fig.width=7,fig.height=3.5,out.width="0.9\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
+par(mfrow=c(1,2))
+X <- esets.validation
+dfrcval <- .createClinical(esets.validation)
+for (i in 1:length(X)) X[[i]]$risk <- predict(final.model, newdata=X[[i]], type="lp")@lp
+.lodocvPlotForest(X,main="Concordance Meta-Analysis")
+dfrcval$risk <- unlist(sapply(X, function(x) x$risk))
+
+for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="lp")@lp
+.lodocvPlotForest(X,main="Concordance TCGA")
+dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
+@
+\caption{Comparison of the concordances in our novel overall survival
+signature and TCGA in the validation data. This was data we did not include in
+our analysis until the signature was finalized.}
+\end{figure}
+
+<<deltacvalidation, cache=TRUE>>=
+res.dfrcval <- Inf.Cval.Delta(cbind(as.numeric(dfrcval$days_to_death),
+dfrcval$vital_status=="deceased"), dfrcval$risk_tcga,
+dfrcval$risk,tau=365.25*4)
+@
+
+\begin{figure}
+<<reclassval,cache=TRUE,fig.width=12,fig.height=12,out.width="0.9\\textwidth",out.height="0.9\\textwidth",results='hide'>>=
+titles <- lapply(esets.validation, function(X) experimentData(X)@lab)
+titles[[2]] <- "Gillet, 2012"
+par(mfrow=c(3,3))
+for (i in 1:length(esets.validation)) .reclassPlotModel(esets.validation[[i]],
+model.tcga, final.model, 365.25*1,title=titles[[i]])
+for (i in 1:length(esets.validation)) .reclassPlotModel(esets.validation[[i]],
+model.tcga, final.model, 365.25*3,title=titles[[i]])
+for (i in 1:length(esets.validation)) .reclassPlotModel(esets.validation[[i]],
+model.tcga, final.model, 365.25*5,title=titles[[i]])
+@
+\caption{IDIs of our signature compared to TCGA in the validation datasets.
+See \textbf{Supplemental Figure~\ref{fig:reclass:tcga}} and \cite{Uno:2012} for an explanation of these
+plots.}
+\end{figure}
+
+<<sva>>= 
+.doDiffExpStage <- function(esets) {
+    require(sva)
+    require(pamr)
+    X <- .combineEsets(esets,y="tumorstage")
+    X <- t(X$X)
+    df <- .createClinical(esets)
+    idx <- !is.na(df$tumorstage)
+    X <- X[,idx]
+    df <- df[idx,]
+    mod <- model.matrix(~tumorstage+batch,df)
+    mod.0 <- model.matrix(~batch,df)
+    pValuesBatch <- f.pvalue(X,mod,mod.0) 
+    fdrBatch <- p.adjust(pValuesBatch,method="BH")
+    list(fdr=fdrBatch,X=X,y=df$tumorstage)
+}
+
+.debulkingFilter <- function(X) { 
+    ncol(X) < 50 | sum(X$debulking=="suboptimal",na.rm=TRUE) == 0 
+}
+
+.stageFilter <- function(X) { 
+    ncol(X) < 42 | sum(X$tumorstage=="4",na.rm=TRUE) == 0  | sum(X$tumorstage=="3",na.rm=TRUE) == 0
+}
+
+.validateDiff <- function(X,sig,label) {
+    sig <- sig[sig %in% featureNames(X)]
+    rtt <- rowttests(exprs(X[sig,]), as.factor(X[[label]]))
+    pv <- p.adjust(rtt[,3],method="BH")
+    names(pv) <- sig
+    pv
+}
+@
+
+<<debulkingmetaprepare>>=
+Xs <- esets.debulking 
+Xs.all <- metaCMA.common.gene.esets(Xs)
+for (i in 1:length(Xs.all)) Xs.all[[i]]$debulking <- as.factor(Xs.all[[i]]$debulking)
+@
+
+<<debulkingmeta, cache=TRUE, results='hide'>>=
+coefs.debulking <- metaCMA.coefs(Xs.all, y="debulking", family=binomial)
+res.debulking  <- metaCMA(Xs.all,y="debulking",coefs=coefs.debulking, n=200,
+filter.fun=.debulkingFilter)
+@
+
+\begin{figure}
+<<debulkingmetaplot, cache=TRUE>>=
+preds <- lapply(res.debulking$fits,function(fit) fit$risk@lp)
+labels <- lapply(Xs.all, function(X) X$debulking)
+titles <- lapply(Xs.all, function(X) experimentData(X)@lab)
+titles$TCGA_eset <- "TCGA 2011"
+idx <- !sapply(Xs.all,.debulkingFilter)
+preds.logit <- .p2logit(Xs.all[idx], fits=res.debulking$fits[idx])
+preds.logit.stage <- .p2logitStage(Xs.all[idx], fits=res.debulking$fits[idx])
+preds.logit.stage <- .p2logitStage2(Xs.all[idx], fits=res.debulking$fits[idx])
+.plotROCpanel(preds.logit,labels[idx],titles[idx],3,3)
+@
+\caption{Prediction of suboptimally debulked tumors in a leave-one-dataset-out
+cross-validation. The prediction model calculates for each sample a score. The
+higher the score, the higher the probability the tumor will be not optimally
+debulkable. For each dataset, the model is trained using only the remaining
+datasets. The model utilizes gene expression only (\textbf{Supplemental Table 2}). ROC
+curves visualize the true and false positive rates as a function of the
+probability cutoffs.}  
+\label{fig:roc:debulking}
+\end{figure}
+
+\begin{figure}
+<<debulkingmetaplotstage>>=
+.plotROCpanel(preds.logit.stage,labels[idx],titles[idx],3,3)
+@
+\caption{Same as \textbf{Supplemental Figure~\ref{fig:roc:debulking}}, but with stage information
+(III vs. IV) included in the model.}
+\end{figure}
+
+%
+%<<pred>>=
+%priors <- sapply(labels, function(l) sum(l=="suboptimal")/length(l))
+%#priors <- rep(0.6, length(labels))
+%pred.tbl <- .doTestAll(preds.logit.stage, labels[idx],  priors[idx], titles[idx])
+%pred.tbl.nostage <- .doTestAll(preds.logit, labels[idx],  priors[idx],
+% titles[idx])
+%
+%pred.tbl.stage <- .doTestAll(preds.stage[-2], labels[idx][-2],
+%priors[idx][-2], titles[idx][-2])
+%write.csv(pred.tbl.nostage, file="debulkingaccuracy.csv")
+%@
+<<finalmodeldebulking,cache=TRUE>>=
+
+tmp <- metaCMA.opt(Xs.all, coefs=coefs.debulking,n=200,y="debulking")
+final.model.debulking <- tmp$model
+sig <- names(final.model.debulking@coefficients)
+
+probesets <- do.call(cbind, lapply(Xs.all, function(X)
+ as.character(featureData(X)[sig,]$maxmean_probeset)))
+
+write.csv(data.frame(Genes=sig, probesets, 
+"Pooled LogIt Coefficient"=
+final.model.debulking@coefficients,
+"Mean Optimal"= apply(tmp$train$X[which(tmp$train$y=="optimal"),],2,mean),
+"Mean Suboptimal"= apply(tmp$train$X[which(tmp$train$y=="suboptimal"),],2,mean),
+ P=head(sort(tmp$pvalues),length(sig)),
+ FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig))),
+ file="final_signature_debulking.csv",row.names=FALSE)
+
+# venn(list("Linear Model"=debulk.sig.final,
+# "Meta-Analysis"=debulk.sig.final.meta))
+@
+
+%final.model.GSE30009_eset@coefficients <-
+%final.model.GSE30009_eset@coefficients[names(final.model.GSE30009_eset@coefficients)
+%%in% featureNames(esets.validation$GSE30009_eset)]
+%
+%X <- esets.uf[-japan.idx]
+%risk <- lapply(X, function(X) predict(final.model.GSE30009_eset, newdata=X, type="lp")@lp)
+%for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
+%.lodocvPlot(X)
+%
+\clearpage
+\bibliographystyle{plain}
+\bibliography{metasig}
+\newpage
+\clearpage
+\appendix
+\section{Main Figures}
+This supplement was generated with the knitr R package and contains the
+complete analysis of this study. The source code is available as additional
+supplement to ease the reproducibility. The following section generates the 
+figures.
+\renewcommand{\thefigure}{\arabic{figure}}
+\setcounter{figure}{0}
+
+\begin{figure}
+<<kmplotstrain,results='hide'>>=
+best.idx <- rep(10, length(esets.f))
+X <- esets.f
+
+for (i in 1:length(X)) { 
+    X[[i]]$risk = ma[[best.idx[i]]]$fits[[i]]$risk@lp
+}
+.lodocvPlot(X)
+@
+\caption{\textit{Leave-one-dataset-out} cross-validation of a novel gene signature for
+predicting overall survival in late stage ovarian cancer.
+See caption in the main paper for details.}
+\end{figure}
+
+\begin{figure}
+<<plotdatasets,fig.width=7,fig.height=5,out.width="0.9\\textwidth",out.height="0.65\\textwidth",results='hide'>>=
+par(mfrow=c(1,2))
+.concPlotSize(esets.f, ma.sizes,dataset_ids=gsub(".Samples","",names(sizes)))
+.concPlotSize(esets.f,
+ma.sizes.rev,skip=1,dataset_ids=gsub(".Samples","",names(sizes.rev)),ylab="",panel.num="B")
+@
+\caption{Prediction accuracy as a function of training datasets.
+See caption in the main paper for details.}
+\end{figure}
+
+\begin{figure}
+<<forestplotstrain,fig.width=7,fig.height=3.5,out.width="0.9\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
+par(mfrow=c(1,2))
+.lodocvPlotForest(X,main="Concordance Meta-Analysis")
+risk <- lapply(X, function(X) predict(model.tcga, newdata=X, type="lp")@lp)
+for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
+.lodocvPlotForest(X,main="Concordance TCGA")
+@
+\caption{Comparison of the novel overall survival signature with the TCGA prediction model.
+See caption in the main paper for details.}
+\end{figure}
+
+\begin{figure}
+<<validationexternal,cache=TRUE,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+ .valPlot(final.model)
+@
+\caption{Validation of the final signature in independent data. 
+See caption in the main paper for details.}
+\end{figure}
+
+%<<stage>>=
+%load("/Users/markus/home/hg/ovrc4_sigvalidation/src/eset.stage.scaled.rda")
+%esets.stage <- esets
+%esets.stage <- esets.stage[!sapply(esets.stage,.stageFilter)]
+%esets.stage <- metaCMA.common.gene.esets(esets.stage)
+%
+%coefs.stage <- metaCMA.coefs(esets.stage, y="tumorstage", family=binomial)
+%opt.stage <- metaCMA.opt(esets.stage,coef=coefs.stage,y="tumorstage",n=1000)
+%final.model.stage <- opt.stage$model
+%sig <- names(final.model.stage@coefficients)
+%probesets <- do.call(cbind, lapply(esets.stage, function(X)
+% as.character(featureData(X)[sig,]$maxmean_probeset)))
+%res <- .doDiffExpStage(esets.stage)
+%
+%
+%write.csv(data.frame(Genes=sig, probesets, 
+%"Pooled LogIt Coefficient"=
+%final.model.stage@coefficients,
+%"Mean T3"= apply(opt.stage$train$X[which(opt.stage$train$y=="3"),],2,mean),
+%"Mean T4"= apply(opt.stage$train$X[which(opt.stage$train$y=="4"),],2,mean),
+% P=head(sort(opt.stage$pvalues),length(sig)),
+% FDR=head(sort(p.adjust(opt.stage$pvalues,method="BH")),length(sig)),
+% "FDR (alternative method)"=res$fdr[match(sig, names(res$fdr))]),
+% file="final_signature_stage.csv",row.names=FALSE)
+%
+%cor.test(res$fdr[match(sig, names(res$fdr))],
+%head(sort(p.adjust(opt.stage$pvalues,method="BH")),length(sig)))
+%
+%@
+
+\clearpage
+\section{Session Info}
+<<sessioninfo, results='asis', echo=FALSE>>=
+toLatex(sessionInfo())
+@
+
+\end{document}
