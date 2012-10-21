@@ -24,11 +24,8 @@ options(replace.assign=TRUE,width=90)
 \renewcommand{\thefigure}{S\arabic{figure}}
 \renewcommand{\thetable}{S\arabic{table}}
 
-
 \title{Risk Prediction for Late-stage Ovarian Cancer Using the Corpus of
 Published Expression Data - Supplemental Figures}
-
-
 
 \author{Markus Riester, Levi Waldron, Aedin Culhane, \\
 Curtis Huttenhower, Giovanni Parmigiani, Michael Birrer}
@@ -44,6 +41,9 @@ library(ggplot2)
 library(xtable)
 library(survIDINRI)
 library(ROCR)
+library(RColorBrewer)
+library(lattice)
+
 # only to print the version number in the Appendix. We load the data generated
 # with the createEsetsList script
 library(curatedOvarianData)
@@ -92,8 +92,8 @@ ma = lapply(c(5,10,seq(25,250,25)), function(i)
 .plotN <- function(esets, ma) {
     w <- sapply(esets,ncol)
     cidx = lapply(ma, function(x) sapply(1:length(esets), function(i)
-        evaluate(object=new("UnoC"),pred.all=x$fits[[i]]$risk@lp,
-        yc=esets[[i]]$y, learnind=100000,add=list(tau=365.25*4) )))
+        evaluate(x$fits[[i]]$risk, measure=new("UnoC"),
+        newy=esets[[i]]$y,add=list(tau=365.25*4) )))
 
     dfCV <- stack(as.data.frame(do.call(rbind,cidx)))
     dfCV <- cbind(dfCV, Genes=c(5,10,seq(25,250,25)))
@@ -193,7 +193,7 @@ titles <- lapply(Xs.all, function(X) experimentData(X)@lab)
 titles$TCGA_eset <- "TCGA 2011"
 idx <- c(1,2,5,6,8)
 preds.logit.age <- .p2logitMV(Xs.all[idx], preds=preds[idx],
- fits=res.el$fits[idx],y="os_1yr",x1="age_at_initial_pathologic_diagnosis")
+ fits=ma[[10]]$fits[idx],y="os_1yr",x1="age_at_initial_pathologic_diagnosis")
 
 .plotROCpanel(preds.logit.age,labels[idx],titles[idx],2,3)
 @

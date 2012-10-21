@@ -12,14 +12,23 @@ Enter the newly created directory:
 
      cd ovrc4_sigvalidation
 
-Run the analysis with knitr in R:
+Install dependencies in R:
 
     R    
     source("src/install_needed_packages.R")
     source("src/install_survHD.R")
+
+Fetch the data from the curatedOvarianData package:
+
+    cd input
+    ./runEsetList.sh
+    cd ..
+
+Run the analysis with knitr in R:
+
+    R    
     library(knitr)
     knit("metasig.Rnw")
-
 
 ------------------------------------------------------
 ------------------------------------------------------
