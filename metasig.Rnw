@@ -174,9 +174,10 @@ idx <- sapply(esets.r, function(X) sum(!is.na(X$risk))> 20)
 }
 \caption{\textit{Leave-one-dataset-out} cross-validation of the novel
 signature combined with clinical factors debulking status and age. Panel (a)
-shows a Kaplan-Meier analysis of the
-multi-variate model with the patients stratified by median risk scores of the
-training data, panel (b) a forest plot of the prediction concordances.}
+shows a Kaplan-Meier analysis of the multi-variate model with the patients
+stratified by median risk scores of the training data. The survival curves
+shown in red correspond to the patients with highest risk scores. Panel (b)
+shows a forest plot of the prediction concordances.}
 \end{figure}
 
 <<prepareclinicaldf, cache=TRUE>>=
@@ -235,7 +236,7 @@ tested time points a model using only debulking status and age.}
 \end{figure}
 
 \begin{figure}
-<<plotmodeltcgavalidation, cache=TRUE,results='hide'>>=
+<<plotmodeltcgavalidation, results='hide'>>=
 par(mfrow=c(2,2))
 
 plot(model.tcga,newdata=TCGA.validation.eset,newy=TCGA.validation.eset$y,censor.at=60,
@@ -280,10 +281,10 @@ for (i in 1:length(X))
 \begin{figure}
 <<forestplotstrain,fig.width=7,fig.height=3.5,out.width="0.9\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
 par(mfrow=c(1,2))
-.lodocvPlotForest(X,main="Concordance Meta-Analysis")
+.lodocvPlotForest(X,main="C-Index Meta-Analysis")
 risk <- lapply(X, function(X) predict(model.tcga, newdata=X, type="lp")@lp)
 for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
-.lodocvPlotForest(X,main="Concordance TCGA")
+.lodocvPlotForest(X,main="C-Index TCGA")
 @
 \caption{
 Comparison of the novel overall survival signature with the TCGA prediction
@@ -425,33 +426,33 @@ both comprise less than 75 samples and are thus tested with the final model.
 \label{fig:signature:overlap}
 \end{figure}
 
-\begin{figure}
-<<validationexternaltcga,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
-library(ROCR)
-experimentData(esets.validation$GSE19829.GPL8300_eset)@lab <- 
-gsub(" hgu95| Cannistra","", experimentData(esets.validation$GSE19829.GPL8300_eset)@lab)
-
- .valPlot(model.tcga)
-@
-\caption{Validation of the TCGA signature.  The first 3 panels show the
-performance in 3 datasets that were obtained after the model was frozen. We
-further tested the model in two datasets in which survival information was
-only available as binary outcome (long vs. short survivors). We show the
-prediction accuracy with ROC curves. True positives are correctly classified
-short survivors.}
-\end{figure}
-
+%\begin{figure}
+%<<validationexternaltcga,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+%library(ROCR)
+%experimentData(esets.validation$GSE19829.GPL8300_eset)@lab <- 
+%gsub(" hgu95| Cannistra","", experimentData(esets.validation$GSE19829.GPL8300_eset)@lab)
+%
+% .valPlot(model.tcga)
+%@
+%\caption{Validation of the TCGA signature.  The first 3 panels show the
+%performance in 3 datasets that were obtained after the model was frozen. We
+%further tested the model in two datasets in which survival information was
+%only available as binary outcome (long vs. short survivors). We show the
+%prediction accuracy with ROC curves. True positives are correctly classified
+%short survivors.}
+%\end{figure}
+%
 \begin{figure}
 <<forestplotsvalidation,fig.width=7,fig.height=3.5,out.width="0.9\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
 par(mfrow=c(1,2))
 X <- esets.validation
 dfrcval <- .createClinical(esets.validation)
 for (i in 1:length(X)) X[[i]]$risk <- predict(final.model, newdata=X[[i]], type="lp")@lp
-.lodocvPlotForest(X,main="Concordance Meta-Analysis")
+.lodocvPlotForest(X,main="C-Index Meta-Analysis")
 dfrcval$risk <- unlist(sapply(X, function(x) x$risk))
 
 for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="lp")@lp
-.lodocvPlotForest(X,main="Concordance TCGA")
+.lodocvPlotForest(X,main="C-Index TCGA")
 dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
 @
 \caption{Comparison of the concordances in our novel overall survival
@@ -631,35 +632,24 @@ See caption in the main paper for details.}
 \end{figure}
 
 \begin{figure}
-<<plotdatasets,fig.width=7,fig.height=5,out.width="0.9\\textwidth",out.height="0.65\\textwidth",results='hide'>>=
-par(mfrow=c(1,2))
-.concPlotSize(esets.f, ma.sizes,dataset_ids=gsub(".Samples","",names(sizes)))
-.concPlotSize(esets.f,
-ma.sizes.rev,skip=1,dataset_ids=gsub(".Samples","",names(sizes.rev)),ylab="",panel.num="B")
-@
-\caption{Prediction accuracy as a function of training datasets.
-See caption in the main paper for details.}
-\end{figure}
-
-\begin{figure}
 <<clinical>>=
     par(mfrow=c(2,2))
 plotKMStratifyBy("Lau92",y=dfrc$y,linearriskscore=dfrc$age,censor.at=365.25*5, 
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
         xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="Age (>70 yes vs. no)")
+        cex.base=1.4,main="A)   Age (>70 yes vs. no)")
 plotKM(y=dfrc$y,strata=factor(dfrc$debulking_orig,levels=c("suboptimal", "optimal")),censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
         xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="Debulking (subopt. vs opt.)")
+        cex.base=1.4,main="B)   Debulking (subopt. vs opt.)")
 plotKM(y=dfrc$y, strata=factor(dfrc$tumorstage,levels=c(4,3)),censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
         xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="Stage (4 vs. 3)")
+        cex.base=1.4,main="C)   Stage (4 vs. 3)")
 plotKMStratifyBy("median",y=dfrc$y, linearriskscore=dfrc$risk,censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
         xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="Gene Signature")
+        cex.base=1.4,main="D)   Gene Signature")
 @
 \caption{Comparison of age, debulking status, stage and gene signature risk
 score for all patients in the training datasets combined.
@@ -671,6 +661,17 @@ See caption in the main paper for details.}
  .valPlot(final.model)
 @
 \caption{Validation of the final signature in independent data. 
+See caption in the main paper for details.}
+\end{figure}
+
+\begin{figure}
+<<plotdatasets,fig.width=7,fig.height=5,out.width="0.9\\textwidth",out.height="0.65\\textwidth",results='hide'>>=
+par(mfrow=c(1,2))
+.concPlotSize(esets.f, ma.sizes,dataset_ids=gsub(".Samples","",names(sizes)))
+.concPlotSize(esets.f,
+ma.sizes.rev,skip=1,dataset_ids=gsub(".Samples","",names(sizes.rev)),ylab="",panel.num="B")
+@
+\caption{Prediction accuracy as a function of training datasets.
 See caption in the main paper for details.}
 \end{figure}
 

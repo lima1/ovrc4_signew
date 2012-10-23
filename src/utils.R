@@ -54,7 +54,7 @@
 }
 
 
-.lodocvPlotForest <- function(X, main="Concordance") {
+.lodocvPlotForest <- function(X, main="C-Index") {
     if ( "TCGA_eset" %in% names(X)) X <- X[-match("TCGA_eset", names(X))]
 
     names(X)= sapply(X, function(Y)
@@ -260,7 +260,7 @@ cutoff=quantile(preds,p=(1-prior) )) {
 
 
 .concPlotSize <- function(esets, ma,
-skip=0,dataset_ids,ylab="Concordance",panel.num="A",...) {
+skip=0,dataset_ids,ylab="C-Index (Concordance)",panel.num="A",...) {
     labels= sub(",.*20"," 20",sapply(dataset_ids, function(i)
                 gsub("Cancer GenomeAtlas Research Network", "TCGA",
                 experimentData(esets[[i]])@lab )))
@@ -276,12 +276,13 @@ skip=0,dataset_ids,ylab="Concordance",panel.num="A",...) {
     ub <- unlist(x[6,])
     
     par(mar=c(9,5.5,3,0.5))
-    plot(ids,unlist(x[1,]),type="l",las=1,ylim=c(0.56,0.65),xaxt="n",ylab="", xlab="",cex.axis=1.3,cex.lab=1.5,...)
-    axis(side=1,at=ids,labels=labels[ids],las=2,cex.axis=1.3)
-    title(ylab = ylab, cex.lab = 1.5, line=4)
+    plot(ids,unlist(x[1,]),type="l",las=1,ylim=c(0.56,0.65),xaxt="n",ylab="",
+    xlab="",cex.axis=1.2,cex.lab=1.3,...)
+    axis(side=1,at=ids,labels=labels[ids],las=2,cex.axis=1.2)
+    title(ylab = ylab, cex.lab = 1.3, line=4)
     points(ids,lb,col="grey", lty=2, type="l")
     points(ids,ub,col="grey", lty=2, type="l")
-    mtext(panel.num,side=3,cex=2, at=0)
+    mtext(panel.num,side=3,cex=1.8, at=0)
 
 }
 
