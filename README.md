@@ -17,6 +17,7 @@ Install dependencies in R:
     R    
     source("src/install_needed_packages.R")
     source("src/install_survHD.R")
+    q()
 
 Fetch the data from the curatedOvarianData package:
 
@@ -53,7 +54,7 @@ Run the analysis with knitr in R:
 ------------------------------------------------------
 # Requirements #
 
-R/Bioconductor: Tested on R 2.15.0 and Bioconductor 2.10, but the
+R/Bioconductor: Tested on R 2.15.1 and Bioconductor 2.11, but the
 pipeline should work on any relatively recent versions.
 
 All other needed packages will be installed automatically when running

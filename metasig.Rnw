@@ -125,7 +125,6 @@ ma.sizes.rev <- lapply(1:length(sizes), function(i) metaCMA(esets.f,coefs=coefs,
 n=200, filter.fun= function(eset) ncol(eset) > sizes.rev[i] ))
 @
 
-\begin{figure}
 <<loadmodeltcga, cache=TRUE,results='hide'>>=
 load("input/TCGA11-ovsig.RData")
 model.tcga <- model.official
@@ -158,6 +157,84 @@ PMID17290060_eset$y <- Surv(PMID17290060_eset$days_to_death / 30,
                             PMID17290060_eset$vital_status == "deceased")
 @
 
+
+\begin{figure}
+\centering
+\subfigure[]{
+<<kmplotstrainclinical,cache=TRUE,fig.width=7,fig.height=2.33,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
+esets.r <- addClinicalAll(esets.f, ma[[10]]$fits)
+idx <- sapply(esets.r, function(X) sum(!is.na(X$risk))> 20)
+.lodocvPlot(esets.r[idx],nrow=1)
+@
+}\\
+\subfigure[]{
+<<forestplottrainclinical,cache=TRUE,fig.width=3.5,fig.height=3.5,out.width="0.45\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
+.lodocvPlotForest(esets.r[idx])
+@
+}
+\caption{\textit{Leave-one-dataset-out} cross-validation of the novel
+signature combined with clinical factors debulking status and age. Panel (a)
+shows a Kaplan-Meier analysis of the
+multi-variate model with the patients stratified by median risk scores of the
+training data, panel (b) a forest plot of the prediction concordances.}
+\end{figure}
+
+<<prepareclinicaldf, cache=TRUE>>=
+X <- esets.uf[-japan.idx]
+risk <- lapply(X, function(X) predict(model.tcga, newdata=X,
+ type="lp")@lp)
+for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
+for (i in 1:length(X)) 
+    X[[i]]$risk2 = ma[[10]]$fits[[i]]$risk@lp
+X <- X[-grep("TCGA",names(X))]
+dfrc <- .createClinical(X)
+dfrc$risk_tcga <- unlist(sapply(X, function(x) x$risk))
+dfrc$risk <- unlist(sapply(X, function(x) x$risk2))  
+idx.agedeb <- !is.na(dfrc$age) & !is.na(dfrc$debulking)
+dfrc$debulking_orig <- dfrc$debulking
+dfrc$debulking <- as.numeric(dfrc$debulking)
+@
+
+\begin{figure}
+<<reclassificationclinical,cache=TRUE,fig.width=12,fig.height=3,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
+par(mfrow=c(1,3))
+.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
+"debulking" )]
+, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
+, t0=365.25*1, 
+title="All Training Datasets")
+.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
+"debulking" )]
+, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
+, t0=365.25*3, 
+title="All Training Datasets")
+.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
+"debulking" )]
+, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
+, t0=365.25*5, 
+title="All Training Datasets")
+@
+\caption{The additional value of our gene signature compared to age and
+debulking status alone. 
+These plots visualize the
+Integrated Discrimination Improvement (IDI, \cite{Pencina:2008,Uno:2012}), a
+measure of discrimination of two competing nested survival models. Shown are
+plots for events within the first 1, 3 and 5 years, respectively. The y-axis
+shows the probability that the differences in predicted risk between the new
+and old models are smaller than $s$, $P(D \leq s)$. The bold curve shows this
+probability for patients who suffered from an event within the specified time,
+the thin line for those who did not. The new model is better when patients
+with events have a higher estimated risk (low probability that the risk
+difference is smaller than $s$) and those without event a lower risk (high
+probability that risk difference is smaller than $s$). The y-axis shows the
+discrimination improvement by varying $s$, with the grey dots representing the
+IDI. See also \cite{Uno:2012} for a more detailed explanation of these plots.
+Our gene signature improved for all three
+tested time points a model using only debulking status and age.} 
+\label{fig:reclass}
+\end{figure}
+
+\begin{figure}
 <<plotmodeltcgavalidation, cache=TRUE,results='hide'>>=
 par(mfrow=c(2,2))
 
@@ -180,6 +257,42 @@ plot(model.tcga,newdata=PMID17290060_eset,newy=PMID17290060_eset$y,censor.at=60,
 \caption{TCGA model applied to the author test sets shown in Figure 2c of the TCGA paper
 \cite{TCGA:2011}. The identical results show that our implementation of the
 TCGA model is correct.}
+\end{figure}
+
+%\begin{figure}
+<<forestplotntcga>>=
+# best signature size (n>=25)
+#leave-one-dataset-out cross-validation plot
+X <- esets.uf[-japan.idx]
+risk <- lapply(X, function(X) predict(model.tcga, newdata=X, type="lp")@lp)
+for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
+#.lodocvPlot(X)
+for (i in 1:length(X)) 
+    X[[i]]$risk2 = ma[[10]]$fits[[i]]$risk@lp
+@
+%\caption{Kaplan-Meier analysis of the TCGA signature. This is the same
+%analysis as in \textbf{Figure 1} of the main paper, but uses the TCGA prediction model
+%for patient stratification.
+%}
+%\label{fig:forest:train}
+%\end{figure}
+%
+\begin{figure}
+<<forestplotstrain,fig.width=7,fig.height=3.5,out.width="0.9\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
+par(mfrow=c(1,2))
+.lodocvPlotForest(X,main="Concordance Meta-Analysis")
+risk <- lapply(X, function(X) predict(model.tcga, newdata=X, type="lp")@lp)
+for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
+.lodocvPlotForest(X,main="Concordance TCGA")
+@
+\caption{
+Comparison of the novel overall survival signature with the TCGA prediction
+model. This forest plot shows the concordances of the risk predictions for
+both models. For our model on the left (\textbf{Supplemental Table 1}), it uses the
+leave-one-dataset-out cross-validated risk scores as in \textbf{Figure 1}. On the
+right, we show the concordances of the risk scores estimated with the TCGA
+model.
+}
 \end{figure}
 
 \begin{figure}
@@ -207,19 +320,10 @@ datasets. The model utilizes the overall survival gene signature
 true and false positive rates as a function of the probability cutoffs.}  
 \end{figure}
 
+
 \begin{figure}
 <<reclassification,cache=TRUE,fig.width=12,fig.height=3,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
-X <- esets.uf[-japan.idx]
-risk <- lapply(X, function(X) predict(model.tcga, newdata=X,
- type="lp")@lp)
-for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
-for (i in 1:length(X)) 
-    X[[i]]$risk2 = ma[[10]]$fits[[i]]$risk@lp
-X <- X[-grep("TCGA",names(X))]
-dfrc <- .createClinical(X)
 par(mfrow=c(1,3))
-dfrc$risk_tcga <- unlist(sapply(X, function(x) x$risk))
-dfrc$risk <- unlist(sapply(X, function(x) x$risk2))  
 .reclassPlot(dfrc$y, dfrc$risk_tcga, dfrc$risk, t0=365.25, 
 title="All Training Datasets")
 .reclassPlot(dfrc$y, dfrc$risk_tcga, dfrc$risk, t0=365.25*3, 
@@ -228,47 +332,21 @@ title="All Training Datasets")
 title="All Training Datasets")
 @
 \caption{Comparison of all \textit{leave-one-dataset-out} cross-validated risk scores
-and the risk scores calculated by the TCGA model.  These plots visualize the
-Integrated Discrimination Improvement (IDI, \cite{Pencina:2008,Uno:2012}), a
-measure of discrimination of two competing nested survival models. Shown are
-plots for events within the first 1, 3 and 5 years, respectively. The y-axis
-shows the probability that the differences in predicted risk between the new
-and old models are smaller than $s$, $P(D \leq s)$. The bold curve shows this
-probability for patients who suffered from an event within the specified time,
-the thin line for those who did not. The new model is better when patients
-with events have a higher estimated risk (low probability that the risk
-difference is smaller than $s$) and those without event a lower risk (high
-probability that risk difference is smaller than $s$). The y-axis shows the
-discrimination improvement by varying $s$, with the grey dots representing the
-IDI. See also \cite{Uno:2012} for a more detailed explanation of these plots.
+and the risk scores calculated by the TCGA model.  
+See \textbf{Supplemental Figure~\ref{fig:reclass}} and \cite{Uno:2012} for an explanation of these plots.  
+Shown are again plots for events within the first
+1, 3 and 5 years, respectively. 
 Our model shows a small but consistent reclassification improvement over all
 three time points.}
 \label{fig:reclass:tcga}
 \end{figure}
+
 
 <<unocdiff, cache=TRUE>>=
 res.c.delta.tcga <- lapply(1:5, function(i)
 Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death),
 dfrc$vital_status=="deceased"), dfrc$risk_tcga, dfrc$risk,tau=365.25*i))
 @
-
-\begin{figure}
-<<forestplotntcga>>=
-# best signature size (n>=25)
-#leave-one-dataset-out cross-validation plot
-X <- esets.uf[-japan.idx]
-risk <- lapply(X, function(X) predict(model.tcga, newdata=X, type="lp")@lp)
-for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
-.lodocvPlot(X)
-for (i in 1:length(X)) 
-    X[[i]]$risk2 = ma[[10]]$fits[[i]]$risk@lp
-@
-\caption{Kaplan-Meier analysis of the TCGA signature. This is the same
-analysis as in \textbf{Figure 1} of the main paper, but uses the TCGA prediction model
-for patient stratification.
-}
-\label{fig:forest:train}
-\end{figure}
 
 
 %<<unocdifftable,results='asis'>>=
@@ -278,79 +356,6 @@ for patient stratification.
 % metaCMA.xtable(xtable(cdiff, digits=3, label="tbl:cdiff:tcga",
 % caption="Concordance differences between our meta-analysis model and TCGA"),include.rownames=FALSE)
 %@
-
-
-\begin{figure}
-<<clinical>>=
- df <- .createClinical(esets.f)
-    par(mfrow=c(2,2))
-plotKMStratifyBy("Lau92",y=df$y,linearriskscore=df$age,censor.at=365.25*5, 
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="Age (>70 yes vs. no)")
-plotKM(y=df$y,strata=factor(df$debulking,levels=c("suboptimal", "optimal")),censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="Debulking (subopt. vs opt.)")
-plotKM(y=df$y, strata=factor(df$tumorstage,levels=c(4,3)),censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="Stage (4 vs. 3)")
-idx.agedeb <- !is.na(dfrc$age) & !is.na(dfrc$debulking)
-dfrc$debulking <- as.numeric(dfrc$debulking)
-@
-\caption{Kaplan-Meier curves for age, debulking status and stage for all patients in
-the training datasets combined.}
-\end{figure}
-
-\begin{figure}
-\centering
-\subfigure[]{
-<<kmplotstrainclinical,cache=TRUE,fig.width=7,fig.height=2.33,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
-esets.r <- addClinicalAll(esets.f, ma[[10]]$fits)
-idx <- sapply(esets.r, function(X) sum(!is.na(X$risk))> 20)
-.lodocvPlot(esets.r[idx],nrow=1)
-@
-}\\
-\subfigure[]{
-<<forestplottrainclinical,cache=TRUE,fig.width=3.5,fig.height=3.5,out.width="0.45\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
-.lodocvPlotForest(esets.r[idx])
-@
-}
-\caption{\textit{Leave-one-dataset-out} cross-validation of the novel
-signature combined with clinical factors debulking status and age. Panel (a)
-shows a Kaplan-Meier analysis of the
-multi-variate model with the patients stratified by median risk scores of the
-training data, panel (b) a forest plot of the prediction concordances.}
-\end{figure}
-
-\begin{figure}
-<<reclassificationclinical,cache=TRUE,fig.width=12,fig.height=3,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
-par(mfrow=c(1,3))
-.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
-"debulking" )]
-, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
-, t0=365.25*1, 
-title="All Training Datasets")
-.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
-"debulking" )]
-, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
-, t0=365.25*3, 
-title="All Training Datasets")
-.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
-"debulking" )]
-, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
-, t0=365.25*5, 
-title="All Training Datasets")
-@
-\caption{The additional value of our gene signature compared to age and
-debulking status alone. See \textbf{Supplemental
-Figure~\ref{fig:reclass:tcga}} and
-\cite{Uno:2012} for an
-explanation of these plots.  Shown are again plots for events within the first
-1, 3 and 5 years, respectively. Our gene signature improved for all three
-tested time points a model using only debulking status and age.} 
-\end{figure}
 
 <<concdeltaclinical1, cache=TRUE>>=
 res.dfrc <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.agedeb]),
@@ -393,7 +398,7 @@ write.csv(data.frame(Genes=sig, probesets, "Pooled Cox Coefficient"=
  final.model@coefficients,
  P=head(sort(tmp$pvalues),length(sig)),
  FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig))
-), file="final_signature_1000.csv",
+), file="final_signature.csv",
 row.names=FALSE)
 @
 
@@ -473,7 +478,7 @@ for (i in 1:length(esets.validation)) .reclassPlotModel(esets.validation[[i]],
 model.tcga, final.model, 365.25*5,title=titles[[i]])
 @
 \caption{IDIs of our signature compared to TCGA in the validation datasets.
-See \textbf{Supplemental Figure~\ref{fig:reclass:tcga}} and \cite{Uno:2012} for an explanation of these
+See \textbf{Supplemental Figure~\ref{fig:reclass}} and \cite{Uno:2012} for an explanation of these
 plots.}
 \end{figure}
 
@@ -637,14 +642,27 @@ See caption in the main paper for details.}
 \end{figure}
 
 \begin{figure}
-<<forestplotstrain,fig.width=7,fig.height=3.5,out.width="0.9\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
-par(mfrow=c(1,2))
-.lodocvPlotForest(X,main="Concordance Meta-Analysis")
-risk <- lapply(X, function(X) predict(model.tcga, newdata=X, type="lp")@lp)
-for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
-.lodocvPlotForest(X,main="Concordance TCGA")
+<<clinical>>=
+    par(mfrow=c(2,2))
+plotKMStratifyBy("Lau92",y=dfrc$y,linearriskscore=dfrc$age,censor.at=365.25*5, 
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="Age (>70 yes vs. no)")
+plotKM(y=dfrc$y,strata=factor(dfrc$debulking_orig,levels=c("suboptimal", "optimal")),censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="Debulking (subopt. vs opt.)")
+plotKM(y=dfrc$y, strata=factor(dfrc$tumorstage,levels=c(4,3)),censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="Stage (4 vs. 3)")
+plotKMStratifyBy("median",y=dfrc$y, linearriskscore=dfrc$risk,censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="Gene Signature")
 @
-\caption{Comparison of the novel overall survival signature with the TCGA prediction model.
+\caption{Comparison of age, debulking status, stage and gene signature risk
+score for all patients in the training datasets combined.
 See caption in the main paper for details.}
 \end{figure}
 
