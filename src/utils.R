@@ -19,8 +19,8 @@
 }
 
 .valPlot <- function(model, coefficients=names(model@coefficients)) {
-    # use the median of the training risk scores for the Japanese data,
-    # for the other the median of the training because their platforms have
+    # use the median of the training risk scores for the Japanese and TCGA data,
+    # for the other the median of the test data because their platforms have
     # not all genes of the signature
     risk.fmtrain <- lapply(esets.f, function(X) predict(final.model,
     newdata=X)@lp)
