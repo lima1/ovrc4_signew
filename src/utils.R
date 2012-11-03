@@ -19,6 +19,13 @@
 }
 
 .valPlot <- function(model, coefficients=names(model@coefficients)) {
+    # use the median of the training risk scores for the Japanese data,
+    # for the other the median of the training because their platforms have
+    # not all genes of the signature
+    risk.fmtrain <- lapply(esets.f, function(X) predict(final.model,
+    newdata=X)@lp)
+    cutoff <- median(unlist(risk.fmtrain))
+
     par(mfrow=c(2,3))
     plot(model, newdata=esets.validation$GSE30009_eset,
         newy=esets.validation$GSE30009_eset$y,
@@ -28,16 +35,25 @@
     featureNames(esets.validation$GSE30009_eset))  ,"genes)"))
     plot(model,
     newdata=esets.validation$GSE19829.GPL8300_eset,newy=esets.validation$GSE19829.GPL8300_eset$y
-    ,
+    , 
         show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,#xlab="",ylab="",
         cex.base=1.4,
-    censor.at=365.25*5,main=experimentData(esets.validation$GSE19829.GPL8300_eset)@lab)
+    censor.at=365.25*5,main="Konstantinopoulos 2010")
     plot(model,
     newdata=esets.validation$GSE32062.GPL6480_eset,newy=esets.validation$GSE32062.GPL6480_eset$y
-    ,
+    , 
         show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,#xlab="",ylab="",
-        cex.base=1.4,
+        cex.base=1.4, cutpoints=cutoff,
     censor.at=365.25*5,main=experimentData(esets.validation$GSE32062.GPL6480_eset)@lab)
+
+    ids <- esets.allos$TCGA_eset$summarystage=="early" &
+     esets.allos$TCGA_eset$summarygrade!="low"
+
+    plot(model, newdata=esets.allos$TCGA_eset[,ids],newy=esets.allos$TCGA_eset$y[ids],
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,#xlab="",ylab="",
+        cex.base=1.4, censor.at=365.25*5, cutpoints=cutoff,
+            main="Early Stage TCGA")
+        
     
     for (i in 1:length(esets.binary)) {
         pred <- predict(model, newdata=esets.binary[[i]], type="lp")@lp
@@ -270,7 +286,7 @@ skip=0,dataset_ids,ylab="C-Index (Concordance)",panel.num="A",...) {
     ids <- (1+skip):length(esets)
     x <- sapply(ids, function(i)
         metaCMA.concordance(esets.f[-tcga_id],risks=lapply(ma[[i]]$fits[-tcga_id],
-    function(x) x$risk@lp)))
+    function(x) x$risk@lp))[[1]])
     
     lb <- unlist(x[5,])
     ub <- unlist(x[6,])

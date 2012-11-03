@@ -1,5 +1,7 @@
 library(metafor)
 library(survHD)
+library(survcomp)
+library(rmeta)
 
 .combineEsets <- function(esets, y="y",
     probesets=featureNames(esets[[1]]),ComBat=TRUE) {
@@ -165,6 +167,14 @@ metaCMA.concordance <- function(esets, y="y", risks, rma.method="FE") {
         coefs <- sapply(1:length(esets), function(i)
         summary(coxph(esets[[i]][[y]]~risks[[i]]))$concordance)
         res.rma <- metafor::rma(yi = coefs[1,], sei = coefs[2,], method=rma.method)
+        list(res.rma, coefs)
+}
+
+metaCMA.hr <- function(esets, y="y", risks, rma.method="FE") {
+        coefs <- sapply(1:length(esets), function(i)
+        summary(coxph(esets[[i]][[y]]~risks[[i]]))$coefficients[c(1,3)])
+        res.rma <- metafor::rma(yi = coefs[1,], sei = coefs[2,], method=rma.method)
+        list(res.rma, coefs)
 }
 
 metaCMA.forest <- function(esets, metacma, y="y", mlab="Overall", ...) {
@@ -173,6 +183,34 @@ metaCMA.forest <- function(esets, metacma, y="y", mlab="Overall", ...) {
         metacma$fits[[i]]$risk@lp; esets[[i]]} )   
     names(esets) = tmp    
     .forestplot(esets, y, label="risk", rma.method=metacma$rma.method, mlab=mlab, ...)
+}
+
+metaCMA.forest.models <- function(esets, y="y", risks1, risks2,
+mlab="Overall",concordance=TRUE,...) {
+    tmp <- names(esets)
+    labeltext <- cbind(c("Dataset", sapply(tmp, function(x)
+    c(x,NA,NA)),"Overall",NA),
+                       c("Signature", rep(c("Meta-Analysis","TCGA",NA),
+                       length(tmp)), c("Meta-Analysis", "TCGA") ))
+    if (concordance) {
+        rma1 <- metaCMA.concordance(esets,y, risks1)
+        rma2 <- metaCMA.concordance(esets,y, risks2)
+    } else {
+        rma1 <- metaCMA.hr(esets,y, risks1)
+        rma2 <- metaCMA.hr(esets,y, risks2)
+    }
+    r <- do.call(rbind, lapply(1:ncol(rma1[[2]]),function(i)
+    rbind(rma1[[2]][,i],rma2[[2]][,i], c(NA,NA))))
+    r.mean <- c(NA,r[,1], rma1[[1]]$b,  rma2[[1]]$b)
+    r.lower <- c(NA,r[,1]-(r[,2]*1.96), rma1[[1]]$ci.lb,  rma2[[1]]$ci.lb)
+    r.upper <- c(NA,r[,1]+(r[,2]*1.96), rma1[[1]]$ci.ub,  rma2[[1]]$ci.ub)
+    col=meta.colors(line=c(rep(c(NA, "darkblue", "seagreen"),length(tmp)+1)), zero="firebrick", box=c(rep(c(NA," royalblue", "forestgreen"),length(tmp)+1)))
+
+    forestplot.surv(labeltext=labeltext, mean=r.mean, lower=r.lower,
+    upper=r.upper,zero=ifelse(concordance,0.5,0), col=col,
+    xlog=concordance==FALSE,
+    align=c("l"),  xlab=ifelse(concordance, "Concordance Index", "Hazard Ratio"),
+    is.summary=(c(rep(FALSE,length(tmp)*3+1), TRUE, TRUE)),...)
 }
 
 metaCMA.forest.probeset <- function(esets, y="y",

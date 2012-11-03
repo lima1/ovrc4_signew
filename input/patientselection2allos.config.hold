@@ -9,26 +9,20 @@ rescale <- TRUE
 keep.common.only <- FALSE
 
 #only keep studies with at least this many samples
-min.sample.size <- 35
+min.sample.size <- 5
 
 #only keep studies with at least this many events (deaths)
-min.number.of.events <- 10
+min.number.of.events <- 5
 
 #quantile of variance ranks above which to keep high-variance genes (ie 0.8 filters 80% of genes).
 #0 means no filtering of genes
 quantile.cutoff <- 0
 
-#only consider these datasets
-considered.datasets <- c("GSE30009_eset", "GSE19829.GPL8300_eset", "GSE32063_eset", "GSE32062.GPL6480_eset", "GSE30161_eset")
-
 #patient metadata which must not be missing
-meta.required <- c("days_to_death", "vital_status")
+meta.required <- c("summarystage","days_to_death","vital_status")
 
 #Regexes for filtering of patients
 rule.1 <- c("sample_type","^tumor$")
-rule.2 <- c("subtype","^ser$")
-rule.3 <- c("summarystage","^late$")
-rule.4 <- c("summarygrade","^high$")
 
 # add Surv objects as phenoData label "y" to the esets
 add.surv.y <- function(X) Surv(X$days_to_death, X$vital_status=="deceased")
@@ -37,4 +31,3 @@ add.surv.y <- function(X) Surv(X$days_to_death, X$vital_status=="deceased")
 #metadata will be remove.  If FALSE, these patients are kept.
 strict.checking <- FALSE
 
-impute.missing <- TRUE
