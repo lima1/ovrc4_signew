@@ -246,7 +246,8 @@
     panel.num = "A", ...) {
     labels <- sub(",.*20", " 20", sapply(dataset_ids, function(i) gsub("Cancer GenomeAtlas Research Network", 
         "TCGA", experimentData(esets[[i]])@lab)))
-    labels <- paste(labels, " (N = ", sapply(esets,ncol), ,")",sep="")    
+    labels <- paste(labels, " (N = ", sapply(dataset_ids,function(i)
+    ncol(esets[[i]])), ")",sep="")    
     # exclude TCGA, because we compare concordance to TCGA model throughout the
     # paper
     tcga_id <- match("TCGA_eset", names(esets))
@@ -257,7 +258,7 @@
     lb <- unlist(x[5, ])
     ub <- unlist(x[6, ])
     
-    par(mar = c(10, 5.5, 3, 0.5))
+    par(mar = c(12.5, 5.5, 2, 0.5))
     plot(ids, unlist(x[1, ]), type = "l", las = 1, ylim = c(0.56, 0.65), xaxt = "n", 
         ylab = "", xlab = "", cex.axis = 1.2, cex.lab = 1.3, ...)
     axis(side = 1, at = ids, labels = labels[ids], las = 2, cex.axis = 1.2)

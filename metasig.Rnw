@@ -208,29 +208,6 @@ PMID17290060_eset$y <- Surv(PMID17290060_eset$days_to_death / 30,
 @
 
 
-\begin{figure}
-\centering
-\subfigure[]{
-<<kmplotstrainclinical,cache=TRUE,fig.width=7,fig.height=4.66,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
-esets.r <- addClinicalAll(esets.f, ma[[10]]$fits)
-idx <- sapply(esets.r, function(X) sum(!is.na(X$risk))> 20)
-.lodocvPlot(esets.r[idx],nrow=2)
-@
-}\\
-\subfigure[]{
-<<forestplottrainclinical,cache=TRUE,fig.width=3.5,fig.height=3.5,out.width="0.45\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
-.lodocvPlotForest(esets.r[idx])
-@
-}
-\caption{\textit{Leave-one-dataset-out} cross-validation of the novel
-signature combined with clinical factors debulking status and stage. Panel (a)
-shows a Kaplan-Meier analysis of the multi-variate model with the patients
-stratified by median risk scores of the training data. The survival curves
-shown in red correspond to the patients with highest risk scores, in blue to
-the ones with lowest risk. Panel (b)
-presents a forest plot of the prediction concordances.}
-\end{figure}
-
 <<prepareclinicaldf, cache=TRUE>>=
 X <- esets.uf[-japan.idx]
 risk <- lapply(X, function(X) predict(model.tcga, newdata=X,
