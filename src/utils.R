@@ -43,7 +43,7 @@
         pred.logit <- .p2logitSingle(Xtmp, pred, model, y = "os_my_binary")
         
         if (plot) 
-            .plotROC(pred.logit, esets.binary[[i]]$os_binary, main = experimentData(esets.binary[[i]])@lab)
+            res.roc <- .plotROC(pred.logit, esets.binary[[i]]$os_binary, main = experimentData(esets.binary[[i]])@lab)
     }
     res
 }
@@ -62,6 +62,8 @@
 
 
 .plotROC <- function(pred, labels, plot = TRUE, na.rm = TRUE, ...) {
+    require(ROCR)
+    require(pROC)
     if (na.rm) {
         idx <- !is.na(labels)
         pred <- pred[idx]
@@ -70,6 +72,8 @@
     pred.rocr <- prediction(pred, labels)
     perf.rocr <- performance(pred.rocr, "tpr", "fpr")
     auc <- performance(pred.rocr, "auc")@y.values[[1]][[1]]
+    auc.ci <- ci(roc(labels,pred))
+    
     if (plot) {
         plot(perf.rocr, colorize = TRUE, cex.lab = 1.3, ...)
         text(0, 0.9, paste("AUC =", round(auc, digits = 2)), cex = 1.5, pos = 4)
@@ -77,7 +81,7 @@
         text(1, 0.1, paste("n =", length(labels)), cex = 1.5, pos = 2)
         abline(a = 0, b = 1, lty = 2)
     }
-    invisible(auc)
+    invisible(auc.ci)
 }
 
 .plotROCpanel <- function(preds, labels, titles, nrow, ncol) {
@@ -242,6 +246,7 @@
     panel.num = "A", ...) {
     labels <- sub(",.*20", " 20", sapply(dataset_ids, function(i) gsub("Cancer GenomeAtlas Research Network", 
         "TCGA", experimentData(esets[[i]])@lab)))
+    labels <- paste(labels, " (N = ", sapply(esets,ncol), ,")",sep="")    
     # exclude TCGA, because we compare concordance to TCGA model throughout the
     # paper
     tcga_id <- match("TCGA_eset", names(esets))
@@ -252,7 +257,7 @@
     lb <- unlist(x[5, ])
     ub <- unlist(x[6, ])
     
-    par(mar = c(9, 5.5, 3, 0.5))
+    par(mar = c(10, 5.5, 3, 0.5))
     plot(ids, unlist(x[1, ]), type = "l", las = 1, ylim = c(0.56, 0.65), xaxt = "n", 
         ylab = "", xlab = "", cex.axis = 1.2, cex.lab = 1.3, ...)
     axis(side = 1, at = ids, labels = labels[ids], las = 2, cex.axis = 1.2)
@@ -289,7 +294,7 @@ addClinical <- function(idx, esets, fits) {
     df <- .createClinical(esets[-idx])
     df$risk <- unlist(sapply((1:length(esets))[-idx], .getRiskScore, idx, esets, 
         fits))
-    fit <- coxph(y ~ as.factor(age_at_initial_pathologic_diagnosis > 70) + debulking + 
+    fit <- coxph(y ~ tumorstage + debulking + 
         risk, data = df)
     dfnew <- .createClinical(esets[idx])
     dfnew$risk <- fits[[idx]]$risk@lp

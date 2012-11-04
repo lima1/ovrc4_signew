@@ -211,10 +211,10 @@ PMID17290060_eset$y <- Surv(PMID17290060_eset$days_to_death / 30,
 \begin{figure}
 \centering
 \subfigure[]{
-<<kmplotstrainclinical,cache=TRUE,fig.width=7,fig.height=2.33,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
+<<kmplotstrainclinical,cache=TRUE,fig.width=7,fig.height=4.66,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
 esets.r <- addClinicalAll(esets.f, ma[[10]]$fits)
 idx <- sapply(esets.r, function(X) sum(!is.na(X$risk))> 20)
-.lodocvPlot(esets.r[idx],nrow=1)
+.lodocvPlot(esets.r[idx],nrow=2)
 @
 }\\
 \subfigure[]{
@@ -223,7 +223,7 @@ idx <- sapply(esets.r, function(X) sum(!is.na(X$risk))> 20)
 @
 }
 \caption{\textit{Leave-one-dataset-out} cross-validation of the novel
-signature combined with clinical factors debulking status and age. Panel (a)
+signature combined with clinical factors debulking status and stage. Panel (a)
 shows a Kaplan-Meier analysis of the multi-variate model with the patients
 stratified by median risk scores of the training data. The survival curves
 shown in red correspond to the patients with highest risk scores, in blue to
@@ -242,7 +242,8 @@ X <- X[-grep("TCGA",names(X))]
 dfrc <- .createClinical(X)
 dfrc$risk_tcga <- unlist(sapply(X, function(x) x$risk))
 dfrc$risk <- unlist(sapply(X, function(x) x$risk2))  
-idx.agedeb <- !is.na(dfrc$age) & !is.na(dfrc$debulking)
+idx.stagedeb <- !is.na(dfrc$age) & !is.na(dfrc$debulking)
+idx.stagedeb <- !is.na(dfrc$tumorstage) & !is.na(dfrc$debulking)
 dfrc$debulking_orig <- dfrc$debulking
 dfrc$debulking <- as.numeric(dfrc$debulking)
 @
@@ -250,19 +251,19 @@ dfrc$debulking <- as.numeric(dfrc$debulking)
 \begin{figure}
 <<reclassificationclinical,cache=TRUE,fig.width=12,fig.height=3,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
 par(mfrow=c(1,3))
-.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
+.reclassPlot(dfrc[idx.stagedeb,"y"],dfrc[idx.stagedeb,c("tumorstage",
 "debulking" )]
-, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
+, dfrc[idx.stagedeb,c("tumorstage", "debulking","risk")]
 , t0=365.25*1, 
 title="All Training Datasets")
-.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
+.reclassPlot(dfrc[idx.stagedeb,"y"],dfrc[idx.stagedeb,c("tumorstage",
 "debulking" )]
-, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
+, dfrc[idx.stagedeb,c("tumorstage", "debulking","risk")]
 , t0=365.25*3, 
 title="All Training Datasets")
-.reclassPlot(dfrc[idx.agedeb,"y"],dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis",
+.reclassPlot(dfrc[idx.stagedeb,"y"],dfrc[idx.stagedeb,c("tumorstage",
 "debulking" )]
-, dfrc[idx.agedeb,c("age_at_initial_pathologic_diagnosis", "debulking","risk")]
+, dfrc[idx.stagedeb,c("tumorstage", "debulking","risk")]
 , t0=365.25*5, 
 title="All Training Datasets")
 @
@@ -323,7 +324,7 @@ titles <- lapply(Xs.all, function(X) experimentData(X)@lab)
 titles$TCGA_eset <- "TCGA 2011"
 idx <- c(1,2,5,6,8)
 preds.logit.age <- .p2logitMV(Xs.all[idx], preds=preds[idx],
- fits=ma[[10]]$fits[idx],y="os_1yr",x1="age_at_initial_pathologic_diagnosis")
+ fits=ma[[10]]$fits[idx],y="os_1yr",x1="tumorstage")
 
 .plotROCpanel(preds.logit.age,labels[idx],titles[idx],2,3)
 @
@@ -359,12 +360,6 @@ three time points.}
 \end{figure}
 
 
-<<unocdiff, cache=TRUE>>=
-res.c.delta.tcga <- lapply(1:5, function(i)
-Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death),
-dfrc$vital_status=="deceased"), dfrc$risk_tcga, dfrc$risk,tau=365.25*i))
-@
-
 
 %<<unocdifftable,results='asis'>>=
 %cdiff <- data.frame(do.call(rbind, res.c.delta.tcga))
@@ -375,18 +370,18 @@ dfrc$vital_status=="deceased"), dfrc$risk_tcga, dfrc$risk,tau=365.25*i))
 %@
 
 <<concdeltaclinical1, cache=TRUE>>=
-res.dfrc <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.agedeb]),
-dfrc$vital_status[idx.agedeb]=="deceased"),
-cbind(dfrc$age_at_initial_pathologic_diagnosis[idx.agedeb], dfrc$debulking[idx.agedeb] ), 
-cbind(dfrc$age_at_initial_pathologic_diagnosis[idx.agedeb],
-dfrc$debulking[idx.agedeb], dfrc$risk[idx.agedeb]),tau=365.25*4)
+res.dfrc <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.stagedeb]),
+dfrc$vital_status[idx.stagedeb]=="deceased"),
+cbind(dfrc$tumorstage[idx.stagedeb], dfrc$debulking[idx.stagedeb] ), 
+cbind(dfrc$tumorstage[idx.stagedeb],
+dfrc$debulking[idx.stagedeb], dfrc$risk[idx.stagedeb]),tau=365.25*4)
 @
 <<concdeltaclinical2, cache=TRUE>>=
-res.dfrc2 <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.agedeb]),
-dfrc$vital_status[idx.agedeb]=="deceased"),
-dfrc$risk[idx.agedeb],
-cbind(dfrc$age_at_initial_pathologic_diagnosis[idx.agedeb],
-dfrc$debulking[idx.agedeb], dfrc$risk[idx.agedeb]),tau=365.25*4)
+res.dfrc2 <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.stagedeb]),
+dfrc$vital_status[idx.stagedeb]=="deceased"),
+dfrc$risk[idx.stagedeb],
+cbind(dfrc$tumorstage[idx.stagedeb],
+dfrc$debulking[idx.stagedeb], dfrc$risk[idx.stagedeb]),tau=365.25*4)
 @
 
 <<loadvaldata,cache=TRUE>>=
@@ -414,46 +409,7 @@ for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="
 dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
 @
 
-<<deltacvalidation, cache=TRUE>>=
-res.dfrcval <- Inf.Cval.Delta(cbind(as.numeric(dfrcval$days_to_death),
-dfrcval$vital_status=="deceased"), dfrcval$risk_tcga,
-dfrcval$risk,tau=365.25*4)
-@
-
-\begin{figure}
-<<reclassval,cache=TRUE,fig.width=12,fig.height=12,out.width="0.9\\textwidth",out.height="0.9\\textwidth",results='hide'>>=
-titles <- lapply(esets.validation, function(X) experimentData(X)@lab)
-titles[[2]] <- "Gillet, 2012"
-par(mfrow=c(3,3))
-for (i in 1:length(esets.validation)) .reclassPlotModel(esets.validation[[i]],
-model.tcga, final.model, 365.25*1,title=titles[[i]])
-for (i in 1:length(esets.validation)) .reclassPlotModel(esets.validation[[i]],
-model.tcga, final.model, 365.25*3,title=titles[[i]])
-for (i in 1:length(esets.validation)) .reclassPlotModel(esets.validation[[i]],
-model.tcga, final.model, 365.25*5,title=titles[[i]])
-@
-\caption{IDIs of our signature compared to TCGA in the validation datasets.
-See \textbf{Supplemental Figure~\ref{fig:reclass}} and \cite{Uno:2012} for an explanation of these
-plots.}
-\end{figure}
-
 <<sva>>= 
-.doDiffExpStage <- function(esets) {
-    require(sva)
-    require(pamr)
-    X <- .combineEsets(esets,y="tumorstage")
-    X <- t(X$X)
-    df <- .createClinical(esets)
-    idx <- !is.na(df$tumorstage)
-    X <- X[,idx]
-    df <- df[idx,]
-    mod <- model.matrix(~tumorstage+batch,df)
-    mod.0 <- model.matrix(~batch,df)
-    pValuesBatch <- f.pvalue(X,mod,mod.0) 
-    fdrBatch <- p.adjust(pValuesBatch,method="BH")
-    list(fdr=fdrBatch,X=X,y=df$tumorstage)
-}
-
 .debulkingFilter <- function(X) { 
     ncol(X) < 50 | sum(X$debulking=="suboptimal",na.rm=TRUE) == 0 
 }
@@ -600,7 +556,6 @@ See caption in the main paper for details.}
 
 \begin{figure}
 \subfigure[]{
-<<clinical>>=
 <<comptcga,fig.width=7,fig.height=7,out.width="0.6\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
 dfrcval$debulking_orig <- dfrcval$debulking
 dfrcboth <- rbind(dfrc, dfrcval)
@@ -658,10 +613,14 @@ mtext("E)   Concordance",at=0,cex=1.4,font=2)
 
 @
 }
-\caption{Comparison of age, debulking status, stage and gene signature risk
-score for all patients in the training datasets combined.
+\caption{Comparison of our novel meta-analysis gene signature with existing
+prognostic factors.
 See caption in the main paper for details.}
 \end{figure}
+
+<<unocdiff, cache=TRUE>>=
+res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfrcboth$vital_status=="deceased"), dfrcboth$risk_tcga, dfrcboth$risk,tau=365.25*4)
+@
 
 \begin{figure}
 <<plotdatasets,fig.width=7,fig.height=5,out.width="0.9\\textwidth",out.height="0.65\\textwidth",results='hide'>>=
