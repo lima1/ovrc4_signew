@@ -1,4 +1,4 @@
-.lodocvPlot <- function(X,nrow=3,ncol=3,censor.at=365.25*5) {
+.lodocvPlot <- function(X,nrow=3,ncol=3,censor.at=365.25*5,...) {
     X <- X[-match("TCGA_eset", names(X))]
 
     names(X)= sapply(X, function(Y)
@@ -6,19 +6,21 @@
                 experimentData(Y)@lab ))
         par(mfrow=c(nrow,ncol))
         par(mar=c(4.3, 4.5, 3, 1))
-    for (i in 1:length(X)) { 
+    res <- lapply(1:length(X), function(i)
         plotKMStratifyBy(cutpoints=median(unlist(sapply(X[-i], function(x)
         x$risk)),na.rm=TRUE), linearriskscore=X[[i]]$risk,
             y=X[[i]]$y, censor.at=censor.at,
             cex.base=1.4,show.n.risk=FALSE, show.HR=FALSE,
             show.legend=FALSE,
             #xlab="",ylab="",
-            main=names(X)[i]
+            main=names(X)[i],...
             )
-    }
+    )
+    for (i in 1:length(res)) res[[i]]$y <- X[[i]]$y    
+    res
 }
 
-.valPlot <- function(model, coefficients=names(model@coefficients)) {
+.valPlot <- function(model, coefficients=names(model@coefficients),plot=TRUE) {
     # use the median of the training risk scores for the Japanese and TCGA data,
     # for the other the median of the test data because their platforms have
     # not all genes of the signature
@@ -26,34 +28,21 @@
     newdata=X)@lp)
     cutoff <- median(unlist(risk.fmtrain))
 
+    titles <- c(paste("Gillet, 2012 (RT-PCR",
+    sum(coefficients %in%
+        featureNames(esets.validation$GSE30009_eset))  ,"genes)"),
+        "Konstantinopoulos 2010",
+        experimentData(esets.validation$GSE32062.GPL6480_eset)@lab, "Early Stage TCGA")
+    cutpoints <- list(NULL, NULL, cutoff, cutoff)    
+
     par(mfrow=c(2,3))
-    plot(model, newdata=esets.validation$GSE30009_eset,
-        newy=esets.validation$GSE30009_eset$y,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,#xlab="",ylab="",
-        cex.base=1.4,
-    ,censor.at=365.25*5,main=paste("Gillet, 2012 (RT-PCR", sum(coefficients %in%
-    featureNames(esets.validation$GSE30009_eset))  ,"genes)"))
+    res <- lapply(1:length(esets.validation), function(i) 
     plot(model,
-    newdata=esets.validation$GSE19829.GPL8300_eset,newy=esets.validation$GSE19829.GPL8300_eset$y
-    , 
+    newdata=esets.validation[[i]],newy=esets.validation[[i]]$y,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,#xlab="",ylab="",
-        cex.base=1.4,
-    censor.at=365.25*5,main="Konstantinopoulos 2010")
-    plot(model,
-    newdata=esets.validation$GSE32062.GPL6480_eset,newy=esets.validation$GSE32062.GPL6480_eset$y
-    , 
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,#xlab="",ylab="",
-        cex.base=1.4, cutpoints=cutoff,
-    censor.at=365.25*5,main=experimentData(esets.validation$GSE32062.GPL6480_eset)@lab)
+        cex.base=1.4,main=titles[i],cutpoints=cutpoints[[i]],plot=plot,censor.at=365.25*5))
+    for (i in 1:length(esets.validation)) res[[i]]$y <- esets.validation[[i]]$y    
 
-    ids <- esets.allos$TCGA_eset$summarystage=="early" &
-     esets.allos$TCGA_eset$summarygrade!="low"
-
-    plot(model, newdata=esets.allos$TCGA_eset[,ids],newy=esets.allos$TCGA_eset$y[ids],
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=FALSE,#xlab="",ylab="",
-        cex.base=1.4, censor.at=365.25*5, cutpoints=cutoff,
-            main="Early Stage TCGA")
-        
     
     for (i in 1:length(esets.binary)) {
         pred <- predict(model, newdata=esets.binary[[i]], type="lp")@lp
@@ -64,9 +53,10 @@
         }
         pred.logit <- .p2logitSingle(Xtmp, pred, model,y="os_my_binary")
 
-        .plotROC(pred.logit,
+        if(plot) .plotROC(pred.logit,
             esets.binary[[i]]$os_binary,main=experimentData(esets.binary[[i]])@lab) 
     }    
+    res
 }
 
 

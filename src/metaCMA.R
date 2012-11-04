@@ -188,10 +188,10 @@ metaCMA.forest <- function(esets, metacma, y="y", mlab="Overall", ...) {
 metaCMA.forest.models <- function(esets, y="y", risks1, risks2,
 mlab="Overall",concordance=TRUE,...) {
     tmp <- names(esets)
-    labeltext <- cbind(c("Dataset", sapply(tmp, function(x)
-    c(x,NA,NA)),"Overall",NA),
-                       c("Signature", rep(c("Meta-Analysis","TCGA",NA),
-                       length(tmp)), c("Meta-Analysis", "TCGA") ))
+    labeltext <- cbind(c("", sapply(tmp, function(x)
+    c(x,NA,NA)),"Overall",NA))
+                     #  c("Signature", rep(c("Meta-Analysis","TCGA",NA),
+                     #  length(tmp)), c("Meta-Analysis", "TCGA") ))
     if (concordance) {
         rma1 <- metaCMA.concordance(esets,y, risks1)
         rma2 <- metaCMA.concordance(esets,y, risks2)
