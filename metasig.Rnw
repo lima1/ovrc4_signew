@@ -301,7 +301,7 @@ titles <- lapply(Xs.all, function(X) experimentData(X)@lab)
 titles$TCGA_eset <- "TCGA 2011"
 idx <- c(1,2,5,6,8)
 preds.logit.age <- .p2logitMV(Xs.all[idx], preds=preds[idx],
- fits=ma[[10]]$fits[idx],y="os_1yr",x1="tumorstage")
+ fits=ma[[10]]$fits[idx],y="os_1yr",x1="age_at_initial_pathologic_diagnosis")
 
 .plotROCpanel(preds.logit.age,labels[idx],titles[idx],2,3)
 @
