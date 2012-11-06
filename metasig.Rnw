@@ -291,32 +291,6 @@ blue curves to low risk patients.}
 \end{figure}
 
 \begin{figure}
-<<elmeta,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
-Xs.all <- lapply(esets.f, .dichotomizeshortlong, l=365.25, label="os_1yr")
-preds <- lapply(1:length(Xs.all), function(i) predict(ma[[10]]$fits[[i]]$fit,
-newdata=Xs.all[[i]])@lp)
-
-labels <- lapply(Xs.all, function(X) X$os_1yr)
-titles <- lapply(Xs.all, function(X) experimentData(X)@lab)
-titles$TCGA_eset <- "TCGA 2011"
-idx <- c(1,2,5,6,8)
-preds.logit.age <- .p2logitMV(Xs.all[idx], preds=preds[idx],
- fits=ma[[10]]$fits[idx],y="os_1yr",x1="age_at_initial_pathologic_diagnosis")
-
-.plotROCpanel(preds.logit.age,labels[idx],titles[idx],2,3)
-@
-\caption{Prediction of events within the first year in a
-\textit{leave-one-dataset-out}
-cross-validation. The prediction model calculates for each sample a score. The
-higher the score, the higher the probability the patient will die within the
-first year. For each dataset, the model is trained using only the remaining
-datasets. The model utilizes the overall survival gene signature
-(\textbf{Supplemental Table 1}) and the age of the patients. ROC curves visualize the
-true and false positive rates as a function of the probability cutoffs.}  
-\end{figure}
-
-
-\begin{figure}
 <<reclassification,cache=TRUE,fig.width=12,fig.height=3,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
 par(mfrow=c(1,3))
 .reclassPlot(dfrc$y, dfrc$risk_tcga, dfrc$risk, t0=365.25, 
@@ -336,15 +310,32 @@ three time points.}
 \label{fig:reclass:tcga}
 \end{figure}
 
+\begin{figure}
+<<elmeta,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+Xs.all <- lapply(esets.f, .dichotomizeshortlong, l=365.25, label="os_1yr")
+preds <- lapply(1:length(Xs.all), function(i) predict(ma[[10]]$fits[[i]]$fit,
+newdata=Xs.all[[i]])@lp)
+
+labels <- lapply(Xs.all, function(X) X$os_1yr)
+titles <- lapply(Xs.all, function(X) experimentData(X)@lab)
+titles$TCGA_eset <- "TCGA 2011"
+idx <- c(1,2,5,6,8)
+preds.logit.age <- .p2logitMV(Xs.all[idx], preds=preds[idx],
+ fits=ma[[10]]$fits[idx],y="os_1yr",x1="age_at_initial_pathologic_diagnosis")
+
+aucs <- .plotROCpanel(preds.logit.age,labels[idx],titles[idx],2,3)
+@
+\caption{Prediction of events within the first year in a
+\textit{leave-one-dataset-out}
+cross-validation. The prediction model calculates for each sample a score. The
+higher the score, the higher the probability the patient will die within the
+first year. For each dataset, the model is trained using only the remaining
+datasets. The model utilizes the overall survival gene signature
+(\textbf{Supplemental Table 1}) and the age of the patients. ROC curves visualize the
+true and false positive rates as a function of the probability cutoffs.}  
+\end{figure}
 
 
-%<<unocdifftable,results='asis'>>=
-%cdiff <- data.frame(do.call(rbind, res.c.delta.tcga))
-%cdiff <- cbind(Model=rep(c("Meta-Analysis", "TCGA", 
-%"Difference in C-statistic"),5), tau=do.call(c,lapply(1:5, function(i) c(i,"",""))), cdiff)
-% metaCMA.xtable(xtable(cdiff, digits=3, label="tbl:cdiff:tcga",
-% caption="Concordance differences between our meta-analysis model and TCGA"),include.rownames=FALSE)
-%@
 
 <<concdeltaclinical1, cache=TRUE>>=
 res.dfrc <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.stagedeb]),
@@ -423,10 +414,11 @@ labels <- lapply(Xs.all, function(X) X$debulking)
 titles <- lapply(Xs.all, function(X) experimentData(X)@lab)
 titles$TCGA_eset <- "TCGA 2011"
 idx <- !sapply(Xs.all,.debulkingFilter)
+preds.stage <- lapply(Xs.all[idx], function(X) X$tumorstage)
 preds.logit <- .p2logit(Xs.all[idx], fits=res.debulking$fits[idx])
 preds.logit.stage <- .p2logitStage(Xs.all[idx], fits=res.debulking$fits[idx])
 preds.logit.stage <- .p2logitStage2(Xs.all[idx], fits=res.debulking$fits[idx])
-.plotROCpanel(preds.logit,labels[idx],titles[idx],3,3)
+aucs.db <- .plotROCpanel(preds.logit,labels[idx],titles[idx],3,3)
 @
 \caption{Prediction of suboptimally debulked tumors in a leave-one-dataset-out
 cross-validation. The prediction model calculates for each sample a score. The
@@ -440,24 +432,12 @@ probability cutoffs.}
 
 \begin{figure}
 <<debulkingmetaplotstage>>=
-.plotROCpanel(preds.logit.stage,labels[idx],titles[idx],3,3)
+aucs.dbstage <- .plotROCpanel(preds.logit.stage,labels[idx],titles[idx],3,3)
 @
 \caption{Same as \textbf{Supplemental Figure~\ref{fig:roc:debulking}}, but with stage information
 (III vs. IV) included in the model.}
 \end{figure}
 
-%
-%<<pred>>=
-%priors <- sapply(labels, function(l) sum(l=="suboptimal")/length(l))
-%#priors <- rep(0.6, length(labels))
-%pred.tbl <- .doTestAll(preds.logit.stage, labels[idx],  priors[idx], titles[idx])
-%pred.tbl.nostage <- .doTestAll(preds.logit, labels[idx],  priors[idx],
-% titles[idx])
-%
-%pred.tbl.stage <- .doTestAll(preds.stage[-2], labels[idx][-2],
-%priors[idx][-2], titles[idx][-2])
-%write.csv(pred.tbl.nostage, file="debulkingaccuracy.csv")
-%@
 <<finalmodeldebulking,cache=TRUE>>=
 
 tmp <- metaCMA.opt(Xs.all, coefs=coefs.debulking,n=200,y="debulking")
@@ -497,9 +477,9 @@ final.model.debulking@coefficients,
 \appendix
 \section{Main Figures}
 This supplement was generated with the knitr R package and contains the
-complete analysis of this study. The source code is available as additional
-supplement to ease the reproducibility. The following section generates the 
-figures.
+complete analysis of this study. The source code is available at
+\url{https://bitbucket.org/lima1/ovrc4_signew} to ease the reproducibility of
+the study.  The following section generates the figures of the main paper.
 \renewcommand{\thefigure}{\arabic{figure}}
 \setcounter{figure}{0}
 
@@ -600,11 +580,23 @@ res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfr
 @
 
 \begin{figure}
+<<plotfpdebulking,fig.width=15,fig.height=5.7,out.width="0.9\\textwidth",out.height="0.342\\textwidth",results='hide'>>=
+priors <- sapply(labels, function(l) sum(l=="suboptimal")/length(l))
+idx.stage <- sapply(preds.stage, function(x) sum(x==4,na.rm=TRUE)>0)
+ xxx <- .doTestAllPair(preds1=preds.logit[idx.stage],
+ preds2=preds.stage[idx.stage], labels=labels[idx][idx.stage],
+ prior=priors[idx][idx.stage],titles=titles[idx][idx.stage])
+@
+\caption{Predicting suboptimally debulked tumors. See caption in the main
+paper for details.}
+\end{figure}
+
+\begin{figure}
 <<plotdatasets,fig.width=7,fig.height=5,out.width="0.9\\textwidth",out.height="0.65\\textwidth",results='hide'>>=
 par(mfrow=c(1,2))
 .concPlotSize(esets.f, ma.sizes,dataset_ids=gsub(".Samples","",names(sizes)))
 .concPlotSize(esets.f,
-ma.sizes.rev,skip=1,dataset_ids=gsub(".Samples","",names(sizes.rev)),ylab="",panel.num="B")
+ma.sizes.rev,skip=1,dataset_ids=gsub(".Samples","",names(sizes.rev)),ylab="",panel.num="B)")
 @
 \caption{Prediction accuracy as a function of training datasets.
 See caption in the main paper for details.}

@@ -81,14 +81,18 @@
         text(1, 0.1, paste("n =", length(labels)), cex = 1.5, pos = 2)
         abline(a = 0, b = 1, lty = 2)
     }
-    invisible(auc.ci)
+    invisible(list(auc,auc.ci))
 }
 
-.plotROCpanel <- function(preds, labels, titles, nrow, ncol) {
+.plotROCpanel <- function(preds, labels, titles, nrow, ncol,...) {
     par(mfrow = c(nrow, ncol))
-    for (i in 1:length(preds)) {
-        .plotROC(preds[[i]], labels[[i]], main = titles[[i]])
-    }
+    aucs <- lapply(1:length(preds), function(i)
+        .plotROC(preds[[i]], labels[[i]], main = titles[[i]],...))
+
+    # calculate the pooled AUC     
+    sei <- sapply(aucs, function(auc) (auc[[2]][2]-auc[[2]][1])/(3.92/2))
+    yi <- sapply(aucs, function(auc) (auc[[1]]))
+    metafor::rma(yi=yi,sei=sei,method="FE")
 }
 
 .p2logitSingle <- function(esets.train, preds, model, y = "os_my_binary") {
@@ -127,8 +131,7 @@
     lapply(1:length(esets), .doIt)
 }
 
-
-.doTestAll <- function(preds, labels, priors, titles, method = "FE") {
+.doTestAllOld <- function(preds, labels, priors, titles, method = "FE") {
     ci <- do.call(rbind, lapply(1:length(preds), function(i) try(.doTest(preds[[i]], 
         labels[[i]], prior = priors[i]))))
     rownames(ci) <- titles
@@ -147,7 +150,69 @@
     ci <- rbind(ci, unlist(c(pooled1, pooled2)))
 }
 
-.doTestSE <- function(preds, labels, prior, cutoff = quantile(preds, p = (1 - prior))) {
+.doTestAll <- function(preds, labels, priors, titles, method = "FE", ...) {
+
+    res <- do.call(rbind, lapply(1:length(preds), function(i) try(.doTestSE(preds[[i]], 
+        labels[[i]], prior = priors[i]))))
+    dat <- escalc(measure="OR", ai=ai, bi=bi, ci=ci, di=di, data=res,
+    append=TRUE)
+    res <- metafor::rma(yi, vi, data=dat, method=method)
+    forest(res,atransf=exp, slab=titles,...)
+    res
+}
+
+.doTestAllPair <- function(preds1, preds2, labels, prior, titles, method="FE", ...) {
+    dat <- data.frame(opt=sapply(labels, function(x) sum(x=="optimal")),
+    subopt=sapply(labels, function(x) sum(x=="suboptimal")), iii=sapply(preds2,
+    function(x) sum(x==3,na.rm=TRUE)),iv=sapply(preds2, function(x)
+    sum(x==4,na.rm=TRUE)) )
+
+    res <- lapply(1:length(preds1), function(i) {
+    p1scaled <- scale(preds1[[i]])
+    summary(glm(labels[[i]]~p1scaled+preds2[[i]],
+    family="binomial"))$coefficients})
+    #res1 <- metafor::rma(yi, vi, data=dat, method=method)
+    yi <- sapply(res, function(x) x[2,1])
+    sei <- sapply(res, function(x) x[2,2])
+    rma1 <- metafor::rma(yi=yi, sei=sei, method=method)
+    yi <- sapply(res, function(x) x[3,1])
+    sei <- sapply(res, function(x) x[3,2])
+    rma2 <- metafor::rma(yi=yi, sei=sei,method=method)
+
+    par(mar=c(5,0,4,0))
+    nf <- layout(matrix(c(1,2),nrow=1),widths=c(2.2,1))
+    forest.rma(rma1,
+    atransf=exp,xlim=c(-4,2.5),ilab=dat,
+    at= log(sapply(-2:5, function(x) 1*1.25^x)),
+    ilab.xpos=c(-9.5,-8,-6,-4.5)*3.5/16,slab=titles,mlab="Overall",
+    xlab="Odds Ratio (log scale)")
+    op <- par(font=2)
+    text( -4, 9, "Author(s) and Year",pos=4)
+    text(c(-9.5,-8,-6,-4.5)*3.5/16,9,c("Opt.", "Subopt.", "III", "IV"))
+    text(c(-8.75,-5.25)*3.5/16,10,c("Debulking", "Stage"))
+    text(2.5,9, "Gene Signature Odds Ratio [95% CI]",pos=2)
+
+    par(op)
+    forest.rma(rma2,
+    atransf=exp,at=log(c(0.25,0.5,1,2,4,8,16)),xlim=c(-2,6),slab=rep("",7),mlab="",
+    xlab="Odds Ratio (log scale)")
+    op <- par(font=2)
+    text( -16, 9, "Author(s) and Year",pos=4)
+    text( 6, 9, "Stage Odds Ratio [95% CI]",pos=2)
+    par(op)
+
+
+    list(rma1,rma2,dat)
+}
+
+
+.xxx <- function(preds1, preds2, labels) {
+    lapply(1:length(labels), function(i) try(summary( 
+            glm(labels[[i]] ~ preds1[[i]] + preds2[[i]],family =
+            "binomial"))))
+}
+
+.doTestSEOld <- function(preds, labels, prior, cutoff = quantile(preds, p = (1 - prior))) {
     idx <- !is.na(preds) & !is.na(labels)
     preds <- preds[idx]
     labels <- labels[idx]
@@ -161,6 +226,15 @@
         1], sum(tbl[, 1]))$conf.int)/3.92, FNR = .fp(tbl[1, 2]/sum(tbl[, 2])), FNR.SE = diff(binom.test(tbl[1, 
         2], sum(tbl[, 2]))$conf.int)/3.92, OR = .fnp(f$estimate), OR.SE = diff(f$conf.int)/3.92, 
         stringsAsFactors = FALSE)
+}
+
+.doTestSE <- function(preds, labels, prior, cutoff = quantile(preds, p = (1 - prior))) {
+    idx <- !is.na(preds) & !is.na(labels)
+    preds <- preds[idx]
+    labels <- labels[idx]
+    tbl <- data.frame(t(table(preds > cutoff, labels)[1:4]))
+    colnames(tbl) <- c("ai", "bi", "ci", "di")
+    tbl
 }
 
 .doTest <- function(preds, labels, prior, cutoff = quantile(preds, p = (1 - prior))) {
@@ -243,7 +317,7 @@
 
 
 .concPlotSize <- function(esets, ma, skip = 0, dataset_ids, ylab = "C-Index (Concordance)", 
-    panel.num = "A", ...) {
+    panel.num = "A)", ...) {
     labels <- sub(",.*20", " 20", sapply(dataset_ids, function(i) gsub("Cancer GenomeAtlas Research Network", 
         "TCGA", experimentData(esets[[i]])@lab)))
     labels <- paste(labels, " (N = ", sapply(dataset_ids,function(i)
@@ -347,4 +421,11 @@ addClinicalAllBinary <- function(esets, fits) {
     m <- length(intersect(A, B))
     phyper(min(n1, n2), n1, n - n1, n2) - phyper(m - 1, n1, n - n1, n2)
 }
- 
+
+.modelSymbolToAffy <- function(model, ref.eset) {
+    model.affy <- model
+    names(model.affy@coefficients) <-
+    featureData(ref.eset[names(model@coefficients),])$maxmean_probeset
+    model.affy
+}
+
