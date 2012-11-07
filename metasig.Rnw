@@ -399,6 +399,9 @@ dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
 Xs <- esets.debulking 
 Xs.all <- metaCMA.common.gene.esets(Xs)
 for (i in 1:length(Xs.all)) Xs.all[[i]]$debulking <- as.factor(Xs.all[[i]]$debulking)
+Xs.alls3 <- lapply(Xs.all, function(X) X[,X$tumorstage==3 |
+is.na(X$tumorstage)])
+
 @
 
 <<debulkingmeta, cache=TRUE, results='hide'>>=
@@ -407,17 +410,24 @@ res.debulking  <- metaCMA(Xs.all,y="debulking",coefs=coefs.debulking, n=200,
 filter.fun=.debulkingFilter)
 @
 
+
+<<debulkingmetas3, cache=TRUE, results='hide'>>=
+# use only stage 3 patients for training, as stage 4 patients typically don't
+# get debulking surgery
+coefs.debulking.s3 <- metaCMA.coefs(Xs.alls3, y="debulking", family=binomial)
+res.debulking.s3  <- metaCMA(Xs.alls3,y="debulking",coefs=coefs.debulking, n=200,
+filter.fun=.debulkingFilter)
+@
+
+
 \begin{figure}
 <<debulkingmetaplot, cache=TRUE>>=
-preds <- lapply(res.debulking$fits,function(fit) fit$risk@lp)
-labels <- lapply(Xs.all, function(X) X$debulking)
-titles <- lapply(Xs.all, function(X) experimentData(X)@lab)
+preds <- lapply(res.debulking.s3$fits,function(fit) fit$risk@lp)
+labels <- lapply(Xs.alls3, function(X) X$debulking)
+titles <- lapply(Xs.alls3, function(X) experimentData(X)@lab)
 titles$TCGA_eset <- "TCGA 2011"
-idx <- !sapply(Xs.all,.debulkingFilter)
-preds.stage <- lapply(Xs.all[idx], function(X) X$tumorstage)
-preds.logit <- .p2logit(Xs.all[idx], fits=res.debulking$fits[idx])
-preds.logit.stage <- .p2logitStage(Xs.all[idx], fits=res.debulking$fits[idx])
-preds.logit.stage <- .p2logitStage2(Xs.all[idx], fits=res.debulking$fits[idx])
+idx <- !sapply(Xs.alls3,.debulkingFilter)
+preds.logit <- .p2logit(Xs.alls3[idx], fits=res.debulking.s3$fits[idx])
 aucs.db <- .plotROCpanel(preds.logit,labels[idx],titles[idx],3,3)
 @
 \caption{Prediction of suboptimally debulked tumors in a leave-one-dataset-out
@@ -428,14 +438,6 @@ datasets. The model utilizes gene expression only (\textbf{Supplemental Table 2}
 curves visualize the true and false positive rates as a function of the
 probability cutoffs.}  
 \label{fig:roc:debulking}
-\end{figure}
-
-\begin{figure}
-<<debulkingmetaplotstage>>=
-aucs.dbstage <- .plotROCpanel(preds.logit.stage,labels[idx],titles[idx],3,3)
-@
-\caption{Same as \textbf{Supplemental Figure~\ref{fig:roc:debulking}}, but with stage information
-(III vs. IV) included in the model.}
 \end{figure}
 
 <<finalmodeldebulking,cache=TRUE>>=
@@ -580,12 +582,11 @@ res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfr
 @
 
 \begin{figure}
-<<plotfpdebulking,fig.width=15,fig.height=5.7,out.width="0.9\\textwidth",out.height="0.342\\textwidth",results='hide'>>=
+<<plotfpdebulking,fig.width=12,fig.height=6,out.width="0.9\\textwidth",out.height="0.45\\textwidth",results='hide'>>=
 priors <- sapply(labels, function(l) sum(l=="suboptimal")/length(l))
-idx.stage <- sapply(preds.stage, function(x) sum(x==4,na.rm=TRUE)>0)
- xxx <- .doTestAllPair(preds1=preds.logit[idx.stage],
- preds2=preds.stage[idx.stage], labels=labels[idx][idx.stage],
- prior=priors[idx][idx.stage],titles=titles[idx][idx.stage])
+ xxx <- .doTestAllPair(preds1=preds.logit,
+  labels=labels[idx],
+ prior=priors[idx],titles=titles[idx])
 @
 \caption{Predicting suboptimally debulked tumors. See caption in the main
 paper for details.}
@@ -601,8 +602,6 @@ ma.sizes.rev,skip=1,dataset_ids=gsub(".Samples","",names(sizes.rev)),ylab="",pan
 \caption{Prediction accuracy as a function of training datasets.
 See caption in the main paper for details.}
 \end{figure}
-
-
 
 \clearpage
 \section{Session Info}

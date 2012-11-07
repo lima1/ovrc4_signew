@@ -161,48 +161,32 @@
     res
 }
 
-.doTestAllPair <- function(preds1, preds2, labels, prior, titles, method="FE", ...) {
+.doTestAllPair <- function(preds1, labels, prior, titles, method="FE", ...) {
     dat <- data.frame(opt=sapply(labels, function(x) sum(x=="optimal")),
-    subopt=sapply(labels, function(x) sum(x=="suboptimal")), iii=sapply(preds2,
-    function(x) sum(x==3,na.rm=TRUE)),iv=sapply(preds2, function(x)
-    sum(x==4,na.rm=TRUE)) )
+    subopt=sapply(labels, function(x) sum(x=="suboptimal")))
 
     res <- lapply(1:length(preds1), function(i) {
     p1scaled <- scale(preds1[[i]])
-    summary(glm(labels[[i]]~p1scaled+preds2[[i]],
+    summary(glm(labels[[i]]~p1scaled,
     family="binomial"))$coefficients})
     #res1 <- metafor::rma(yi, vi, data=dat, method=method)
     yi <- sapply(res, function(x) x[2,1])
     sei <- sapply(res, function(x) x[2,2])
     rma1 <- metafor::rma(yi=yi, sei=sei, method=method)
-    yi <- sapply(res, function(x) x[3,1])
-    sei <- sapply(res, function(x) x[3,2])
-    rma2 <- metafor::rma(yi=yi, sei=sei,method=method)
 
-    par(mar=c(5,0,4,0))
-    nf <- layout(matrix(c(1,2),nrow=1),widths=c(2.2,1))
     forest.rma(rma1,
     atransf=exp,xlim=c(-4,2.5),ilab=dat,
-    at= log(sapply(-2:5, function(x) 1*1.25^x)),
-    ilab.xpos=c(-9.5,-8,-6,-4.5)*3.5/16,slab=titles,mlab="Overall",
+    at= log(sapply(-2:5, function(x) 1*1.3^x)),
+    ilab.xpos=c(-6.5,-4.5)*3.5/16,slab=titles,mlab="Overall",
     xlab="Odds Ratio (log scale)")
     op <- par(font=2)
-    text( -4, 9, "Author(s) and Year",pos=4)
-    text(c(-9.5,-8,-6,-4.5)*3.5/16,9,c("Opt.", "Subopt.", "III", "IV"))
-    text(c(-8.75,-5.25)*3.5/16,10,c("Debulking", "Stage"))
-    text(2.5,9, "Gene Signature Odds Ratio [95% CI]",pos=2)
-
-    par(op)
-    forest.rma(rma2,
-    atransf=exp,at=log(c(0.25,0.5,1,2,4,8,16)),xlim=c(-2,6),slab=rep("",7),mlab="",
-    xlab="Odds Ratio (log scale)")
-    op <- par(font=2)
-    text( -16, 9, "Author(s) and Year",pos=4)
-    text( 6, 9, "Stage Odds Ratio [95% CI]",pos=2)
+    text( -4, 10, "Author(s) and Year",pos=4)
+    text(c(-6.5,-4.5)*3.5/16,10,c("Opt.", "Subopt."))
+    text(c(-5.5)*3.5/16,11,c("Debulking"))
+    text(2.5,10, "Gene Signature Odds Ratio [95% CI]",pos=2)
     par(op)
 
-
-    list(rma1,rma2,dat)
+    list(rma1,dat)
 }
 
 
@@ -258,44 +242,6 @@
         .fnp), collapse = "-"), stringsAsFactors = FALSE)
     
 }
-
-.p2logitStage <- function(esets, fits, y = "debulking") {
-    .doIt <- function(i) {
-        gfits <- lapply(esets[-i], function(eset) {
-            risk <- predict(fits[[i]]$fit, newdata = t(exprs(eset)))@lp
-            glm(eset[[y]] ~ risk + tumorstage, eset, family = "binomial")
-        })
-        intercept.se <- do.call(rbind, lapply(gfits, function(x) summary(x)$coefficients[1, 
-            ]))
-        risk.se <- do.call(rbind, lapply(gfits, function(x) summary(x)$coefficients[2, 
-            ]))
-        idx <- sapply(gfits, function(x) nrow(summary(x)$coefficients) == 3)
-        T.se <- do.call(rbind, lapply(gfits[idx], function(x) summary(x)$coefficients[3, 
-            ]))
-        res <- list(gfits, intercept = metafor::rma(yi = intercept.se[, 1], sei = intercept.se[, 
-            2])$b, br = metafor::rma(yi = risk.se[, 1], sei = risk.se[, 2])$b, bt = metafor::rma(yi = T.se[, 
-            1], sei = T.se[, 2])$b)
-        
-        #
-        # predict(fit,newdata=data.frame(risk=fits[[i]]$risk@lp,stage=esets[[i]]$tumorstage),type='response')
-        r <- fits[[i]]$risk@lp * res$br + esets[[i]]$tumorstage * res$bt + res$intercept
-        exp(r)/(exp(r) + 1)
-    }
-    lapply(1:length(esets), .doIt)
-}
-
-.p2logitStage2 <- function(esets, fits, y = "debulking") {
-    .doIt <- function(i) {
-        esets.c <- .combineEsets(esets[-i], y = y)
-        tmp.df <- data.frame(risk = predict(fits[[i]]$fit, newdata = esets.c$X)@lp, 
-            covar = esets.c$y, tumorstage = as.factor(unlist(sapply(esets[-i], function(X) X$tumorstage))))
-        fit <- glm(covar ~ risk + tumorstage, tmp.df, family = "binomial")
-        predict(fit, newdata = data.frame(risk = fits[[i]]$risk@lp, tumorstage = as.factor(esets[[i]]$tumorstage)), 
-            type = "response")
-    }
-    lapply(1:length(esets), .doIt)
-}
-
 
 .reclassPlotModel <- function(eset, m1, m2, ...) {
     r1 <- predict(m1, newdata = eset, type = "lp")@lp
