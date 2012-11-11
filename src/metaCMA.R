@@ -139,10 +139,10 @@ metaCMA.eval <- function(esets, y="y", object) {
 .camelCase <- function(x) paste(toupper(substr(x,1,1)), substr(x,2,nchar(x)), sep="")
 
 .forestplot <- function(esets, y, label, rma.method="FE", measure="hr",
-at = NULL, xlab=ifelse(concordance, "Concordance", "Hazard ratio"),...) {
+at = NULL, concordance=TRUE, xlab=ifelse(concordance, "Concordance", "Hazard ratio"),...) {
     if (is.null(names(esets))) names(esets) = paste("Study", 1:length(esets))
     names(esets) = gsub("_", " ", names(esets))
-    if (measure=="concordance") {
+    if (concordance) {
         coefs = sapply(1:length(esets), function(i)
         summary(coxph(esets[[i]][[y]]~esets[[i]][[label]]))$concordance)   
         res.rma = metafor::rma(yi = coefs[1,], sei = coefs[2,], method=rma.method)
@@ -151,8 +151,6 @@ at = NULL, xlab=ifelse(concordance, "Concordance", "Hazard ratio"),...) {
         xlab=xlab,  slab=sapply(names(esets), .camelCase),
         refline=0.5, at=at,...)
         return(res.rma)
-    } else if (measure=="auc") {
-
     } else {
         coefs = sapply(1:length(esets), function(i)
         summary(coxph(esets[[i]][[y]]~esets[[i]][[label]]))$coefficients[c(1,3)])   
@@ -243,3 +241,15 @@ metaCMA.xtable <- function(xtbl, hline.after=getOption("xtable.hline.after", c(-
                             rep("\\midrule\n", length(hline.after)-2),
                             "\\bottomrule\n")),...)
 }
+
+metaCMA.censor <- function(esets, y="y", censor.at=NULL) {
+    .censor <- function(eset) {
+        if (!is.null(censor.at)) { 
+            eset[[y]][eset[[y]][,1] > censor.at,2] <- 0
+            eset[[y]][eset[[y]][,1] > censor.at,1] <- censor.at
+        }
+        eset
+    }
+    lapply(esets,.censor)
+}
+
