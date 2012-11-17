@@ -48,6 +48,7 @@ library(RColorBrewer)
 library(lattice)
 library(maxstat)
 library(exactRankTests)
+library(pROC)
 
 # only to print the version number in the Appendix. We load the data generated
 # with the createEsetsList script
@@ -120,6 +121,18 @@ corresponding dataset that was trained using the remaining datasets only.}
 tmp <- metaCMA.opt(esets.f,coef=coefs,n=200)
 final.model <- tmp$model
 @
+
+<<loadvaldata,cache=TRUE>>=
+load("input/eset.binary.scaled.rda")
+esets.binary <- esets
+load("input/eset.validation.scaled.rda")
+esets.validation <- esets
+load("input/eset.allos.scaled.rda")
+esets.allos <- esets
+load("input/eset.debulking.scaled.rda")
+esets.debulking <- esets
+@
+
 
 <<tablemodel>>=
 sig <- names(final.model@coefficients)
@@ -371,17 +384,6 @@ cbind(dfrc$tumorstage[idx.stagedeb],
 dfrc$debulking[idx.stagedeb], dfrc$risk[idx.stagedeb]),tau=365.25*4)
 @
 
-<<loadvaldata,cache=TRUE>>=
-load("input/eset.binary.scaled.rda")
-esets.binary <- esets
-load("input/eset.validation.scaled.rda")
-esets.validation <- esets
-load("input/eset.allos.scaled.rda")
-esets.allos <- esets
-load("input/eset.debulking.scaled.rda")
-esets.debulking <- esets
-@
-
 <<addearlystage>>=
 ids <- esets.allos$TCGA_eset$summarystage=="early" &
     esets.allos$TCGA_eset$summarygrade!="low"
@@ -552,22 +554,26 @@ data.frame(x$strata, x$y)))
 
 par(mfrow=c(2,2))
 plotKM(y=dfrcboth$y, strata=factor(dfrcboth$tumorstage,levels=c(4,3)),censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
         xlab="Time (Days)",ylab="Overall Survival (%)",
         cex.base=1.4,main="A)   Stage (4 vs. 3)")
 plotKM(y=dfrcboth$y,strata=factor(dfrcboth$debulking_orig,levels=c("suboptimal", "optimal")),censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
         xlab="Time (Days)",ylab="Overall Survival (%)",
         cex.base=1.4,main="B)   Debulking (subopt. vs opt.)")
 plotKM(y=Surv(strata_tcga[,2][,1],strata_tcga[,2][,2]),
 strata=strata_tcga[,1],censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
         xlab="Time (Days)",ylab="Overall Survival (%)",
         cex.base=1.4,main="C)   TCGA Signature")
 
 plotKM(y=Surv(strata_we[,2][,1],strata_we[,2][,2]),
 strata=strata_we[,1],censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=0.85,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
         xlab="Time (Days)",ylab="Overall Survival (%)",
         cex.base=1.4,main="D)   Meta-Analysis Signature")
 @
