@@ -33,10 +33,11 @@
     risk.fmtrain <- lapply(esets.f, function(X) predict(final.model, newdata = X)@lp)
     cutoff <- median(unlist(risk.fmtrain))
     
-    titles <- c(paste("Gillet 2012 (RT-PCR", sum(coefficients %in% featureNames(esets.validation$GSE30009_eset)), 
-        "genes)"), "Konstantinopoulos 2010",
-        .getDatasetNames(list(esets.validation$GSE32062.GPL6480_eset)), 
-        "Early Stage TCGA")
+    titles <- c(paste("A) Gillet 2012 (RT-PCR", sum(coefficients %in% featureNames(esets.validation$GSE30009_eset)), 
+        "genes)"), "B) Konstantinopoulos 2010",
+        paste("C) ",
+            .getDatasetNames(list(esets.validation$GSE32062.GPL6480_eset))), 
+        "D) Early Stage TCGA")
     cutpoints <- list(NULL, NULL, cutoff, cutoff)
     
     par(mfrow = c(2, 3))
@@ -55,10 +56,10 @@
             Xtmp <- lapply(esets.f, .dichotomizeshortlong, 365.25 * 5, 365.25 * 5)
         }
         pred.logit <- .p2logitSingle(Xtmp, pred, model, y = "os_my_binary")
-        
+        paneln <- c("E)", "F)")
         if (plot) 
             res.roc <- .plotROC(pred.logit, esets.binary[[i]]$os_binary, main
-            = .getDatasetNames(esets.binary)[i])
+            = paste(paneln[i],.getDatasetNames(esets.binary)[i]))
     }
     res
 }
