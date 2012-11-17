@@ -568,9 +568,9 @@ res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfr
 @
 
 \begin{figure}
-<<plotfpdebulking,fig.width=9,fig.height=6,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+<<plotfpdebulking,fig.width=8,fig.height=6,out.width="0.9\\textwidth",out.height="0.675\\textwidth",results='hide'>>=
 priors <- sapply(labels, function(l) sum(l=="suboptimal")/length(l))
- xxx <- .doTestAllPair(preds1=preds.logit,
+ xxx <- .forestPlotDebulking(preds1=preds.logit,
   labels=labels[idx],
  prior=priors[idx],titles=titles[idx])
 @

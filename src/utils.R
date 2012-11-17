@@ -145,7 +145,7 @@
     lapply(1:length(esets), .doIt)
 }
 
-.doTestAllPair <- function(preds1, labels, prior, titles, method="FE", ...) {
+.forestPlotDebulking <- function(preds1, labels, prior, titles, method="FE", ...) {
     dat <- data.frame(opt=sapply(labels, function(x) sum(x=="optimal")),
     subopt=sapply(labels, function(x) sum(x=="suboptimal")))
 
@@ -159,14 +159,14 @@
     rma1 <- metafor::rma(yi=yi, sei=sei, method=method)
 
     forest.rma(rma1,
-    atransf=exp,xlim=c(-4,2.5),ilab=dat,
+    atransf=exp,xlim=c(-3,2.5),ilab=dat,
     at= log(sapply(-2:5, function(x) 1*1.3^x)),
-    ilab.xpos=c(-6.5,-4.5)*3.5/16,slab=titles,mlab="Overall",
+    ilab.xpos=c(-6.5,-4.5)*4/16,slab=titles,mlab="Overall",
     xlab="Odds Ratio (log scale)")
     op <- par(font=2)
-    text( -4, 10, "Author(s) and Year",pos=4)
-    text(c(-6.5,-4.5)*3.5/16,10,c("Opt.", "Subopt."))
-    text(c(-5.5)*3.5/16,11,c("Debulking"))
+    text( -3, 10, "Authors and Year",pos=4)
+    text(c(-6.5,-4.5)*4/16,10,c("Opt.", "Subopt."))
+    text(c(-5.5)*4/16,11,c("Debulking"))
     text(2.5,10, "Gene Signature Odds Ratio [95% CI]",pos=2)
     par(op)
 
