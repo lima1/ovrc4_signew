@@ -153,9 +153,7 @@ row.names=FALSE)
 \begin{figure}
 <<ngeneshm>>=
 genes <- lapply(ma[[10]]$fits, function(x) names(x$fit@coefficients))
-titles <- lapply(esets.f, function(X) experimentData(X)@lab)
-titles$TCGA_eset <- "TCGA 2011"
-names(genes) <- titles
+names(genes) <- .getDatasetNames(esets.f)
 
 genes[["Final Model"]] <- names(final.model@coefficients)
 gmt.lodocv <- new("gsagenesets", genesets=genes, geneset.names=names(genes))
@@ -172,8 +170,6 @@ both comprise less than 75 samples and are thus tested with the final model.
 }
 \label{fig:signature:overlap}
 \end{figure}
-
-
 
 <<optimizesize, cache=TRUE,results='hide'>>=
 sizes <- sort(sapply(esets.f, ncol),decreasing=TRUE)
@@ -349,8 +345,7 @@ preds <- lapply(1:length(Xs.all), function(i) predict(ma[[10]]$fits[[i]]$fit,
 newdata=Xs.all[[i]])@lp)
 
 labels <- lapply(Xs.all, function(X) X$os_1yr)
-titles <- lapply(Xs.all, function(X) experimentData(X)@lab)
-titles$TCGA_eset <- "TCGA 2011"
+titles <- .getDatasetNames(Xs.all)
 idx <- c(1,2,5,6,8)
 preds.logit.age <- .p2logitMV(Xs.all[idx], preds=preds[idx],
  fits=ma[[10]]$fits[idx],y="os_1yr",x1="age_at_initial_pathologic_diagnosis")
@@ -398,32 +393,12 @@ for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="
 dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
 @
 
-
-<<sva>>= 
-.debulkingFilter <- function(X) { 
-    ncol(X) < 50 | sum(X$debulking=="suboptimal",na.rm=TRUE) == 0 
-}
-
-.stageFilter <- function(X) { 
-    ncol(X) < 42 | sum(X$tumorstage=="4",na.rm=TRUE) == 0  | sum(X$tumorstage=="3",na.rm=TRUE) == 0
-}
-
-.validateDiff <- function(X,sig,label) {
-    sig <- sig[sig %in% featureNames(X)]
-    rtt <- rowttests(exprs(X[sig,]), as.factor(X[[label]]))
-    pv <- p.adjust(rtt[,3],method="BH")
-    names(pv) <- sig
-    pv
-}
-@
-
 <<debulkingmetaprepare>>=
 Xs <- esets.debulking 
 Xs.all <- metaCMA.common.gene.esets(Xs)
 for (i in 1:length(Xs.all)) Xs.all[[i]]$debulking <- as.factor(Xs.all[[i]]$debulking)
 Xs.alls3 <- lapply(Xs.all, function(X) X[,X$tumorstage==3 |
 is.na(X$tumorstage)])
-
 @
 
 <<debulkingmeta, cache=TRUE, results='hide'>>=
@@ -446,8 +421,7 @@ filter.fun=.debulkingFilter)
 <<debulkingmetaplot, cache=TRUE>>=
 preds <- lapply(res.debulking.s3$fits,function(fit) fit$risk@lp)
 labels <- lapply(Xs.alls3, function(X) X$debulking)
-titles <- lapply(Xs.alls3, function(X) experimentData(X)@lab)
-titles$TCGA_eset <- "TCGA 2011"
+titles <- .getDatasetNames(Xs.alls3)
 idx <- !sapply(Xs.alls3,.debulkingFilter)
 preds.logit <- .p2logit(Xs.alls3[idx], fits=res.debulking.s3$fits[idx])
 aucs.db <- .plotROCpanel(preds.logit,labels[idx],titles[idx],3,3)
@@ -479,20 +453,8 @@ final.model.debulking@coefficients,
  P=head(sort(tmp$pvalues),length(sig)),
  FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig))),
  file="final_signature_debulking.csv",row.names=FALSE)
-
-# venn(list("Linear Model"=debulk.sig.final,
-# "Meta-Analysis"=debulk.sig.final.meta))
 @
 
-%final.model.GSE30009_eset@coefficients <-
-%final.model.GSE30009_eset@coefficients[names(final.model.GSE30009_eset@coefficients)
-%%in% featureNames(esets.validation$GSE30009_eset)]
-%
-%X <- esets.uf[-japan.idx]
-%risk <- lapply(X, function(X) predict(final.model.GSE30009_eset, newdata=X, type="lp")@lp)
-%for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
-%.lodocvPlot(X)
-%
 \clearpage
 \bibliographystyle{plain}
 \bibliography{metasig}
@@ -589,9 +551,7 @@ risk1 <- c(risk1a, risk1b)
 
 risk2 <- lapply(Xs.all, function(X) predict(model.tcga, X)@lp)
 
-    names(Xs.all) <- sapply(Xs.all, function(Y)
-                gsub(" hgu95| Cannistra", "",
-                experimentData(Y)@lab ))
+names(Xs.all) <- .getDatasetNames(Xs.all)
  x <- metaCMA.forest.models(Xs.all, risks1=risk1, risks2=risk2,
  graphwidth=unit(2.5, "inches"))
 mtext("E)   Concordance",at=0,cex=1.4,font=2)

@@ -1,8 +1,21 @@
+# datasets we use for training the debulking prediction model
+.debulkingFilter <- function(X) { 
+    ncol(X) < 50 | sum(X$debulking=="suboptimal",na.rm=TRUE) == 0 
+}
+
+# takes an ExpressionSet from curatedOvarianData and formats a dataset name
+.getDatasetNames <- function(esets) {
+    s <- sapply(esets, function(Y) gsub("Cancer GenomeAtlas Research Network", 
+        "TCGA", experimentData(Y)@lab))
+    s <- gsub(",.*20", " 20", s)
+    gsub(" hgu95", "", s)
+}
+
+# show a Kaplan-Meier analysis of a leave-one-dataset-out cross-validation
 .lodocvPlot <- function(X, nrow = 3, ncol = 3, censor.at = 365.25 * 5, ...) {
     X <- X[-match("TCGA_eset", names(X))]
-    
-    names(X) <- sapply(X, function(Y) gsub("Cancer GenomeAtlas Research Network", 
-        "TCGA", experimentData(Y)@lab))
+    names(X) <- .getDatasetNames(X)
+    names(X) <- paste(1:length(X),". ", names(X), sep="")
     par(mfrow = c(nrow, ncol))
     par(mar = c(4.3, 4.5, 3, 1))
     res <- lapply(1:length(X), function(i) plotKMStratifyBy(cutpoints = median(unlist(sapply(X[-i], 
@@ -20,8 +33,9 @@
     risk.fmtrain <- lapply(esets.f, function(X) predict(final.model, newdata = X)@lp)
     cutoff <- median(unlist(risk.fmtrain))
     
-    titles <- c(paste("Gillet, 2012 (RT-PCR", sum(coefficients %in% featureNames(esets.validation$GSE30009_eset)), 
-        "genes)"), "Konstantinopoulos 2010", experimentData(esets.validation$GSE32062.GPL6480_eset)@lab, 
+    titles <- c(paste("Gillet 2012 (RT-PCR", sum(coefficients %in% featureNames(esets.validation$GSE30009_eset)), 
+        "genes)"), "Konstantinopoulos 2010",
+        .getDatasetNames(list(esets.validation$GSE32062.GPL6480_eset)), 
         "Early Stage TCGA")
     cutpoints <- list(NULL, NULL, cutoff, cutoff)
     
@@ -43,7 +57,8 @@
         pred.logit <- .p2logitSingle(Xtmp, pred, model, y = "os_my_binary")
         
         if (plot) 
-            res.roc <- .plotROC(pred.logit, esets.binary[[i]]$os_binary, main = experimentData(esets.binary[[i]])@lab)
+            res.roc <- .plotROC(pred.logit, esets.binary[[i]]$os_binary, main
+            = .getDatasetNames(esets.binary)[i])
     }
     res
 }
@@ -52,10 +67,9 @@
 .lodocvPlotForest <- function(X, main = "C-Index") {
     if ("TCGA_eset" %in% names(X)) 
         X <- X[-match("TCGA_eset", names(X))]
-    
-    names(X) <- sapply(X, function(Y) gsub("Cancer GenomeAtlas Research Network", 
-        "TCGA", experimentData(Y)@lab))
-    names(X) <- gsub(",.*", "", names(X))
+
+    names(X) <- .getDatasetNames(X)
+
     metaCMA.forest.label(esets = X, label = "risk", y = "y", concordance = TRUE, 
         cex = 0.7, main = main, xlab = "")
 }
@@ -131,36 +145,6 @@
     lapply(1:length(esets), .doIt)
 }
 
-.doTestAllOld <- function(preds, labels, priors, titles, method = "FE") {
-    ci <- do.call(rbind, lapply(1:length(preds), function(i) try(.doTest(preds[[i]], 
-        labels[[i]], prior = priors[i]))))
-    rownames(ci) <- titles
-    se <- do.call(rbind, lapply(1:length(preds), function(i) try(.doTestSE(preds[[i]], 
-        labels[[i]], prior = priors[i]))))
-    rownames(se) <- titles
-    
-    rma.res <- lapply(seq(1, 9, 2), function(i) metafor::rma(yi = se[, i], sei = se[, 
-        i + 1], method = method))
-    .fp <- function(p) round(p * 100, digits = 1)
-    .fnp <- function(p) round(p, digits = 2)
-    pooled1 <- lapply(rma.res[-5], function(x) c(.fp(x$b), paste(.fp(x$ci.lb), .fp(x$ci.ub), 
-        sep = "-")))
-    pooled2 <- lapply(rma.res[5], function(x) c(.fnp(x$b), paste(.fnp(x$ci.lb), .fnp(x$ci.ub), 
-        sep = "-")))
-    ci <- rbind(ci, unlist(c(pooled1, pooled2)))
-}
-
-.doTestAll <- function(preds, labels, priors, titles, method = "FE", ...) {
-
-    res <- do.call(rbind, lapply(1:length(preds), function(i) try(.doTestSE(preds[[i]], 
-        labels[[i]], prior = priors[i]))))
-    dat <- escalc(measure="OR", ai=ai, bi=bi, ci=ci, di=di, data=res,
-    append=TRUE)
-    res <- metafor::rma(yi, vi, data=dat, method=method)
-    forest(res,atransf=exp, slab=titles,...)
-    res
-}
-
 .doTestAllPair <- function(preds1, labels, prior, titles, method="FE", ...) {
     dat <- data.frame(opt=sapply(labels, function(x) sum(x=="optimal")),
     subopt=sapply(labels, function(x) sum(x=="suboptimal")))
@@ -189,66 +173,6 @@
     list(rma1,dat)
 }
 
-
-.xxx <- function(preds1, preds2, labels) {
-    lapply(1:length(labels), function(i) try(summary( 
-            glm(labels[[i]] ~ preds1[[i]] + preds2[[i]],family =
-            "binomial"))))
-}
-
-.doTestSEOld <- function(preds, labels, prior, cutoff = quantile(preds, p = (1 - prior))) {
-    idx <- !is.na(preds) & !is.na(labels)
-    preds <- preds[idx]
-    labels <- labels[idx]
-    tbl <- table(preds > cutoff, labels)
-    f <- fisher.test(as.factor(preds > cutoff), labels)
-    .fp <- function(p) p
-    .fnp <- function(p) p
-    data.frame(PPV = .fp(tbl[2, 2]/sum(tbl[2, ])), PPV.SE = diff(binom.test(tbl[2, 
-        2], sum(tbl[2, ]))$conf.int)/3.92, NPV = .fp(tbl[1, 1]/sum(tbl[1, ])), NPV.SE = diff(binom.test(tbl[1, 
-        1], sum(tbl[1, ]))$conf.int)/3.92, FPR = .fp(tbl[2, 1]/sum(tbl[, 1])), FPR.SE = diff(binom.test(tbl[2, 
-        1], sum(tbl[, 1]))$conf.int)/3.92, FNR = .fp(tbl[1, 2]/sum(tbl[, 2])), FNR.SE = diff(binom.test(tbl[1, 
-        2], sum(tbl[, 2]))$conf.int)/3.92, OR = .fnp(f$estimate), OR.SE = diff(f$conf.int)/3.92, 
-        stringsAsFactors = FALSE)
-}
-
-.doTestSE <- function(preds, labels, prior, cutoff = quantile(preds, p = (1 - prior))) {
-    idx <- !is.na(preds) & !is.na(labels)
-    preds <- preds[idx]
-    labels <- labels[idx]
-    tbl <- data.frame(t(table(preds > cutoff, labels)[1:4]))
-    colnames(tbl) <- c("ai", "bi", "ci", "di")
-    tbl
-}
-
-.doTest <- function(preds, labels, prior, cutoff = quantile(preds, p = (1 - prior))) {
-    
-    idx <- !is.na(preds) & !is.na(labels)
-    
-    preds <- preds[idx]
-    labels <- labels[idx]
-    tbl <- table(preds > cutoff, labels)
-    print(tbl)
-    f <- fisher.test(as.factor(preds > cutoff), labels)
-    .fp <- function(p) round(p * 100, digits = 1)
-    .fnp <- function(p) round(p, digits = 2)
-    data.frame(PPV = .fp(tbl[2, 2]/sum(tbl[2, ])), PPV.CI = paste(sapply(binom.test(tbl[2, 
-        2], sum(tbl[2, ]))$conf.int, .fp), collapse = "-"), NPV = .fp(tbl[1, 1]/sum(tbl[1, 
-        ])), NPV.CI = paste(sapply(binom.test(tbl[1, 1], sum(tbl[1, ]))$conf.int, 
-        .fp), collapse = "-"), FPR = .fp(tbl[2, 1]/sum(tbl[, 1])), FPR.CI = paste(sapply(binom.test(tbl[2, 
-        1], sum(tbl[, 1]))$conf.int, .fp), collapse = "-"), FNR = .fp(tbl[1, 2]/sum(tbl[, 
-        2])), FNR.CI = paste(sapply(binom.test(tbl[1, 2], sum(tbl[, 2]))$conf.int, 
-        .fp), collapse = "-"), OR = .fnp(f$estimate), OR.CI = paste(sapply(f$conf.int, 
-        .fnp), collapse = "-"), stringsAsFactors = FALSE)
-    
-}
-
-.reclassPlotModel <- function(eset, m1, m2, ...) {
-    r1 <- predict(m1, newdata = eset, type = "lp")@lp
-    r2 <- predict(m2, newdata = eset, type = "lp")@lp
-    .reclassPlot(eset$y, r1, r2, ...)
-}
-
 .reclassPlot <- function(y, r1, r2, t0, title, plot = TRUE) {
     x <- IDI.INF(y, r1, r2, t0 = t0, npert = 600)
     y <- IDI.INF.OUT(x)
@@ -261,11 +185,9 @@
     y
 }
 
-
 .concPlotSize <- function(esets, ma, skip = 0, dataset_ids, ylab = "C-Index (Concordance)", 
     panel.num = "A)", ...) {
-    labels <- sub(",.*20", " 20", sapply(dataset_ids, function(i) gsub("Cancer GenomeAtlas Research Network", 
-        "TCGA", experimentData(esets[[i]])@lab)))
+    labels <- .getDatasetNames(esets[dataset_ids])
     labels <- paste(labels, " (N = ", sapply(dataset_ids,function(i)
     ncol(esets[[i]])), ")",sep="")    
     # exclude TCGA, because we compare concordance to TCGA model throughout the
@@ -289,6 +211,8 @@
     
 }
 
+# create a data.frame with clinical covariates out of a list of ExpressionSets
+# from curatedOvarianData
 .createClinical <- function(esets, clinical.covars = NULL) {
     if (is.null(clinical.covars)) 
         clinical.covars <- c("age_at_initial_pathologic_diagnosis", "debulking", 
