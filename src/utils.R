@@ -245,60 +245,7 @@ label="os_my_binary") {
     df
 }
 
-.getRiskScore <- function(i, idx, esets, fits) {
-    # X = t(exprs(esets[[i]]))
-    predict(fits[[idx]]$fit, newdata = esets[[i]], type = "lp")@lp
-}
-
-addClinical <- function(idx, esets, fits) {
-    df <- .createClinical(esets[-idx])
-    df$risk <- unlist(sapply((1:length(esets))[-idx], .getRiskScore, idx, esets, 
-        fits))
-    fit <- coxph(y ~ tumorstage + debulking + 
-        risk, data = df)
-    dfnew <- .createClinical(esets[idx])
-    dfnew$risk <- fits[[idx]]$risk@lp
-    list(fit = fit, risk = predict(fit, newdata = dfnew))
-}
-
-addClinicalBinary <- function(idx, esets, fits) {
-    df <- .createClinical(esets[-idx], clinical.covars = c("age_at_initial_pathologic_diagnosis", 
-        "debulking", "tumorstage", "days_to_death", "vital_status", "oneyr"))
-    df$risk <- unlist(sapply((1:length(esets))[-idx], .getRiskScore, idx, esets, 
-        fits))
-    fit <- glm(as.logical(oneyr) ~ as.factor(age_at_initial_pathologic_diagnosis > 
-        60) + debulking + risk, data = df, family = "binomial")
-}
-
-addClinicalBinaryBK <- function(idx, esets, fits) {
-    df <- .createClinical(esets[-idx], clinical.covars = c("age_at_initial_pathologic_diagnosis", 
-        "debulking", "tumorstage", "days_to_death", "vital_status", "oneyr"))
-    df$risk <- unlist(sapply((1:length(esets))[-idx], .getRiskScore, idx, esets, 
-        fits))
-    fit <- glm(df$debulking == "suboptimal" ~ as.factor(age_at_initial_pathologic_diagnosis > 
-        60) + debulking + risk, data = df, family = "binomial")
-}
-
-addClinicalAll <- function(esets, fits) {
-    res <- lapply(1:length(esets), addClinical, esets, fits)
-    esets.r <- lapply(1:length(esets), function(i) {
-        esets[[i]]$risk <- res[[i]]$risk
-        esets[[i]]
-    })
-    names(esets.r) <- names(esets)
-    esets.r
-}
-
-addClinicalAllBinary <- function(esets, fits) {
-    res <- lapply(1:length(esets), addClinicalBinary, esets, fits)
-    esets.r <- lapply(1:length(esets), function(i) {
-        esets[[i]]$risk <- res[[i]]$risk
-        esets[[i]]
-    })
-    names(esets.r) <- names(esets)
-    esets.r
-}
-
+# calculate the p-value of overlap for two gene signatures
 .pOverlap <- function(A, B, background) {
     n1 <- length(A)
     n2 <- length(B)
@@ -307,6 +254,9 @@ addClinicalAllBinary <- function(esets, fits) {
     phyper(min(n1, n2), n1, n - n1, n2) - phyper(m - 1, n1, n - n1, n2)
 }
 
+# given a model that uses gene symbols, translate it to a model using
+# probesets. works only with curatedOvarianData ExpressionSets, because we
+# assume a maxmean_probeset slot here
 .modelSymbolToAffy <- function(model, ref.eset) {
     model.affy <- model
     names(model.affy@coefficients) <-

@@ -57,22 +57,31 @@ library(curatedOvarianData)
 source("src/metaCMA.R")
 source("src/utils.R")
 @
+
+% load the filtered expression data (run ./runEsetList.sh in the input
+% directory
 <<createesets, cache=TRUE>>=
 load("input/eset.scaled.rda")
 esets    <- esets[-match("GSE19829.GPL8300_eset",names(esets))]
 esets.f  <- metaCMA.common.gene.esets(esets)
 @
 
+% we added the Yoshihara data after we finalized our model, so remove it for
+% now and use it later for validation
 <<addsurvobj, results='hide'>>=
 esets.uf <- esets
 japan.idx <- match("GSE32062.GPL6480_eset",names(esets.f))
 esets.f <- esets.f[-japan.idx]
 @
 
+% calculate univariate Cox regression coefficients for each dataset and each
+% gene
 <<optimizecoefs, cache=TRUE>>=
 coefs = metaCMA.coefs(esets.f)
 @
 
+% Do our leave-one-dataset-out cross-validation for different gene-signature
+% sizes. 
 <<optimizegrid, cache=TRUE,results='hide'>>=
 ma = lapply(c(5,10,seq(25,250,25)), function(i)
     #metaCMA(esets.f,coefs=coefs,n=i,method="penalizedSurv",fold=5))
@@ -107,11 +116,13 @@ corresponding dataset that was trained using the remaining datasets only.}
 \label{fig:cutoff:train}
 \end{figure}
 
+% This now uses all datasets for calculating the final model.
 <<finalmodel,cache=TRUE>>=
 tmp <- metaCMA.opt(esets.f,coef=coefs,n=200)
 final.model <- tmp$model
 @
 
+% Now load all the other data.
 <<loadvaldata,cache=TRUE>>=
 load("input/eset.binary.scaled.rda")
 esets.binary <- esets
@@ -123,7 +134,7 @@ load("input/eset.debulking.scaled.rda")
 esets.debulking <- esets
 @
 
-
+% Print the model for the supplement
 <<tablemodel>>=
 sig <- names(final.model@coefficients)
 esets.f.all <- esets.f
@@ -161,6 +172,8 @@ both comprise less than 75 samples and are thus tested with the final model.
 \label{fig:signature:overlap}
 \end{figure}
 
+% Repeat the leave-one-dataset-out cross-valiation, but use only the n
+% smallest/largest datasets for training
 <<optimizesize, cache=TRUE,results='hide'>>=
 sizes <- sort(sapply(esets.f, ncol),decreasing=TRUE)
 ma.sizes <- lapply(1:length(sizes), function(i) metaCMA(esets.f,coefs=coefs,
@@ -173,6 +186,7 @@ ma.sizes.rev <- lapply(1:length(sizes), function(i) metaCMA(esets.f,coefs=coefs,
 n=200, filter.fun= function(eset) ncol(eset) > sizes.rev[i] ))
 @
 
+% Validate the TCGA model.
 <<loadmodeltcga, cache=TRUE,results='hide'>>=
 load("input/TCGA11-ovsig.RData")
 model.tcga <- model.official
@@ -205,7 +219,8 @@ PMID17290060_eset$y <- Surv(PMID17290060_eset$days_to_death / 30,
                             PMID17290060_eset$vital_status == "deceased")
 @
 
-
+% Create a data.frame that contains all relevant clinical information and
+% the TCGA and our predictions.
 <<prepareclinicaldf, cache=TRUE>>=
 X <- esets.uf[-japan.idx]
 risk <- lapply(X, function(X) predict(model.tcga, newdata=X,
@@ -243,22 +258,20 @@ title="All Training Datasets")
 title="All Training Datasets")
 @
 \caption{The additional value of our gene signature compared to age and
-debulking status alone. 
-These plots visualize the
-Integrated Discrimination Improvement (IDI, \cite{Pencina:2008,Uno:2012}), a
-measure of discrimination of two competing nested survival models. Shown are
-plots for events within the first 1, 3 and 5 years, respectively. The y-axis
-shows the probability that the differences in predicted risk between the new
-and old models are smaller than $s$, $P(D \leq s)$. The bold curve shows this
-probability for patients who suffered from an event within the specified time,
-the thin line for those who did not. The new model is better when patients
-with events have a higher estimated risk (low probability that the risk
-difference is smaller than $s$) and those without event a lower risk (high
-probability that risk difference is smaller than $s$). The y-axis shows the
-discrimination improvement by varying $s$, with the grey dots representing the
-IDI. See also \cite{Uno:2012} for a more detailed explanation of these plots.
-Our gene signature improved for all three
-tested time points a model using only debulking status and age.} 
+debulking status alone.  These plots visualize the Integrated Discrimination
+Improvement (IDI, \cite{Pencina:2008,Uno:2012}), a measure of discrimination
+of two competing nested survival models. Shown are plots for events within the
+first 1, 3 and 5 years, respectively. The y-axis shows the probability that
+the differences in predicted risk between the new and old models are smaller
+than $s$, $P(D \leq s)$. The bold curve shows this probability for patients
+who suffered from an event within the specified time, the thin line for those
+who did not. The new model is better when patients with events have a higher
+estimated risk (low probability that the risk difference is smaller than $s$)
+and those without event a lower risk (high probability that risk difference is
+smaller than $s$). The y-axis shows the discrimination improvement by varying
+$s$, with the grey dots representing the IDI. See also \cite{Uno:2012} for a
+more detailed explanation of these plots.  Our gene signature improved for all
+three tested time points a model using only debulking status and age.} 
 \label{fig:reclass}
 \end{figure}
 
@@ -298,13 +311,12 @@ title="All Training Datasets")
 .reclassPlot(dfrc$y, dfrc$risk_tcga, dfrc$risk, t0=365.25*5, 
 title="All Training Datasets")
 @
-\caption{Comparison of all \textit{leave-one-dataset-out} cross-validated risk scores
-and the risk scores calculated by the TCGA model.  
-See \textbf{Supplemental Figure~\ref{fig:reclass}} and \cite{Uno:2012} for an explanation of these plots.  
-Shown are again plots for events within the first
-1, 3 and 5 years, respectively. 
-Our model shows a small but consistent reclassification improvement over all
-three time points.}
+\caption{Comparison of all \textit{leave-one-dataset-out} cross-validated risk
+scores and the risk scores calculated by the TCGA model.  See
+\textbf{Supplemental Figure~\ref{fig:reclass}} and \cite{Uno:2012} for an
+explanation of these plots.  Shown are again plots for events within the first
+1, 3 and 5 years, respectively. Our model shows a small but consistent
+reclassification improvement over all three time points.}
 \label{fig:reclass:tcga}
 \end{figure}
 
@@ -352,8 +364,7 @@ datasets. The model utilizes the overall survival gene signature
 true and false positive rates as a function of the probability cutoffs.}  
 \end{figure}
 
-
-
+% Calculate the C-Index differences
 <<concdeltaclinical1, cache=TRUE>>=
 res.dfrc <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.stagedeb]),
 dfrc$vital_status[idx.stagedeb]=="deceased"),
@@ -361,6 +372,7 @@ cbind(dfrc$tumorstage[idx.stagedeb], dfrc$debulking[idx.stagedeb] ),
 cbind(dfrc$tumorstage[idx.stagedeb],
 dfrc$debulking[idx.stagedeb], dfrc$risk[idx.stagedeb]),tau=365.25*4)
 @
+
 <<concdeltaclinical2, cache=TRUE>>=
 res.dfrc2 <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.stagedeb]),
 dfrc$vital_status[idx.stagedeb]=="deceased"),
@@ -374,6 +386,7 @@ ids <- esets.allos$TCGA_eset$summarystage=="early" &
     esets.allos$TCGA_eset$summarygrade!="low"
 esets.validation <- c(esets.validation, TCGA_eset=esets.allos$TCGA_eset[, ids])
 @
+
 <<clinicalvalidation, cache=TRUE>>=
 X <- esets.validation
 dfrcval <- .createClinical(esets.validation)
@@ -399,7 +412,6 @@ res.debulking.s3  <- metaCMA(Xs.alls3,y="debulking",coefs=coefs.debulking.s3, n=
 filter.fun=.debulkingFilter)
 @
 
-
 \begin{figure}
 <<debulkingmetaplot, cache=TRUE>>=
 preds <- lapply(res.debulking.s3$fits,function(fit) fit$risk@lp)
@@ -413,9 +425,9 @@ aucs.db <- .plotROCpanel(preds.logit,labels[idx],titles[idx],3,3)
 cross-validation. The prediction model calculates for each sample a score. The
 higher the score, the higher the probability the tumor will be not optimally
 debulkable. For each dataset, the model is trained using only the remaining
-datasets. The model utilizes gene expression only (\textbf{Supplemental Table 2}). ROC
-curves visualize the true and false positive rates as a function of the
-probability cutoffs.}  
+datasets. The model utilizes gene expression only (\textbf{Supplemental Table
+2}). ROC curves visualize the true and false positive rates as a function of
+the probability cutoffs.}  
 \label{fig:roc:debulking}
 \end{figure}
 
