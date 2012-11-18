@@ -1,6 +1,7 @@
 cran.packages <- c("xtable", "gplots", "TeachingDemos", "logging",
                    "survival", "rmeta", "survcomp", "snow", "rlecuyer",
-                   "RColorBrewer", "HGNChelper", "metafor", "ROCR" )
+                   "RColorBrewer", "HGNChelper", "metafor", "ROCR", 
+                   "pROC", "maxstat", "lattice", "survIDINRI")
 
 bioc.packages <- c("genefilter", "affy", "preprocessCore", "hgu133a.db")
 
@@ -18,7 +19,7 @@ for (pkg in bioc.packages){
 }
 
 package.name <- "curatedOvarianData"   ##alternatives are NormalizerVcuratedOvarianData and FULLVcuratedOvarianData
-package.version <- "0.99.2"
+package.version <- "0.99.10"
 
 ##Do the installation:
 package.url <- paste("http://bcb.dfci.harvard.edu/ovariancancer/dfiles_old/", package.name, "_",

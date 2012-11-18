@@ -186,7 +186,7 @@ ma.sizes.rev <- lapply(1:length(sizes), function(i) metaCMA(esets.f,coefs=coefs,
 n=200, filter.fun= function(eset) ncol(eset) > sizes.rev[i] ))
 @
 
-% Validate the TCGA model.
+% Validate the TCGA model. Stolen from Levi's paper supplement.
 <<loadmodeltcga, cache=TRUE,results='hide'>>=
 load("input/TCGA11-ovsig.RData")
 model.tcga <- model.official
@@ -225,13 +225,14 @@ PMID17290060_eset$y <- Surv(PMID17290060_eset$days_to_death / 30,
 X <- esets.uf[-japan.idx]
 risk <- lapply(X, function(X) predict(model.tcga, newdata=X,
  type="lp")@lp)
-for (i in 1:length(X)) X[[i]]$risk <- risk[[i]]
-for (i in 1:length(X)) 
-    X[[i]]$risk2 = ma[[10]]$fits[[i]]$risk@lp
+for (i in 1:length(X)) {
+    X[[i]]$risk_tcga <- risk[[i]]
+    X[[i]]$risk <- ma[[10]]$fits[[i]]$risk@lp
+}    
 X <- X[-grep("TCGA",names(X))]
 dfrc <- .createClinical(X)
-dfrc$risk_tcga <- unlist(sapply(X, function(x) x$risk))
-dfrc$risk <- unlist(sapply(X, function(x) x$risk2))  
+dfrc$risk_tcga <- unlist(sapply(X, function(x) x$risk_tcga))
+dfrc$risk <- unlist(sapply(X, function(x) x$risk))  
 idx.stagedeb <- !is.na(dfrc$age) & !is.na(dfrc$debulking)
 idx.stagedeb <- !is.na(dfrc$tumorstage) & !is.na(dfrc$debulking)
 dfrc$debulking_orig <- dfrc$debulking
@@ -322,18 +323,27 @@ reclassification improvement over all three time points.}
 
 \begin{figure}
 <<subtypes, results='hide'>>=
+# this was obtained from a Broad mailing list, because the supplement refers
+# to an internal link
 subtypes <- read.delim("input/TCGA_489_UE.k4.txt")
 
 esets.f$TCGA_eset$subtype <-
-subtypes[match(make.names(substr(esets.f$TCGA_eset$alt_sample_name,1,20)),
-subtypes[,1]),2]
- esets.f$TCGA_eset$risk <- predict(final.model, newdata=esets.f$TCGA_eset)@lp
- esets.f$TCGA_eset$risk_unbiased <- ma[[10]]$fits$TCGA_eset$risk@lp
+    subtypes[match(make.names(substr(esets.f$TCGA_eset$alt_sample_name,1,20)),
+    subtypes[,1]),2]
 
- esets.tcga.subtypes <- lapply(levels(esets.f$TCGA_eset$subtype),function(s)
- esets.f$TCGA_eset[,!is.na(esets.f$TCGA_eset$subtype) &
- esets.f$TCGA_eset$subtype==s])
- names(esets.tcga.subtypes) <- levels(esets.f$TCGA_eset$subtype)
+# use the final model on TCGA. The C-Index will be biased, because TCGA was
+# used for training. but we will get an idea in which subtype it works best
+esets.f$TCGA_eset$risk <- predict(final.model, newdata=esets.f$TCGA_eset)@lp
+
+# fetch the unbiased risk scores from the leave-one-dataset-out
+# cross-validation
+esets.f$TCGA_eset$risk_unbiased <- ma[[10]]$fits$TCGA_eset$risk@lp
+
+# no generate a forest plot for the unbiased risk scores
+esets.tcga.subtypes <- lapply(levels(esets.f$TCGA_eset$subtype),function(s)
+    esets.f$TCGA_eset[,!is.na(esets.f$TCGA_eset$subtype) &
+    esets.f$TCGA_eset$subtype==s])
+names(esets.tcga.subtypes) <- levels(esets.f$TCGA_eset$subtype)
 metaCMA.forest.label(esets.tcga.subtypes, label="risk_unbiased")
 @
 \caption{C-Index of a model trained in all training datasets except TCGA and
@@ -381,12 +391,15 @@ cbind(dfrc$tumorstage[idx.stagedeb],
 dfrc$debulking[idx.stagedeb], dfrc$risk[idx.stagedeb]),tau=365.25*4)
 @
 
+% add the TCGA early stage samples to the validation data
 <<addearlystage>>=
 ids <- esets.allos$TCGA_eset$summarystage=="early" &
     esets.allos$TCGA_eset$summarygrade!="low"
 esets.validation <- c(esets.validation, TCGA_eset=esets.allos$TCGA_eset[, ids])
 @
 
+% make another data.frame with clinical information as signature risk scores,
+% this time for the validation data
 <<clinicalvalidation, cache=TRUE>>=
 X <- esets.validation
 dfrcval <- .createClinical(esets.validation)
@@ -396,6 +409,8 @@ for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="
 dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
 @
 
+% Prepare the debulking datasets (use only genes common to all platforms and
+% use only stage III patients)
 <<debulkingmetaprepare>>=
 Xs <- esets.debulking 
 Xs.all <- metaCMA.common.gene.esets(Xs)
@@ -431,8 +446,8 @@ the probability cutoffs.}
 \label{fig:roc:debulking}
 \end{figure}
 
+% Write the final debulking model to a spreadsheet.
 <<finalmodeldebulking,cache=TRUE>>=
-
 tmp <- metaCMA.opt(Xs.alls3, coefs=coefs.debulking.s3,n=200,y="debulking")
 final.model.debulking <- tmp$model
 sig <- names(final.model.debulking@coefficients)
@@ -550,7 +565,6 @@ names(Xs.all) <- .getDatasetNames(Xs.all)
  x <- metaCMA.forest.models(Xs.all, risks1=risk1, risks2=risk2,
  graphwidth=unit(2.5, "inches"))
 mtext("E)   Concordance",at=0,cex=1.4,font=2)
-
 @
 }
 \caption{Comparison of our novel meta-analysis gene signature with existing
