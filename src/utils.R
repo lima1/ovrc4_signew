@@ -7,8 +7,20 @@
 .getDatasetNames <- function(esets) {
     s <- sapply(esets, function(Y) gsub("Cancer GenomeAtlas Research Network", 
         "TCGA", experimentData(Y)@lab))
-    s <- gsub(",.*20", " 20", s)
+    s <- gsub(",.*20", " et al, 20", s)
     gsub(" hgu95", "", s)
+}
+
+# adds a label to each ExpressionSet, classifying each sample as long or
+# short-term survivor
+.dichotomizeshortlong <- function(eset, s=365.25, l=365.2*4,
+label="os_my_binary") {
+    eset <- eset[, eset$y[,1] > s  |
+        eset$y[,2] == 1]
+
+    eset[[label]] <- as.factor(ifelse(eset$y[,1] < s, "short",
+    ifelse(eset$y[,1] > l,"long", NA)))
+    eset[, !is.na(eset[[label]])]
 }
 
 # show a Kaplan-Meier analysis of a leave-one-dataset-out cross-validation
@@ -33,8 +45,10 @@
     risk.fmtrain <- lapply(esets.f, function(X) predict(final.model, newdata = X)@lp)
     cutoff <- median(unlist(risk.fmtrain))
     
-    titles <- c(paste("A) Gillet 2012 (RT-PCR", sum(coefficients %in% featureNames(esets.validation$GSE30009_eset)), 
-        "genes)"), "B) Konstantinopoulos 2010",
+    titles <- c(
+        "A) Konstantinopoulos 2010",
+        paste("B) Gillet 2012 (", sum(coefficients %in% featureNames(esets.validation$GSE30009_eset)), 
+        " genes)",sep=""), 
         paste("C) ",
             .getDatasetNames(list(esets.validation$GSE32062.GPL6480_eset))), 
         "D) Early Stage TCGA")
@@ -162,12 +176,12 @@
     forest.rma(rma1,
     atransf=exp,xlim=c(-3,2.5),ilab=dat,
     at= log(sapply(-2:5, function(x) 1*1.3^x)),
-    ilab.xpos=c(-6.5,-4.5)*4/16,slab=titles,mlab="Overall",
+    ilab.xpos=c(-6.5,-4.5)*3.5/16,slab=titles,mlab="Overall",
     xlab="Odds Ratio (log scale)")
     op <- par(font=2)
     text( -3, 10, "Authors and Year",pos=4)
-    text(c(-6.5,-4.5)*4/16,10,c("Opt.", "Subopt."))
-    text(c(-5.5)*4/16,11,c("Debulking"))
+    text(c(-6.5,-4.5)*3.5/16,10,c("Opt.", "Subopt."))
+    text(c(-5.5)*3.5/16,11,c("Debulking"))
     text(2.5,10, "Gene Signature Odds Ratio [95% CI]",pos=2)
     par(op)
 
@@ -201,14 +215,14 @@
     lb <- unlist(x[5, ])
     ub <- unlist(x[6, ])
     
-    par(mar = c(12.5, 5.5, 2, 0.5))
+    par(mar = c(15, 5.5, 2, 0.5))
     plot(ids, unlist(x[1, ]), type = "l", las = 1, ylim = c(0.56, 0.65), xaxt = "n", 
-        ylab = "", xlab = "", cex.axis = 1.2, cex.lab = 1.3, ...)
+        ylab = "", xlab = "", cex.axis = 1.1, cex.lab = 1.2, ...)
     axis(side = 1, at = ids, labels = labels[ids], las = 2, cex.axis = 1.2)
-    title(ylab = ylab, cex.lab = 1.3, line = 4)
+    title(ylab = ylab, cex.lab = 1.2, line = 4)
     points(ids, lb, col = "grey", lty = 2, type = "l")
     points(ids, ub, col = "grey", lty = 2, type = "l")
-    mtext(panel.num, side = 3, cex = 1.8, at = 0)
+    mtext(panel.num, side = 3, cex = 1.5, at = 0)
     
 }
 

@@ -67,16 +67,6 @@ esets.f  <- metaCMA.common.gene.esets(esets)
 esets.uf <- esets
 japan.idx <- match("GSE32062.GPL6480_eset",names(esets.f))
 esets.f <- esets.f[-japan.idx]
-
-.dichotomizeshortlong <- function(eset, s=365.25, l=365.2*4,
-label="os_my_binary") {
-    eset <- eset[, eset$y[,1] > s  |
-        eset$y[,2] == 1]
-
-    eset[[label]] <- as.factor(ifelse(eset$y[,1] < s, "short",
-    ifelse(eset$y[,1] > l,"long", NA)))
-    eset[, !is.na(eset[[label]])]
-}
 @
 
 <<optimizecoefs, cache=TRUE>>=
@@ -102,7 +92,7 @@ ma = lapply(c(5,10,seq(25,250,25)), function(i)
 
     dfCV <- stack(as.data.frame(do.call(rbind,cidx)))
     dfCV <- cbind(dfCV, Genes=c(5,10,seq(25,250,25)))
-    dfCV$ind <- gsub("_eset$","",unlist(lapply(names(esets), rep, 12)))
+    dfCV$ind <- unlist(lapply(.getDatasetNames(esets), rep, 12))
     ggplot(dfCV, aes(values, Genes))+geom_point()+facet_wrap(~ind) +
     ylab("Number of Genes")+xlab("C-Index (Concordance)")
 }
@@ -401,13 +391,6 @@ Xs.alls3 <- lapply(Xs.all, function(X) X[,X$tumorstage==3 |
 is.na(X$tumorstage)])
 @
 
-<<debulkingmeta, cache=TRUE, results='hide'>>=
-coefs.debulking <- metaCMA.coefs(Xs.all, y="debulking", family=binomial)
-res.debulking  <- metaCMA(Xs.all,y="debulking",coefs=coefs.debulking, n=200,
-filter.fun=.debulkingFilter)
-@
-
-
 <<debulkingmetas3, cache=TRUE, results='hide'>>=
 # use only stage 3 patients for training, as stage 4 patients typically don't
 # get debulking surgery
@@ -579,7 +562,7 @@ paper for details.}
 \end{figure}
 
 \begin{figure}
-<<plotdatasets,fig.width=7,fig.height=5,out.width="0.9\\textwidth",out.height="0.65\\textwidth",results='hide'>>=
+<<plotdatasets,fig.width=7,fig.height=6,out.width="0.9\\textwidth",out.height="0.77\\textwidth",results='hide'>>=
 par(mfrow=c(1,2))
 .concPlotSize(esets.f, ma.sizes,dataset_ids=gsub(".Samples","",names(sizes)))
 .concPlotSize(esets.f,
