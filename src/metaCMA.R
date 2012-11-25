@@ -71,10 +71,10 @@ rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate", only.
     xy
 }
 
-.getFit <- function(i, esets, y="y", coefs, n, method=NULL, rma.method="FE",
-verbose=TRUE, filter.fun=.defaultFilter, modeltype="compoundcovariate", only.sign=NULL,...) {
+metaCMA.train <- function(i, esets, y="y", coefs, n, method=NULL, rma.method="FE",
+verbose=FALSE, filter.fun=.defaultFilter, modeltype="compoundcovariate", only.sign=NULL,...) {
     if (verbose) cat("Dataset", i, "of", length(esets),"...\n")
-    tmp = .createXy(-i,  esets, y, coefs, n, rma.method,
+    tmp <- .createXy(-i,  esets, y, coefs, n, rma.method,
     filter.fun,modeltype=modeltype, only.sign=only.sign)
     if (is.null(tmp)) {
         return(list)
@@ -120,9 +120,10 @@ metaCMA.opt <- function(esets, ...) {
 }
 
 metaCMA <- function(esets, y="y",  coefs=NULL, n, method=NULL,
-rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate", only.sign=NULL, ... ) {
+rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate",
+only.sign=NULL, ... ) {
     if (is.null(coefs)) coefs = metaCMA.coefs(esets, y)
-    fits  = lapply(1:length(esets), .getFit, esets=esets, y=y, coefs=coefs,
+    fits  = lapply(1:length(esets), metaCMA.train, esets=esets, y=y, coefs=coefs,
     n=n, method=method,
     rma.method=rma.method,filter.fun=filter.fun, modeltype=modeltype,
     only.sign=only.sign, ...)
@@ -130,10 +131,10 @@ rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate", only.
     list(fits=fits, y=y, rma.method=rma.method)
 }
 
-metaCMA.eval <- function(esets, y="y", object) {
-    lapply(1:length(esets), function(i)
-    evaluate(object=new("UnoC"),pred.all=object$fits[[i]]$risk@lp,
-        yc=esets[[i]][[y]], learnind=100000,add=list(tau=365.25*5) ))
+metaCMA.eval <- function(ids, esets, y="y", object, tau=365.25*4,...) {
+    lapply(ids, function(i)
+    evaluate(object$fits[[i]]$risk, measure=new("UnoC"),
+        newy=esets[[i]][[y]], add=list(tau=tau) ))
 }
 
 .camelCase <- function(x) paste(toupper(substr(x,1,1)), substr(x,2,nchar(x)), sep="")
@@ -251,5 +252,46 @@ metaCMA.censor <- function(esets, y="y", censor.at=NULL) {
         eset
     }
     lapply(esets,.censor)
+}
+
+# simple differential expression over all datasets using the limma package
+metaCMA.limma <- function(esets, groups, contrasts) {
+    require(limma)
+    .doLimma <- function(eset) {
+        TS <- as.factor(eset[[groups]])
+        design <- model.matrix(~0+TS)
+        colnames(design) <- levels(TS)
+        fit <- lmFit(exprs(eset), design = design)
+        cont <-
+        makeContrasts(contrasts=contrasts,levels=design)
+        fit2 <- contrasts.fit(fit, cont)
+        fit2 <- eBayes(fit2)
+    }    
+    lapply(esets, .doLimma)
+}
+
+.getCoefsSubset <- function(coefs, idx) {
+    ret <- coefs
+    ret[[1]] <- ret[[1]][,idx]
+    ret[[2]] <- ret[[2]][,idx]
+    ret
+}
+
+metaCMA.powerset <- function(n) {
+    unlist(lapply(lapply(1:n,function(i) combn(x=1:n, i)), function(x)
+        lapply(1:ncol(x), function(i)  x[,i])),recursive=FALSE)
+}
+
+metaCMA.allcombinations <- function(i, esets, eval.fun = metaCMA.eval, ...) {
+    .doPS <- function(ps) {
+        idx <- c(i,(1:length(esets))[-i][ps])
+        tmp <- metaCMA.train(1, esets[idx], coefs=.getCoefsSubset(coefs,idx),filter.fun=function(eset)
+        return(FALSE),... )
+        eval.fun(1,esets[idx],object=list(fits=list(tmp)))
+     }
+     pss <- metaCMA.powerset(length(esets[-i]))
+     ret <- lapply(pss, .doPS)
+     n <- lapply(pss, function(ps) sum(sapply(esets[-i][ps], ncol)))
+     list(evaluation=ret, n=n)
 }
 

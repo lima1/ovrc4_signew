@@ -24,17 +24,25 @@ label="os_my_binary") {
 }
 
 # show a Kaplan-Meier analysis of a leave-one-dataset-out cross-validation
-.lodocvPlot <- function(X, nrow = 3, ncol = 3, censor.at = 365.25 * 5, ...) {
-    X <- X[-match("TCGA_eset", names(X))]
+.lodocvPlot <- function(X, models, ids = 1:length(X), nrow = 3, ncol = 3, censor.at = 365.25 * 5, ...) {
+#    X <- X[-match("TCGA_eset", names(X))]
     names(X) <- .getDatasetNames(X)
     names(X) <- paste(1:length(X),". ", names(X), sep="")
     par(mfrow = c(nrow, ncol))
     par(mar = c(4.3, 4.5, 3, 1))
-    res <- lapply(1:length(X), function(i) plotKMStratifyBy(cutpoints = median(unlist(sapply(X[-i], 
-        function(x) x$risk)), na.rm = TRUE), linearriskscore = X[[i]]$risk, y = X[[i]]$y, 
+    res <- lapply(ids, function(i) {
+        # calculate median risk score in the training data
+        if (length(models) == 1) model <- models
+        else model <- models[[i]]
+        cutpoint <- median(unlist(lapply(X[-i], function(x) predict(model,
+        newdata=x)@lp)))
+
+        plotKMStratifyBy(cutpoints = cutpoint,
+        linearriskscore = predict(model,newdata=X[[i]])@lp, y = X[[i]]$y, 
         censor.at = censor.at, cex.base = 1.4, show.n.risk = FALSE, show.HR = FALSE, 
-        show.legend = FALSE, main = names(X)[i], ...))
-    for (i in 1:length(res)) res[[i]]$y <- X[[i]]$y
+        show.legend = FALSE, main = names(X)[i], ...)
+    })
+    for (i in 1:length(res)) res[[i]]$y <- X[ids][[i]]$y
     res
 }
 

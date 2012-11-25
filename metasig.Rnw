@@ -49,6 +49,7 @@ library(lattice)
 library(maxstat)
 library(exactRankTests)
 library(pROC)
+library(limma)
 
 # only to print the version number in the Appendix. We load the data generated
 # with the createEsetsList script
@@ -191,12 +192,15 @@ n=200, filter.fun= function(eset) ncol(eset) > sizes.rev[i] ))
 load("input/TCGA11-ovsig.RData")
 model.tcga <- model.official
 data(TCGA_eset, package="curatedOvarianData")
+featureNames(TCGA_eset) <- sub("-", "hyphen", featureNames(TCGA_eset))
+TCGA_eset <- TCGA_eset[ ,!is.na(TCGA_eset$days_to_death) &
+                                             !is.na(TCGA_eset$vital_status)]
+TCGA_eset$y <- Surv(TCGA_eset$days_to_death / 30,
+                               TCGA_eset$vital_status == "deceased")
+
 TCGA.validation.eset <- TCGA_eset[ ,TCGA_eset$batch %in% c("17", "18", "19", "21", "22", "24")]
-featureNames(TCGA.validation.eset) <- sub("-", "hyphen", featureNames(TCGA.validation.eset))
-TCGA.validation.eset <- TCGA.validation.eset[ ,!is.na(TCGA.validation.eset$days_to_death) &
-                                             !is.na(TCGA.validation.eset$vital_status)]
-TCGA.validation.eset$y <- Surv(TCGA.validation.eset$days_to_death / 30,
-                               TCGA.validation.eset$vital_status == "deceased")
+TCGA.training.eset   <- TCGA_eset[ ,TCGA_eset$batch >= 9 & TCGA_eset$batch <=
+15 & !is.na(TCGA_eset$batch)]
 ##Validation set 2:
 data(GSE9891_eset, package="curatedOvarianData")
 featureNames(GSE9891_eset) <- sub("-", "hyphen", featureNames(GSE9891_eset))
@@ -464,6 +468,32 @@ final.model.debulking@coefficients,
  FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig))),
  file="final_signature_debulking.csv",row.names=FALSE)
 @
+<<writemodelobjs>>=
+save(final.model, final.model.debulking, file="models.rda")
+@
+
+<<finalmodeldebulkingfoldchanges, cache=TRUE>>=
+load("input/eset.debulking.rda")
+esets.db <- esets
+esets.db <- esets.db[!sapply(esets.db, .debulkingFilter)]
+
+res <- metaCMA.limma(lapply(esets.db, function(X)
+    X[names(final.model.debulking@coefficients),]), "debulking",
+    "suboptimal-optimal")
+resM <- do.call(cbind, lapply(res, function(r) topTable(r,number=200,
+    sort.by="none")[,2]))
+resM <- cbind(resM, Weighted.Mean=apply(resM,1, weighted.mean, w=sqrt(sapply(
+    esets.db, ncol))))
+rownames(resM) <- names(final.model.debulking@coefficients)
+resM <- cbind(resM,
+FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig)))
+resM <- resM[order(abs(resM[,ncol(resM)-1]),decreasing=TRUE),]
+resM[,1:9] <- 2^resM[,1:9]
+resM[,1:9] <- apply(resM[,1:9],c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
+
+
+write.csv(resM, "final_signature_debulking_foldchanges.csv")
+@
 
 \clearpage
 \bibliographystyle{plain}
@@ -481,22 +511,60 @@ the study.  The following section generates the figures of the main paper.
 
 \begin{figure}
 <<kmplotstrain,results='hide'>>=
-best.idx <- rep(10, length(esets.f))
-X <- esets.f
-
-for (i in 1:length(X)) { 
-    X[[i]]$risk = ma[[best.idx[i]]]$fits[[i]]$risk@lp
-}
-res.lodo <- .lodocvPlot(X)
-for (i in 1:length(X)) { 
-    X[[i]]$risk <- predict(model.tcga, newdata=X[[i]])@lp
-}
-res.lodo.tcga <- .lodocvPlot(X, plot=FALSE)
+res.lodo <- .lodocvPlot(esets.f, models=lapply(ma[[10]]$fits, function(x)
+x$fit),ids=1:7)
+res.lodo.tcga <- .lodocvPlot(esets.f, plot=FALSE,models=model.tcga,ids=1:7)
 @
 \caption{\textit{Leave-one-dataset-out} cross-validation of a novel gene signature for
 predicting overall survival in late stage ovarian cancer.
 See caption in the main paper for details.}
 \end{figure}
+
+<<datasetshr2prepare>>=
+.allCombsEval <- function(ids, esets, object) {
+       lodo <- .lodocvPlot(esets, models=object$fits[[1]]$fit, ids=ids,
+       plot=FALSE)[[1]]
+       fit <- coxph(lodo$y~lodo$strata)
+       summary(fit)$coefficients
+}
+@
+
+<<datasetshr2, cache=TRUE>>=
+ret.hr <- lapply(1:length(esets.f), metaCMA.allcombinations, esets.f, n=200,eval.fun=.allCombsEval )
+@
+
+<<plotdatasetshrprepare>>=
+
+df.hr <- do.call(rbind, lapply(1:length(esets.f),
+function(i) data.frame(.getDatasetNames(esets.f)[i], unlist(ret.hr[[i]]$n),
+  sapply(ret.hr[[i]]$evaluation, function(y) 1/y[2]))))
+ 
+colnames(df.hr) <-c("Dataset", "n", "HR")
+
+.psContains <- function(i, esets, s) {
+    .doPS <- function(ps) {
+        idx <- (1:length(esets))[-i][ps]
+        ifelse(sum(grepl(s, names(esets)[idx]))>0, "Yes", "No")
+     }
+     pss <- metaCMA.powerset(length(esets[-i]))
+     ret <- lapply(pss, .doPS)
+}
+
+df.hr$containstcga <- unlist(lapply(1:length(esets.f), .psContains, esets.f,"TCGA"))
+
+df.hr <- df.hr[df.hr[,1]!="TCGA 2011",]
+
+p <-ggplot(df.hr, aes(n,HR))+geom_smooth(method="lm")+geom_point(aes(colour=containstcga))+facet_wrap(~Dataset)+coord_cartesian(ylim = c(0.75, 3))+ylab("Hazard Ratio")+xlab("Total Training Sample Size")+scale_colour_discrete(name = "TCGA used for training")+theme(axis.text.x=element_text(angle=45,hjust=1))
+@
+
+\begin{figure}
+<<plotdatasetshr, cache=TRUE>>=
+plot(p) 
+@
+\caption{Hazard Ratios as a function of training sample size.
+See caption in the main paper for details.}
+\end{figure}
+
 
 \begin{figure}
 <<validationexternal,cache=TRUE,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
@@ -585,17 +653,6 @@ priors <- sapply(labels, function(l) sum(l=="suboptimal")/length(l))
 @
 \caption{Predicting suboptimally debulked tumors. See caption in the main
 paper for details.}
-\end{figure}
-
-\begin{figure}
-<<plotdatasets,fig.width=7,fig.height=6,out.width="0.9\\textwidth",out.height="0.77\\textwidth",results='hide'>>=
-par(mfrow=c(1,2))
-.concPlotSize(esets.f, ma.sizes,dataset_ids=gsub(".Samples","",names(sizes)))
-.concPlotSize(esets.f,
-ma.sizes.rev,skip=1,dataset_ids=gsub(".Samples","",names(sizes.rev)),ylab="",panel.num="B)")
-@
-\caption{Prediction accuracy as a function of training datasets.
-See caption in the main paper for details.}
 \end{figure}
 
 \clearpage
