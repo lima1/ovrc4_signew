@@ -23,6 +23,15 @@ label="os_my_binary") {
     eset[, !is.na(eset[[label]])]
 }
 
+.dichotomizeshortlongdf <- function(eset, s=365.25, l=365.2,
+label="os_1yr") {
+    eset <- eset[eset$y[,1] > s  |
+        eset$y[,2] == 1, ]
+
+    eset[[label]] <- as.factor(ifelse(eset$y[,1] < s, "short",
+    ifelse(eset$y[,1] > l,"long", NA)))
+    eset[!is.na(eset[[label]]),]
+}
 # show a Kaplan-Meier analysis of a leave-one-dataset-out cross-validation
 .lodocvPlot <- function(X, models, ids = 1:length(X), nrow = 3, ncol = 3, censor.at = 365.25 * 5, ...) {
 #    X <- X[-match("TCGA_eset", names(X))]
@@ -112,7 +121,7 @@ label="os_my_binary") {
     auc.ci <- ci(roc(labels,pred))
     
     if (plot) {
-        plot(perf.rocr, colorize = TRUE, cex.lab = 1.3, ...)
+        plot(perf.rocr, colorize = FALSE, cex.lab = 1.3, ...)
         text(0, 0.9, paste("AUC =", round(auc, digits = 2)), cex = 1.5, pos = 4)
         abline(a = 0, b = 1, lty = 2)
         text(1, 0.1, paste("n =", length(labels)), cex = 1.5, pos = 2)
@@ -154,14 +163,13 @@ label="os_my_binary") {
     lapply(1:length(esets), .doIt)
 }
 
-.p2logitMV <- function(esets, fits, preds = NULL, y = "debulking", x1 = "tumorstage") {
+.p2logitMV <- function(esets,  preds = NULL, y = "debulking", x1 =
+"tumorstage", x2="debulking") {
     .doIt <- function(i) {
-        esets.c <- .combineEsets(esets[-i], y = y)
-        tmp.df <- data.frame(risk = predict(fits[[i]]$fit, newdata = esets.c$X)@lp, 
-            covar = esets.c$y, x1 = unlist(sapply(esets[-i], function(X) X[[x1]])))
-        fit <- glm(covar ~ risk + x1, tmp.df, family = "binomial")
-        risk <- fits[[i]]$risk@lp
-        if (!is.null(preds)) 
+        tmp.df <- .createClinical(esets[-i])
+        tmp.df$risk <- unlist(preds[-i])
+        tmp.df$covar <- tmp.df[[y]]
+        fit <- glm(covar ~ risk + debulking, tmp.df, family = "binomial")
             risk <- preds[[i]]
         predict(fit, newdata = data.frame(risk = risk, x1 = esets[[i]][[x1]]), type = "response")
     }

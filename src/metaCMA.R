@@ -36,6 +36,8 @@ rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate", only.
     idx.not.want = -which(sapply(esets,filter.fun))
     # idx is minus validation set
     idx.t = c(idx, idx.not.want)
+    # no validation data at all? then use all 
+    if (length(idx.t) == 0) idx.t <- 1:length(esets)
     if (length(esets[idx.t]) == 0) {
         warning("No training data passed the filter.")
         return(NULL)
