@@ -173,9 +173,10 @@ metaCMA.concordance <- function(esets, y="y", risks, rma.method="FE") {
         list(res.rma, coefs)
 }
 
-metaCMA.hr <- function(esets, y="y", risks, rma.method="FE") {
+metaCMA.hr <- function(esets, y="y", risks, rma.method="FE",inverse=FALSE) {
         coefs <- sapply(1:length(esets), function(i)
         summary(coxph(esets[[i]][[y]]~risks[[i]]))$coefficients[c(1,3)])
+        if (inverse) coefs[1,] <- 1-coefs[1,]
         res.rma <- metafor::rma(yi = coefs[1,], sei = coefs[2,], method=rma.method)
         list(res.rma, coefs)
 }
@@ -189,7 +190,7 @@ metaCMA.forest <- function(esets, metacma, y="y", mlab="Overall", ...) {
 }
 
 metaCMA.forest.models <- function(esets, y="y", risks1, risks2,
-mlab="Overall",concordance=TRUE,...) {
+mlab="Overall",concordance=TRUE,inverse=FALSE,...) {
     tmp <- names(esets)
     labeltext <- cbind(c("", sapply(tmp, function(x)
     c(x,NA,NA)),"Overall",NA))
@@ -199,8 +200,8 @@ mlab="Overall",concordance=TRUE,...) {
         rma1 <- metaCMA.concordance(esets,y, risks1)
         rma2 <- metaCMA.concordance(esets,y, risks2)
     } else {
-        rma1 <- metaCMA.hr(esets,y, risks1)
-        rma2 <- metaCMA.hr(esets,y, risks2)
+        rma1 <- metaCMA.hr(esets,y, risks1, inverse=inverse)
+        rma2 <- metaCMA.hr(esets,y, risks2, inverse=inverse)
     }
     r <- do.call(rbind, lapply(1:ncol(rma1[[2]]),function(i)
     rbind(rma1[[2]][,i],rma2[[2]][,i], c(NA,NA))))
@@ -208,12 +209,17 @@ mlab="Overall",concordance=TRUE,...) {
     r.lower <- c(NA,r[,1]-(r[,2]*1.96), rma1[[1]]$ci.lb,  rma2[[1]]$ci.lb)
     r.upper <- c(NA,r[,1]+(r[,2]*1.96), rma1[[1]]$ci.ub,  rma2[[1]]$ci.ub)
     col=meta.colors(line=c(rep(c(NA, "darkblue", "seagreen"),length(tmp)+1)), zero="firebrick", box=c(rep(c(NA," royalblue", "forestgreen"),length(tmp)+1)))
-
+    if(!concordance) {
+        r.mean <- log2(r.mean)
+        r.lower <- log2(r.lower)
+        r.upper <- log2(r.upper)
+    }
     forestplot.surv(labeltext=labeltext, mean=r.mean, lower=r.lower,
     upper=r.upper,zero=ifelse(concordance,0.5,0), col=col,
     xlog=concordance==FALSE,
     align=c("l"),  xlab=ifelse(concordance, "Concordance Index", "Hazard Ratio"),
     is.summary=(c(rep(FALSE,length(tmp)*3+1), TRUE, TRUE)),...)
+    list(rma1, rma2)
 }
 
 metaCMA.forest.probeset <- function(esets, y="y",

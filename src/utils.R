@@ -195,7 +195,7 @@ label="os_1yr") {
     ilab.xpos=c(-6.5,-4.5)*3.5/16,slab=titles,mlab="Overall",
     xlab="Odds Ratio (log scale)")
     op <- par(font=2)
-    text( -3, 10, "Authors and Year",pos=4)
+    text( -3, 10, "Dataset",pos=4)
     text(c(-6.5,-4.5)*3.5/16,10,c("Opt.", "Subopt."))
     text(c(-5.5)*3.5/16,11,c("Debulking"))
     text(2.5,10, "Gene Signature Odds Ratio [95% CI]",pos=2)

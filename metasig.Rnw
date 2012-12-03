@@ -23,6 +23,7 @@ options(replace.assign=TRUE,width=90)
 
 \renewcommand{\thefigure}{S\arabic{figure}}
 \renewcommand{\thetable}{S\arabic{table}}
+\setcounter{table}{1}
 
 \title{Risk Prediction for Late-stage Ovarian Cancer Using the Corpus of
 Published Expression Data - Supplemental Figures}
@@ -446,7 +447,6 @@ compared to random signatures.
 
 \section{Prediction of refractory cases}
 
-
 \begin{figure}
 <<elmeta,fig.width=7,fig.height=7,out.width="0.9\\textwidth",out.height="0.9\\textwidth",results='hide'>>=
 Xs.all <- lapply(esets.f, .dichotomizeshortlong, l=365.25, label="os_1yr")
@@ -727,6 +727,7 @@ dfrcboth <- dfrcboth[- grep("TCGA_eset", rownames(dfrcboth)),]
 # thanks Hmisc for messing up the Surv function
 dfrcboth$y <- Surv(dfrcboth$y[,1], dfrcboth$y[,2])
 
+
 # get dichotomized risk scores, not from the early stage samples
 strata_we <-   do.call(rbind, lapply(c(res.lodo,res.val[-4]), function(x)
 data.frame(x$strata, x$y)))
@@ -735,46 +736,44 @@ data.frame(x$strata, x$y)))
 
 
 par(mfrow=c(2,2))
-plotKM(y=dfrcboth$y, strata=factor(dfrcboth$tumorstage,levels=c(4,3)),censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="A)   Stage (4 vs. 3)")
-plotKM(y=dfrcboth$y,strata=factor(dfrcboth$debulking_orig,levels=c("suboptimal", "optimal")),censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="B)   Debulking (subopt. vs opt.)")
-plotKM(y=Surv(strata_tcga[,2][,1],strata_tcga[,2][,2]),
-strata=strata_tcga[,1],censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="C)   TCGA Signature")
-
 plotKM(y=Surv(strata_we[,2][,1],strata_we[,2][,2]),
 strata=strata_we[,1],censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
         show.PV=FALSE,
         xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="D)   Meta-Analysis Signature")
+        cex.base=1.4,main="A)   Meta-Analysis Signature")
+plotKM(y=Surv(strata_tcga[,2][,1],strata_tcga[,2][,2]),
+strata=strata_tcga[,1],censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="B)   TCGA Signature")
+plotKM(y=dfrcboth$y,strata=factor(dfrcboth$debulking_orig,levels=c("suboptimal", "optimal")),censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="C)   Debulking (subopt. vs opt.)")
+plotKM(y=dfrcboth$y, strata=factor(dfrcboth$tumorstage,levels=c(4,3)),censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="D)   Stage (4 vs. 3)")
 @
 }
 \subfigure[]{
-<<fpcomptcga,fig.width=5,fig.height=9,out.width="0.3\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
-Xs.all <- esets.f[-8]
-risk1a <- lapply(names(Xs.all), function(x) ma[[10]]$fits[[x]]$risk@lp)
-risk1b <- lapply(esets.validation[-4], function(X) predict(final.model, X)@lp)
-
-Xs.all <- c(Xs.all, esets.validation[-4])
-risk1 <- c(risk1a, risk1b)
-
-risk2 <- lapply(Xs.all, function(X) predict(model.tcga, X)@lp)
-
+<<fpcomptcga,fig.width=5.5,fig.height=9,out.width="0.4\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+Xs.all <- c(esets.f[-8], esets.validation[-4])
 names(Xs.all) <- .getDatasetNames(Xs.all)
- x <- metaCMA.forest.models(Xs.all, risks1=risk1, risks2=risk2,
- graphwidth=unit(2.5, "inches"))
-mtext("E)   Concordance",at=0,cex=1.4,font=2)
+
+res.strata <- lapply(c(res.lodo, res.val[-4]), function(x) x$strata)
+res.strata.tcga <- lapply(c(res.lodo.tcga, res.val.tcga[-4]), function(x) x$strata)
+
+source("src/forestplot.surv.R")
+
+x <- metaCMA.forest.models(metaCMA.censor(Xs.all,censor.at=365.25*5), risks1=res.strata, risks2=res.strata.tcga,
+ graphwidth=unit(2.5,
+ "inches"),concordance=FALSE,inverse=TRUE,x.ticks=c(0.5,1,2,4,8),clip=log(c(0.5,8)))
+mtext("E)",cex=1.4,font=2)
 @
 }
 \caption{Comparison of our novel meta-analysis gene signature with existing

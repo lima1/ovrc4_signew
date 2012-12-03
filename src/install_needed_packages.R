@@ -1,7 +1,8 @@
 cran.packages <- c("xtable", "gplots", "TeachingDemos", "logging",
                    "survival", "rmeta", "survcomp", "snow", "rlecuyer",
                    "RColorBrewer", "HGNChelper", "metafor", "ROCR", 
-                   "pROC", "maxstat", "lattice", "survIDINRI")
+                   "pROC", "maxstat", "lattice", "survIDINRI", "rockchalk", 
+                   "cvTools")
 
 bioc.packages <- c("genefilter", "affy", "preprocessCore", "hgu133a.db")
 
