@@ -761,7 +761,7 @@ plotKM(y=dfrcboth$y, strata=factor(dfrcboth$tumorstage,levels=c(4,3)),censor.at=
 @
 }
 \subfigure[]{
-<<fpcomptcga,fig.width=5.5,fig.height=9,out.width="0.4\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+<<fpcomptcga,fig.width=5.75,fig.height=9,out.width="0.4\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
 Xs.all <- c(esets.f[-8], esets.validation[-4])
 names(Xs.all) <- .getDatasetNames(Xs.all)
 

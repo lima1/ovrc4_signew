@@ -176,7 +176,7 @@ metaCMA.concordance <- function(esets, y="y", risks, rma.method="FE") {
 metaCMA.hr <- function(esets, y="y", risks, rma.method="FE",inverse=FALSE) {
         coefs <- sapply(1:length(esets), function(i)
         summary(coxph(esets[[i]][[y]]~risks[[i]]))$coefficients[c(1,3)])
-        if (inverse) coefs[1,] <- 1-coefs[1,]
+        if (inverse) coefs[1,] <- -coefs[1,]
         res.rma <- metafor::rma(yi = coefs[1,], sei = coefs[2,], method=rma.method)
         list(res.rma, coefs)
 }
@@ -209,11 +209,11 @@ mlab="Overall",concordance=TRUE,inverse=FALSE,...) {
     r.lower <- c(NA,r[,1]-(r[,2]*1.96), rma1[[1]]$ci.lb,  rma2[[1]]$ci.lb)
     r.upper <- c(NA,r[,1]+(r[,2]*1.96), rma1[[1]]$ci.ub,  rma2[[1]]$ci.ub)
     col=meta.colors(line=c(rep(c(NA, "darkblue", "seagreen"),length(tmp)+1)), zero="firebrick", box=c(rep(c(NA," royalblue", "forestgreen"),length(tmp)+1)))
-    if(!concordance) {
-        r.mean <- log2(r.mean)
-        r.lower <- log2(r.lower)
-        r.upper <- log2(r.upper)
-    }
+    #if(!concordance) {
+    #    r.mean <- log(r.mean)
+    #    r.lower <- log(r.lower)
+    #    r.upper <- log(r.upper)
+    #}
     forestplot.surv(labeltext=labeltext, mean=r.mean, lower=r.lower,
     upper=r.upper,zero=ifelse(concordance,0.5,0), col=col,
     xlog=concordance==FALSE,
