@@ -28,8 +28,8 @@ options(replace.assign=TRUE,width=90)
 \title{Risk Prediction for Late-stage Ovarian Cancer Using the Corpus of
 Published Expression Data - Supplemental Figures}
 
-\author{Markus Riester, Levi Waldron, Aedin Culhane, Curtis \\
-Huttenhower, Franziska Michor, Giovanni Parmigiani, Michael Birrer}
+\author{Markus Riester, Levi Waldron, Aedin Culhane, Lorenzo Trippa, \\
+Curtis Huttenhower, Franziska Michor, Giovanni Parmigiani, Michael Birrer}
 \maketitle
 
 Code to reproduce all results presented in this paper is
@@ -156,7 +156,7 @@ final.model <- tmp$model
 load("input/eset.binary.scaled.rda")
 esets.binary <- esets
 load("input/eset.validation.scaled.rda")
-esets.validation <- esets
+esets.validation_orig <- esets
 load("input/eset.allos.scaled.rda")
 esets.allos <- esets
 load("input/eset.debulking.scaled.rda")
@@ -167,7 +167,7 @@ esets.debulking <- esets
 <<tablemodel>>=
 sig <- names(final.model@coefficients)
 esets.f.all <- esets.f
-esets.f.all$GSE32062.GPL6480_eset <- esets.validation$GSE32062.GPL6480_eset
+esets.f.all$GSE32062.GPL6480_eset <- esets.validation_orig$GSE32062.GPL6480_eset
 
 probesets <- do.call(cbind, lapply(esets.f.all, function(X)
  as.character(featureData(X)[sig,]$maxmean_probeset)))
@@ -427,7 +427,7 @@ res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfr
 
 \subsection{Comparison with the TCGA signature}
 
-We the compared our signature to the TCGA signature. To apply the TCGA
+We then compared our signature to the TCGA signature. To apply the TCGA
 signature across microarray platforms, we matched the 193 probe sets in the
 signature to unique gene symbols used in curatedOvarianData \cite{Seal:2011};
 this approach led to 185 unique genes involved in our signature.  We first
@@ -448,11 +448,11 @@ compared to random signatures.
 \section{Prediction of refractory cases}
 
 \begin{figure}
-<<elmeta,fig.width=7,fig.height=7,out.width="0.9\\textwidth",out.height="0.9\\textwidth",results='hide'>>=
+<<elmeta,results='hide'>>=
 Xs.all <- lapply(esets.f, .dichotomizeshortlong, l=365.25, label="os_1yr")
 preds <- lapply(1:length(Xs.all), function(i) predict(ma[[10]]$fits[[i]]$fit,
 newdata=Xs.all[[i]])@lp)
-Xs.all <- c(Xs.all, lapply(esets.validation[3], .dichotomizeshortlong, l=365.25,
+Xs.all <- c(Xs.all, lapply(esets.validation_orig[3], .dichotomizeshortlong, l=365.25,
 label="os_1yr"))
 preds <- c(preds,lapply(length(Xs.all), function(i)
 predict(final.model, newdata=Xs.all[[i]])@lp))
@@ -530,7 +530,7 @@ model utilizing only age and debulking status.
 <<addearlystage>>=
 ids <- esets.allos$TCGA_eset$summarystage=="early" &
     esets.allos$TCGA_eset$summarygrade!="low"
-esets.validation <- c(esets.validation, TCGA_eset=esets.allos$TCGA_eset[, ids])
+esets.validation <- c(esets.validation_orig, TCGA_eset=esets.allos$TCGA_eset[, ids])
 @
 
 % make another data.frame with clinical information as signature risk scores,
@@ -780,6 +780,14 @@ mtext("E)",cex=1.4,font=2)
 prognostic factors.
 See caption in the main paper for details.}
 \end{figure}
+
+<<hrdiffconfint, cache=TRUE>>=
+d.f <- data.frame( do.call(rbind,lapply(metaCMA.censor(Xs.all,censor.at=365.25*5), function(X) X$y)),
+strata=strata_we[,1], strata_tcga=strata_tcga[,1])
+
+hrdiffemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
+hrdiffci <- quantile(hrdiffemp,c(0.025,0.975))
+@
 
 \begin{figure}
 <<plotfpdebulking,fig.width=8,fig.height=6,out.width="0.9\\textwidth",out.height="0.675\\textwidth",results='hide'>>=

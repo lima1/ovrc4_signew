@@ -280,3 +280,20 @@ label="os_1yr") {
     model.affy
 }
 
+.boostrapHRs <- function(data, r1="strata", r2="strata_tcga", n=500,
+inverse=FALSE) {
+    .doBS <- function(i) {
+        idx <- sample(nrow(data), replace=TRUE)
+        ldata <- data.frame(y=Surv(data[,1], data[,2]), r1=data[[r1]], r2=data[[r2]])
+        ldata <- ldata[idx,]
+        colnames(ldata) <- c("y", "r1", "r2")
+
+        f1 <- coxph(y~r1,ldata)
+        f2 <- coxph(y~r2,ldata)
+        if (inverse) hrdiff <- 1/summary(f1)$conf.int[1] - 1/summary(f2)$conf.int[1]
+        else hrdiff <- summary(f1)$conf.int[1] - summary(f2)$conf.int[1]
+        hrdiff
+    }
+    sapply(1:n, .doBS)
+}
+
