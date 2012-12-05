@@ -248,7 +248,7 @@ correspond to leave-one-dataset-out cross-validated patient risk scores.
 
 % Validate the TCGA model. Stolen from Levi's paper supplement.
 <<loadmodeltcga, cache=TRUE,results='hide'>>=
-load("input/TCGA11-ovsig.RData")
+load("input/21720365-SuppTable_S6.RData")
 model.tcga <- model.official
 data(TCGA_eset, package="curatedOvarianData")
 featureNames(TCGA_eset) <- sub("-", "hyphen", featureNames(TCGA_eset))
