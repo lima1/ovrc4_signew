@@ -16,7 +16,7 @@
 
 <<setup, include=FALSE, cache=FALSE>>=
 # this is equivalent to \SweaveOpts{...}
-opts_chunk$set(fig.path='figure/metasig-', fig.align='center',
+opts_chunk$set(fig.path='output/figures/metasig-', fig.align='center',
 fig.show='hold',warning=FALSE, echo=FALSE)
 options(replace.assign=TRUE,width=90)
 @
@@ -176,7 +176,7 @@ write.csv(data.frame(Genes=sig, probesets, "Pooled Cox Coefficient"=
  final.model@coefficients,
  P=head(sort(tmp$pvalues),length(sig)),
  FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig))
-), file="final_signature.csv",
+), file="output/final_signature.csv",
 row.names=FALSE)
 @
 
@@ -420,10 +420,6 @@ improvement over the gene signature alone ($\Delta C$
 \Sexpr{.formatDC(res.dfrc2[3,])} in the six datasets with available clinical
 factors.
 
-<<unocdiff, cache=TRUE>>=
-res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfrcboth$vital_status=="deceased"), dfrcboth$risk_tcga, dfrcboth$risk,tau=365.25*4)
-@
-
 
 \subsection{Comparison with the TCGA signature}
 
@@ -550,15 +546,13 @@ dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
 Xs <- esets.debulking 
 Xs.all <- metaCMA.common.gene.esets(Xs)
 for (i in 1:length(Xs.all)) Xs.all[[i]]$debulking <- as.factor(Xs.all[[i]]$debulking)
-Xs.alls3 <- lapply(Xs.all, function(X) X[,X$tumorstage==3 |
-is.na(X$tumorstage)])
+Xs.alls34 <- Xs.all 
 @
 
-<<debulkingmetas3, cache=TRUE, results='hide'>>=
-# use only stage 3 patients for training, as stage 4 patients typically don't
-# get debulking surgery
-coefs.debulking.s3 <- metaCMA.coefs(Xs.alls3, y="debulking", family=binomial)
-res.debulking.s3  <- metaCMA(Xs.alls3,y="debulking",coefs=coefs.debulking.s3, n=200,
+<<debulkingmetas34, cache=TRUE, results='hide'>>=
+coefs.debulking.s34 <- metaCMA.coefs(Xs.alls34, y="debulking", family=binomial)
+res.debulking.s34  <-
+metaCMA(Xs.alls34,y="debulking",coefs=coefs.debulking.s34, n=200,
 filter.fun=.debulkingFilter)
 @
 \section{Prediction of suboptimal debulking surgery}
@@ -570,11 +564,11 @@ curves.
 
 \begin{figure}
 <<debulkingmetaplot, cache=TRUE>>=
-preds <- lapply(res.debulking.s3$fits,function(fit) fit$risk@lp)
-labels <- lapply(Xs.alls3, function(X) X$debulking)
-titles <- .getDatasetNames(Xs.alls3)
-idx <- !sapply(Xs.alls3,.debulkingFilter)
-preds.logit <- .p2logit(Xs.alls3[idx], fits=res.debulking.s3$fits[idx])
+preds <- lapply(res.debulking.s34$fits,function(fit) fit$risk@lp)
+labels <- lapply(Xs.alls34, function(X) X$debulking)
+titles <- .getDatasetNames(Xs.alls34)
+idx <- !sapply(Xs.alls34,.debulkingFilter)
+preds.logit <- .p2logit(Xs.alls34[idx], fits=res.debulking.s34$fits[idx])
 aucs.db <- .plotROCpanel(preds.logit,labels[idx],titles[idx],3,3)
 @
 \caption{Prediction of suboptimally debulked tumors in a leave-one-dataset-out
@@ -589,7 +583,7 @@ the probability cutoffs.}
 
 % Write the final debulking model to a spreadsheet.
 <<finalmodeldebulking,cache=TRUE>>=
-tmp <- metaCMA.opt(Xs.alls3, coefs=coefs.debulking.s3,n=200,y="debulking")
+tmp <- metaCMA.opt(Xs.alls34, coefs=coefs.debulking.s34,n=200,y="debulking")
 final.model.debulking <- tmp$model
 sig <- names(final.model.debulking@coefficients)
 
@@ -603,7 +597,7 @@ final.model.debulking@coefficients,
 "Mean Suboptimal"= apply(tmp$train$X[which(tmp$train$y=="suboptimal"),],2,mean),
  P=head(sort(tmp$pvalues),length(sig)),
  FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig))),
- file="final_signature_debulking.csv",row.names=FALSE)
+ file="output/final_signature_debulking.csv",row.names=FALSE)
 @
 <<writemodelobjs>>=
 save(final.model, final.model.debulking, file="models.rda")
@@ -629,7 +623,7 @@ resM[,1:9] <- 2^resM[,1:9]
 resM[,1:9] <- apply(resM[,1:9],c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
 
 
-write.csv(resM, "final_signature_debulking_foldchanges.csv")
+write.csv(resM, "output/final_signature_debulking_foldchanges.csv")
 @
 
 \clearpage
@@ -694,14 +688,14 @@ df.hr <- df.hr[df.hr[,1]!="TCGA 2011",]
 p <-ggplot(df.hr, aes(n,HR))+geom_smooth(method="lm")
 #p <- p +geom_point(aes(shape=containstcga))
 p <- p +geom_point(size=0.75)
-p <- p +facet_wrap(~Dataset)+coord_cartesian(ylim= c(0.75, 3))+ylab("Hazard Ratio")+xlab("Total Training Sample Size")
+p <- p +facet_wrap(~Dataset)+coord_cartesian(ylim= c(0.75, 2.9))+ylab("Hazard Ratio")+xlab("Total Training Sample Size")
 #p <- p+ scale_shape(solid=FALSE, name = "TCGA used for training")
-p <- p +theme(axis.text.x=element_text(angle=45,hjust=1))+theme_grey(base_size=14)
+p <- p +theme(axis.text.x=element_text(angle=45,hjust=1))
 @
 
 \begin{figure}
 <<plotdatasetshr, cache=TRUE>>=
-plot(p) 
+facetAdjust(p+theme_classic(14)+theme(axis.text.x = element_text(angle = 45, hjust = 1)))
 @
 \caption{Hazard Ratios as a function of training sample size.
 See caption in the main paper for details.}
@@ -780,6 +774,11 @@ mtext("E)",cex=1.4,font=2)
 prognostic factors.
 See caption in the main paper for details.}
 \end{figure}
+
+<<unocdiff, cache=TRUE>>=
+res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfrcboth$vital_status=="deceased"), dfrcboth$risk_tcga, dfrcboth$risk,tau=365.25*4)
+@
+
 
 <<hrdiffconfint, cache=TRUE>>=
 d.f <- data.frame( do.call(rbind,lapply(metaCMA.censor(Xs.all,censor.at=365.25*5), function(X) X$y)),
