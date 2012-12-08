@@ -62,6 +62,9 @@ library(curatedOvarianData)
 
 source("src/metaCMA.R")
 source("src/utils.R")
+source("src/ggplot2extras.R")
+# fixes a bug in the survcomp package
+source("src/forestplot.surv.R")
 @
 
 % load the filtered expression data (run ./runEsetList.sh in the input
@@ -78,6 +81,18 @@ esets.f  <- metaCMA.common.gene.esets(esets)
 esets.uf <- esets
 japan.idx <- match("GSE32062.GPL6480_eset",names(esets.f))
 esets.f <- esets.f[-japan.idx]
+@
+
+% Now load all the other data.
+<<loadvaldata,cache=TRUE>>=
+load("input/eset.binary.scaled.rda")
+esets.binary <- esets
+load("input/eset.validation.scaled.rda")
+esets.validation_orig <- esets
+load("input/eset.allos.scaled.rda")
+esets.allos <- esets
+load("input/eset.debulking.scaled.rda")
+esets.debulking <- esets
 @
 
 % calculate univariate Cox regression coefficients for each dataset and each
@@ -131,10 +146,10 @@ order in which patients die.
     ggplot(dfCV, aes(values, Genes))+geom_point()+facet_wrap(~ind) +
     ylab("Number of Genes") + 
     xlab("C-Index (Concordance)") + 
-    theme_grey(base_size=14) + 
+    theme_classic(base_size=13) + 
     theme(axis.text.x=element_text(angle=45,hjust=1))
 }
-.plotN(esets.f,ma)
+facetAdjust(.plotN(esets.f,ma))
 @
 \caption{In the \textit{leave-one-dataset-out} cross-validation in
 \textbf{Figure 1-2}
@@ -149,18 +164,6 @@ corresponding dataset that was trained using the remaining datasets only.}
 <<finalmodel,cache=TRUE>>=
 tmp <- metaCMA.opt(esets.f,coef=coefs,n=200)
 final.model <- tmp$model
-@
-
-% Now load all the other data.
-<<loadvaldata,cache=TRUE>>=
-load("input/eset.binary.scaled.rda")
-esets.binary <- esets
-load("input/eset.validation.scaled.rda")
-esets.validation_orig <- esets
-load("input/eset.allos.scaled.rda")
-esets.allos <- esets
-load("input/eset.debulking.scaled.rda")
-esets.debulking <- esets
 @
 
 % Print the model for the supplement
@@ -540,8 +543,7 @@ for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="
 dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
 @
 
-% Prepare the debulking datasets (use only genes common to all platforms and
-% use only stage III patients)
+% Prepare the debulking datasets (use only genes common to all platforms)
 <<debulkingmetaprepare>>=
 Xs <- esets.debulking 
 Xs.all <- metaCMA.common.gene.esets(Xs)
@@ -560,7 +562,9 @@ We finally generated a gene signature for suboptimal debulking surgery and
 validated this signature by \textit{leave-one-dataset-out} cross-validation.
 In addition to the meta-analysis summary in Figure 5 of the main paper, we
 show here in Supplemental Figure~\ref{fig:roc:debulking} the corresponding ROC
-curves.
+curves. In Supplemental Table~\ref{ tbl:reg:debulking }, we show the logistic
+regression coefficients of the gene signature risk score adjusted for FIGO
+stage (III vs. IV).
 
 \begin{figure}
 <<debulkingmetaplot, cache=TRUE>>=
@@ -569,7 +573,7 @@ labels <- lapply(Xs.alls34, function(X) X$debulking)
 titles <- .getDatasetNames(Xs.alls34)
 idx <- !sapply(Xs.alls34,.debulkingFilter)
 preds.logit <- .p2logit(Xs.alls34[idx], fits=res.debulking.s34$fits[idx])
-aucs.db <- .plotROCpanel(preds.logit,labels[idx],titles[idx],3,3)
+aucs.db <- .plotROCpanel(preds[idx],labels[idx],titles[idx],3,3)
 @
 \caption{Prediction of suboptimally debulked tumors in a leave-one-dataset-out
 cross-validation. The prediction model calculates for each sample a score. The
@@ -600,7 +604,25 @@ final.model.debulking@coefficients,
  file="output/final_signature_debulking.csv",row.names=FALSE)
 @
 <<writemodelobjs>>=
-save(final.model, final.model.debulking, file="models.rda")
+save(final.model, final.model.debulking, file="output/models.rda")
+@
+
+<<debulkingadjust,results='asis'>>=
+dfrc.debulking <- .createClinical(Xs.alls34)
+dfrc.debulking$risk <- unlist(lapply(res.debulking.s34$fits, function(X)
+X$risk@lp))
+fit.debulking <-
+    glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
+
+aucs.debulking <- repCV(fit.debulking, cost=ci.auc,R=10)
+
+outreg(list(fit.debulking), modelLabels=c("Meta-Analysis"),
+title="Prediction of debulking status. The table lists the
+regressions for our leave-one-dataset-out cross-validated meta-analysis
+debulking gene signature
+signature. The predictions were adjusted for tumor stage.",
+label="tbl:reg:debulking", tight=FALSE,
+varLabels=list(risk="Gene Signature",tumorstage="Stage (III vs IV)"))
 @
 
 <<finalmodeldebulkingfoldchanges, cache=TRUE>>=
@@ -621,7 +643,6 @@ FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig)))
 resM <- resM[order(abs(resM[,ncol(resM)-1]),decreasing=TRUE),]
 resM[,1:9] <- 2^resM[,1:9]
 resM[,1:9] <- apply(resM[,1:9],c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
-
 
 write.csv(resM, "output/final_signature_debulking_foldchanges.csv")
 @
@@ -761,8 +782,6 @@ names(Xs.all) <- .getDatasetNames(Xs.all)
 
 res.strata <- lapply(c(res.lodo, res.val[-4]), function(x) x$strata)
 res.strata.tcga <- lapply(c(res.lodo.tcga, res.val.tcga[-4]), function(x) x$strata)
-
-source("src/forestplot.surv.R")
 
 x <- metaCMA.forest.models(metaCMA.censor(Xs.all,censor.at=365.25*5), risks1=res.strata, risks2=res.strata.tcga,
  graphwidth=unit(2.5,

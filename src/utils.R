@@ -78,23 +78,15 @@ label="os_1yr") {
         plot = plot, censor.at = 365.25 * 5))
     for (i in 1:length(esets.validation)) res[[i]]$y <- esets.validation[[i]]$y
     
-    
     for (i in 1:length(esets.binary)) {
         pred <- predict(model, newdata = esets.binary[[i]], type = "lp")@lp
-        if (i == 1) {
-            Xtmp <- lapply(esets.f, .dichotomizeshortlong, 365.25 * 3, 365.25 * 7)
-        } else {
-            Xtmp <- lapply(esets.f, .dichotomizeshortlong, 365.25 * 5, 365.25 * 5)
-        }
-        pred.logit <- .p2logitSingle(Xtmp, pred, model, y = "os_my_binary")
         paneln <- c("E)", "F)")
         if (plot) 
-            res.roc <- .plotROC(pred.logit, esets.binary[[i]]$os_binary, main
+            res.roc <- .plotROC(pred, esets.binary[[i]]$os_binary, main
             = paste(paneln[i],.getDatasetNames(esets.binary)[i]))
     }
     res
 }
-
 
 .lodocvPlotForest <- function(X, main = "C-Index") {
     if ("TCGA_eset" %in% names(X)) 
@@ -141,41 +133,6 @@ label="os_1yr") {
     metafor::rma(yi=yi,sei=sei,method="FE")
 }
 
-.p2logitSingle <- function(esets.train, preds, model, y = "os_my_binary") {
-    esets.c <- .combineEsets(esets.train, y = y)
-    tmp.df <- data.frame(risk = predict(model, newdata = esets.c$X)@lp, covar = esets.c$y)
-    
-    fit <- glm(covar ~ risk, tmp.df, family = "binomial")
-    predict(fit, newdata = data.frame(risk = preds), type = "response")
-}
-
-.p2logit <- function(esets, fits, preds = NULL, y = "debulking") {
-    .doIt <- function(i) {
-        esets.c <- .combineEsets(esets[-i], y = y)
-        tmp.df <- data.frame(risk = predict(fits[[i]]$fit, newdata = esets.c$X)@lp, 
-            covar = esets.c$y)
-        fit <- glm(covar ~ risk, tmp.df, family = "binomial")
-        risk <- fits[[i]]$risk@lp
-        if (!is.null(preds)) 
-            risk <- preds[[i]]
-        predict(fit, newdata = data.frame(risk = risk), type = "response")
-    }
-    lapply(1:length(esets), .doIt)
-}
-
-.p2logitMV <- function(esets,  preds = NULL, y = "debulking", x1 =
-"tumorstage", x2="debulking") {
-    .doIt <- function(i) {
-        tmp.df <- .createClinical(esets[-i])
-        tmp.df$risk <- unlist(preds[-i])
-        tmp.df$covar <- tmp.df[[y]]
-        fit <- glm(covar ~ risk + debulking, tmp.df, family = "binomial")
-            risk <- preds[[i]]
-        predict(fit, newdata = data.frame(risk = risk, x1 = esets[[i]][[x1]]), type = "response")
-    }
-    lapply(1:length(esets), .doIt)
-}
-
 .forestPlotDebulking <- function(preds1, labels, prior, titles, method="FE", ...) {
     dat <- data.frame(opt=sapply(labels, function(x) sum(x=="optimal")),
     subopt=sapply(labels, function(x) sum(x=="suboptimal")))
@@ -214,32 +171,6 @@ label="os_1yr") {
             " to ", y[1, 3], sep = ""), pos = 4, cex = 1.45)
     }
     y
-}
-
-.concPlotSize <- function(esets, ma, skip = 0, dataset_ids, ylab = "C-Index (Concordance)", 
-    panel.num = "A)", ...) {
-    labels <- .getDatasetNames(esets[dataset_ids])
-    labels <- paste(labels, " (N = ", sapply(dataset_ids,function(i)
-    ncol(esets[[i]])), ")",sep="")    
-    # exclude TCGA, because we compare concordance to TCGA model throughout the
-    # paper
-    tcga_id <- match("TCGA_eset", names(esets))
-    ids <- (1 + skip):length(esets)
-    x <- sapply(ids, function(i) metaCMA.concordance(esets.f[-tcga_id], risks = lapply(ma[[i]]$fits[-tcga_id], 
-        function(x) x$risk@lp))[[1]])
-    
-    lb <- unlist(x[5, ])
-    ub <- unlist(x[6, ])
-    
-    par(mar = c(15, 5.5, 2, 0.5))
-    plot(ids, unlist(x[1, ]), type = "l", las = 1, ylim = c(0.56, 0.65), xaxt = "n", 
-        ylab = "", xlab = "", cex.axis = 1.1, cex.lab = 1.2, ...)
-    axis(side = 1, at = ids, labels = labels[ids], las = 2, cex.axis = 1.2)
-    title(ylab = ylab, cex.lab = 1.2, line = 4)
-    points(ids, lb, col = "grey", lty = 2, type = "l")
-    points(ids, ub, col = "grey", lty = 2, type = "l")
-    mtext(panel.num, side = 3, cex = 1.5, at = 0)
-    
 }
 
 # create a data.frame with clinical covariates out of a list of ExpressionSets
@@ -297,66 +228,3 @@ inverse=FALSE) {
     sapply(1:n, .doBS)
 }
 
-theme_classic <- function (base_size = 12, base_family = "") 
-{
-    theme_grey(base_size = base_size, base_family = base_family) %+replace% 
-        theme(axis.text = element_text(size = rel(0.8)), axis.ticks = element_line(colour = "black"), 
-            legend.key = element_rect(colour = "grey80"), panel.background = element_rect(fill = "white", 
-                colour = NA), panel.border = element_rect(fill = NA, 
-                colour = "black",size=1.0), panel.grid.major = element_line(linetype="blank", 
-                size = 0.2), panel.grid.minor = element_line(linetype = "blank", 
-                size = 0.5), strip.background = element_rect(fill = NA, 
-                colour = "black",linetype="blank"), strip.text.x = element_text(face="bold"))
-}
-
-library(grid)
-# pos - where to add new labels
-# newpage, vp - see ?print.ggplot
-facetAdjust <- function(x, pos = c("up", "down"), 
-                        newpage = is.null(vp), vp = NULL)
-{
-  # part of print.ggplot
-  ggplot2:::set_last_plot(x)
-  if(newpage)
-    grid.newpage()
-  pos <- match.arg(pos)
-  p <- ggplot_build(x)
-  gtable <- ggplot_gtable(p)
-  # finding dimensions
-  dims <- apply(p$panel$layout[2:3], 2, max)
-  nrow <- dims[1]
-  ncol <- dims[2]
-  # number of panels in the plot
-  panels <- sum(grepl("panel", names(gtable$grobs)))
-  space <- ncol * nrow
-  # missing panels
-  n <- space - panels
-  # checking whether modifications are needed
-  if(panels != space){
-    # indices of panels to fix
-    idx <- (space - ncol - n + 1):(space - ncol)
-    # copying x-axis of the last existing panel to the chosen panels 
-    # in the row above
-    gtable$grobs[paste0("axis_b",idx)] <- list(gtable$grobs[[paste0("axis_b",panels)]])
-    if(pos == "down"){
-      # if pos == down then shifting labels down to the same level as 
-      # the x-axis of last panel
-      rows <- grep(paste0("axis_b\\-[", idx[1], "-", idx[n], "]"), 
-                   gtable$layout$name)
-      lastAxis <- grep(paste0("axis_b\\-", panels), gtable$layout$name)
-      gtable$layout[rows, c("t","b")] <- gtable$layout[lastAxis, c("t")]
-    }
-  }
-  # again part of print.ggplot, plotting adjusted version
-  if(is.null(vp)){
-    grid.draw(gtable)
-  }
-  else{
-    if (is.character(vp)) 
-      seekViewport(vp)
-    else pushViewport(vp)
-    grid.draw(gtable)
-    upViewport()
-  }
-  invisible(p)
-}

@@ -30,6 +30,8 @@ Run the analysis with knitr in R:
     R    
     library(knitr)
     knit("metasig.Rnw")
+    knit("metasig.Rnw")
+
 
 ------------------------------------------------------
 ------------------------------------------------------
@@ -37,10 +39,14 @@ Run the analysis with knitr in R:
 
 * **src/**  - additional source code
 
+    * **metaCMA.R**: code of our algorithm
+
     * **utils.R**: small helper functions, moved here to make the main
      analysis code more readable.
 
-    * **metaCMA.R**: code of our algorithm
+    * **ggplot2extras.R**: extends ggplot2 to make it look more like normal 
+      R plots.   
+
 
 * **input/** - input files
 
