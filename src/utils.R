@@ -166,7 +166,7 @@ label="os_1yr") {
     y <- IDI.INF.OUT(x)
     if (plot) {
         IDI.INF.GRAPH(x, main = paste(title, " (t0 = ", t0, ")", sep = ""), las = 1, 
-            cex.lab = 1.3)
+            cex.lab = 1.3, cex.axis=1.3)
         text(par("usr")[1], 0.95, paste("IDI = ", y[1, 1], "; 95% CI ", y[1, 2], 
             " to ", y[1, 3], sep = ""), pos = 4, cex = 1.45)
     }

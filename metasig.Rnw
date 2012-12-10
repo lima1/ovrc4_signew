@@ -558,7 +558,7 @@ metaCMA(Xs.alls34,y="debulking",coefs=coefs.debulking.s34, n=200,
 filter.fun=.debulkingFilter)
 @
 \section{Prediction of suboptimal debulking surgery}
-We finally generated a gene signature for suboptimal debulking surgery and
+We generated a gene signature for suboptimal debulking surgery and
 validated this signature by \textit{leave-one-dataset-out} cross-validation.
 In addition to the meta-analysis summary in Figure 5 of the main paper, we
 show here in Supplemental Figure~\ref{fig:roc:debulking} the corresponding ROC
@@ -646,6 +646,22 @@ resM[,1:9] <- apply(resM[,1:9],c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
 
 write.csv(resM, "output/final_signature_debulking_foldchanges.csv")
 @
+\clearpage
+\begin{figure}
+<<signgenes,cache=TRUE>>=
+res.rcts <- lapply(esets.f, function(X) rowCoxTests(X, X$y))
+nsig <- sapply(res.rcts, function(x) sum(x[,3] < 0.05))/nrow(esets.f[[1]])*100
+#ggplot(data.frame(Dataset=.getDatasetNames(esets.f), Genes=nsig),
+#aes(Dataset,Genes))+geom_bar()+theme_classic()+theme(axis.text.x=element_text(angle=45,hjust=1))+
+#ylab("Percentage of genes signficantly associated with OS (P < 0.05)")
+facetAdjust(ggplot(d.f,aes(P))+geom_histogram(aes(y=..density..),binwidth=0.05)+facet_wrap(~Dataset)+xlab("Univariate Cox Regression P-values")+ylab("Density")+theme_classic()+geom_abline(intercept=1,slope=0,linetype="dashed"))
+@
+\caption{P-value distributions of association of mRNA expression with
+overall survival (OS) for each gene in each dataset. For this plot, we
+calculated for each training dataset and gene common to all platforms a
+univariate Cox regression p-value. The dashed lines visalize a uniform
+p-value distribution, the histograms the observed p-value distributions.}
+\end{figure}
 
 \clearpage
 \bibliographystyle{plain}
