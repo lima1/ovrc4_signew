@@ -133,12 +133,14 @@ label="os_1yr") {
     metafor::rma(yi=yi,sei=sei,method="FE")
 }
 
-.forestPlotDebulking <- function(preds1, labels, prior, titles, method="FE", ...) {
+.forestPlotDebulking <- function(preds1, labels, prior=NULL, titles, method="FE", ...) {
     dat <- data.frame(opt=sapply(labels, function(x) sum(x=="optimal")),
     subopt=sapply(labels, function(x) sum(x=="suboptimal")))
 
     res <- lapply(1:length(preds1), function(i) {
     p1scaled <- scale(preds1[[i]])
+    if (!is.null(prior)) p1scaled <- as.factor(p1scaled > quantile(p1scaled,
+        p=1-prior[i]))
     summary(glm(labels[[i]]~p1scaled,
     family="binomial"))$coefficients})
     #res1 <- metafor::rma(yi, vi, data=dat, method=method)
@@ -147,15 +149,15 @@ label="os_1yr") {
     rma1 <- metafor::rma(yi=yi, sei=sei, method=method)
 
     forest.rma(rma1,
-    atransf=exp,xlim=c(-3,2.5),ilab=dat,
-    at= log(sapply(-2:5, function(x) 1*1.3^x)),
+    atransf=exp,xlim=c(-3,4),ilab=dat,
+    at= log(sapply(-2:5, function(x) 1*2.1^x)),
     ilab.xpos=c(-6.5,-4.5)*3.5/16,slab=titles,mlab="Overall",
     xlab="Odds Ratio (log scale)")
     op <- par(font=2)
     text( -3, 10, "Dataset",pos=4)
     text(c(-6.5,-4.5)*3.5/16,10,c("Opt.", "Subopt."))
     text(c(-5.5)*3.5/16,11,c("Debulking"))
-    text(2.5,10, "Gene Signature Odds Ratio [95% CI]",pos=2)
+    text(4,10, "Gene Signature Odds Ratio [95% CI]",pos=2)
     par(op)
 
     list(rma1,dat)

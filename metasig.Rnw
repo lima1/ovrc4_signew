@@ -651,6 +651,9 @@ write.csv(resM, "output/final_signature_debulking_foldchanges.csv")
 <<signgenes,cache=TRUE>>=
 res.rcts <- lapply(esets.f, function(X) rowCoxTests(X, X$y))
 nsig <- sapply(res.rcts, function(x) sum(x[,3] < 0.05))/nrow(esets.f[[1]])*100
+d.f <- do.call(rbind, lapply(1:length(res.rcts), function(i)
+ data.frame(Dataset=.getDatasetNames(esets.f)[i], P=res.rcts[[i]][,3])))
+
 #ggplot(data.frame(Dataset=.getDatasetNames(esets.f), Genes=nsig),
 #aes(Dataset,Genes))+geom_bar()+theme_classic()+theme(axis.text.x=element_text(angle=45,hjust=1))+
 #ylab("Percentage of genes signficantly associated with OS (P < 0.05)")
@@ -659,7 +662,7 @@ facetAdjust(ggplot(d.f,aes(P))+geom_histogram(aes(y=..density..),binwidth=0.05)+
 \caption{P-value distributions of association of mRNA expression with
 overall survival (OS) for each gene in each dataset. For this plot, we
 calculated for each training dataset and gene common to all platforms a
-univariate Cox regression p-value. The dashed lines visalize a uniform
+univariate Cox regression p-value. The dashed lines visualize a uniform
 p-value distribution, the histograms the observed p-value distributions.}
 \end{figure}
 
@@ -824,8 +827,9 @@ hrdiffci <- quantile(hrdiffemp,c(0.025,0.975))
 @
 
 \begin{figure}
-<<plotfpdebulking,fig.width=8,fig.height=6,out.width="0.9\\textwidth",out.height="0.675\\textwidth",results='hide'>>=
+<<plotfpdebulking,fig.width=9.5,fig.height=6,out.width="0.95\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
 priors <- sapply(labels, function(l) sum(l=="suboptimal")/length(l))
+
  xxx <- .forestPlotDebulking(preds1=preds.logit,
   labels=labels[idx],
  prior=priors[idx],titles=titles[idx])
