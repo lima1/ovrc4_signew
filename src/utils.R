@@ -78,7 +78,8 @@ label="os_1yr") {
         plot = plot, censor.at = 365.25 * 5))
     for (i in 1:length(esets.validation)) res[[i]]$y <- esets.validation[[i]]$y
     
-    for (i in 1:length(esets.binary)) {
+    # Berchuck is a subset of Dressman 
+    for (i in 1:1) {
         pred <- predict(model, newdata = esets.binary[[i]], type = "lp")@lp
         paneln <- c("E)", "F)")
         if (plot) 
