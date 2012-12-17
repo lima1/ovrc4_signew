@@ -55,6 +55,7 @@ library(pROC)
 library(limma)
 library(cvTools)
 library(rockchalk)
+library(GSVA)
 
 # only to print the version number in the Appendix. We load the data generated
 # with the createEsetsList script
@@ -93,6 +94,12 @@ load("input/eset.allos.scaled.rda")
 esets.allos <- esets
 load("input/eset.debulking.scaled.rda")
 esets.debulking <- esets
+@
+
+<<loadtcga>>=
+# Load the TCGA model from Levi's paper supplement
+load("input/21720365-SuppTable_S6.RData")
+model.tcga <- model.official
 @
 
 % calculate univariate Cox regression coefficients for each dataset and each
@@ -183,11 +190,46 @@ write.csv(data.frame(Genes=sig, probesets, "Pooled Cox Coefficient"=
 row.names=FALSE)
 @
 
+% Create a data.frame that contains all relevant clinical information and
+% the TCGA and our predictions.
+<<prepareclinicaldf, cache=TRUE>>=
+X <- esets.uf[-japan.idx]
+risk <- lapply(X, function(X) predict(model.tcga, newdata=X,
+ type="lp")@lp)
+for (i in 1:length(X)) {
+    X[[i]]$risk_tcga <- risk[[i]]
+    X[[i]]$risk <- ma[[10]]$fits[[i]]$risk@lp
+}    
+X <- X[-grep("TCGA",names(X))]
+dfrc <- .createClinical(X)
+dfrc$risk_tcga <- unlist(sapply(X, function(x) x$risk_tcga))
+dfrc$risk <- unlist(sapply(X, function(x) x$risk))  
+idx.stagedeb <- !is.na(dfrc$age) & !is.na(dfrc$debulking)
+idx.stagedeb <- !is.na(dfrc$tumorstage) & !is.na(dfrc$debulking)
+dfrc$debulking_orig <- dfrc$debulking
+dfrc$debulking <- as.numeric(dfrc$debulking)
+@
+
+% make another data.frame with clinical information as signature risk scores,
+% this time for the validation data
+<<clinicalvalidation, cache=TRUE>>=
+X <- esets.validation
+dfrcval <- .createClinical(esets.validation)
+for (i in 1:length(X)) X[[i]]$risk <- predict(final.model, newdata=X[[i]], type="lp")@lp
+dfrcval$risk <- unlist(sapply(X, function(x) x$risk))
+for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="lp")@lp
+dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
+
+dfrcval$debulking_orig <- dfrcval$debulking
+@
+
+
 \section{TCGA subtypes}
 
 We validated a prediction model that was trained on all training datasets except
 TCGA in the 4 TCGA subtypes separately. Kaplan-Meier plots for this analysis
-are show in Supplemental Figure~\ref{fig:km:tcgasubtypes}.
+are shown in Supplemental Figure~\ref{fig:km:tcgasubtypes}. Best patient
+stratifications were observed in the Immunoreactive subtype.
 
 \begin{figure}[!htb]
 <<subtypes, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
@@ -225,8 +267,94 @@ newdata=esets.tcga.subtypes[[i]], newy=esets.tcga.subtypes[[i]]$y,
 ))
 @
 \caption{Kaplan-Meier analysis of a model trained in all training datasets except TCGA and
-then validated in the 4 subtypes separately.}
+then validated in TCGA in the 4 subtypes separately.}
 \label{fig:km:tcgasubtypes}
+\end{figure}
+
+<<learnsubtypegenesets, cache=TRUE>>=
+# here we use Limma to find gene sets for the TCGA subtype 
+# we use again a default signature size of 200 (100 up and 100 down-regulated
+# genes. The fold-change was chosen so that ~100 genes passed this filter with
+# a FDR cutoff of 0.001.
+X <- esets.f$TCGA_eset[, !is.na(esets.f$TCGA_eset$subtype)]
+genesets <- .getFingerprintGeneSets(X, as.factor(X$subtype), p.value=0.001,
+lfc=log2(1.45), number=100)
+@
+
+<<classifyesets,cache=TRUE,results='hide'>>=
+gsva.res <- lapply(esets.f, function(X) .classifyGSVA(eset=X, genesets=genesets))
+gsva.res.val <- lapply(esets.validation, function(X) .classifyGSVA(eset=X, genesets=genesets))
+
+dfrc$subtype <- 
+  unlist(sapply(gsva.res[-8], function(x) apply(x,2,which.max)))
+
+# perfect enrichment score would be 2.0 and here we filter a few samples which
+# we really can't classify. This is still not very conservative, but does not
+# change much when I increase this threshold.
+dfrc$subtype[unlist(lapply(gsva.res[-8], function(x) apply(x,2,max))) < 0.1] <- NA
+
+dfrcval$subtype <- 
+  unlist(sapply(gsva.res.val, function(x) apply(x,2,which.max)))
+dfrcval$subtype[unlist(lapply(gsva.res.val, function(x) apply(x,2,max))) < 0.1] <- NA
+@
+<<accuracytcga>>=
+idx <-  !is.na(esets.f$TCGA_eset$subtype)
+x <- table(apply(gsva.res[[8]],2,which.max)[idx], X$subtype)
+x <- round(sum(sapply(1:4, function(i) x[i,i]))/ncol(X)*100,digits=1)
+@
+
+We then classified all other training and validation datasets by subtype using
+a single sample GSEA variant as implemented in the GSVA package. Subtype specific
+gene sets were first identified with the limma package in the TCGA data using
+the official TCGA subtype labels. We again used default gene set sizes of 200
+genes for each subtype. Applied back to the TCGA data, this approach
+classified \Sexpr{x}\% of the samples correctly. In Supplemental
+Figure~\ref{fig:km:subtypesos}, we show an association of subtype with overall
+survival in all datasets except TCGA. The Immunoreactive subtype had in both
+TCGA and the remaining datasets the best prognosis. 
+
+<<dfrcboth>>=
+dfrcboth <- rbind(dfrc, dfrcval)
+dfrcboth <- dfrcboth[- grep("TCGA_eset", rownames(dfrcboth)),]
+
+# thanks Hmisc for messing up the Surv function
+dfrcboth$y <- Surv(dfrcboth$y[,1], dfrcboth$y[,2])
+dfrcboth$subtype<- as.factor( levels(esets.f[[8]]$subtype)[dfrcboth$subtype] )
+@
+
+\begin{figure}
+<<subtypesosdiff,fig.width=10,fig.height=5,out.width="0.96\\textwidth",out.height="0.48\\textwidth">>=
+par(mar=c(5,5,3,2), mfrow=c(1,2))
+plotKM(y=dfrcboth$y, strata=dfrcboth$subtype,
+censor.at=365.25*5,main="A)  All datasets except TCGA")
+plotKM(y=esets.f$TCGA_eset$y, strata=esets.f$TCGA_eset$subtype,
+censor.at=365.25*5,main="B)  TCGA")
+@
+\caption{Association of subtype and overall survival.
+(A) All training and validation datasets excluding TCGA. (B)
+Stratification of TCGA samples by subtype.}
+\label{fig:km:subtypesos}
+\end{figure}
+
+\begin{figure}[!htb]
+<<subtypesother, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
+par(mfrow=c(2,2))
+for (i in 1:4) {
+subtype <- levels(esets.f$TCGA_eset$subtype)[i]
+idx <- dfrcboth$subtype== subtype
+
+plotKM(y=Surv(strata_we[idx,2][,1],strata_we[idx,2][,2]),
+strata=strata_we[idx,1],censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main=subtype)
+}        
+@
+\caption{Kaplan-Meier analysis of our overall survival signature as in Figures
+1 and 3 of the main paper, but stratified by subtype as in Supplemental
+Figure~\ref{fig:km:tcgasubtypes}.}
+\label{fig:km:tcgasubtypesother}
 \end{figure}
 
 \clearpage
@@ -250,9 +378,7 @@ package \cite{Uno:2011}. Performance reports of test datasets always
 correspond to leave-one-dataset-out cross-validated patient risk scores.
 
 % Validate the TCGA model. Stolen from Levi's paper supplement.
-<<loadmodeltcga, cache=TRUE,results='hide'>>=
-load("input/21720365-SuppTable_S6.RData")
-model.tcga <- model.official
+<<validatetcgamodel, cache=TRUE,results='hide'>>=
 data(TCGA_eset, package="curatedOvarianData")
 featureNames(TCGA_eset) <- sub("-", "hyphen", featureNames(TCGA_eset))
 TCGA_eset <- TCGA_eset[ ,!is.na(TCGA_eset$days_to_death) &
@@ -283,26 +409,6 @@ PMID17290060_eset <- PMID17290060_eset[ ,!is.na(PMID17290060_eset$days_to_death)
                                        !is.na(PMID17290060_eset$vital_status)]
 PMID17290060_eset$y <- Surv(PMID17290060_eset$days_to_death / 30,
                             PMID17290060_eset$vital_status == "deceased")
-@
-
-% Create a data.frame that contains all relevant clinical information and
-% the TCGA and our predictions.
-<<prepareclinicaldf, cache=TRUE>>=
-X <- esets.uf[-japan.idx]
-risk <- lapply(X, function(X) predict(model.tcga, newdata=X,
- type="lp")@lp)
-for (i in 1:length(X)) {
-    X[[i]]$risk_tcga <- risk[[i]]
-    X[[i]]$risk <- ma[[10]]$fits[[i]]$risk@lp
-}    
-X <- X[-grep("TCGA",names(X))]
-dfrc <- .createClinical(X)
-dfrc$risk_tcga <- unlist(sapply(X, function(x) x$risk_tcga))
-dfrc$risk <- unlist(sapply(X, function(x) x$risk))  
-idx.stagedeb <- !is.na(dfrc$age) & !is.na(dfrc$debulking)
-idx.stagedeb <- !is.na(dfrc$tumorstage) & !is.na(dfrc$debulking)
-dfrc$debulking_orig <- dfrc$debulking
-dfrc$debulking <- as.numeric(dfrc$debulking)
 @
 
 \begin{figure}
@@ -532,17 +638,6 @@ ids <- esets.allos$TCGA_eset$summarystage=="early" &
 esets.validation <- c(esets.validation_orig, TCGA_eset=esets.allos$TCGA_eset[, ids])
 @
 
-% make another data.frame with clinical information as signature risk scores,
-% this time for the validation data
-<<clinicalvalidation, cache=TRUE>>=
-X <- esets.validation
-dfrcval <- .createClinical(esets.validation)
-for (i in 1:length(X)) X[[i]]$risk <- predict(final.model, newdata=X[[i]], type="lp")@lp
-dfrcval$risk <- unlist(sapply(X, function(x) x$risk))
-for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="lp")@lp
-dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
-@
-
 % Prepare the debulking datasets (use only genes common to all platforms)
 <<debulkingmetaprepare>>=
 Xs <- esets.debulking 
@@ -754,12 +849,6 @@ See caption in the main paper for details.}
 \begin{figure}
 \subfigure[]{
 <<comptcga,fig.width=7,fig.height=7,out.width="0.6\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
-dfrcval$debulking_orig <- dfrcval$debulking
-dfrcboth <- rbind(dfrc, dfrcval)
-dfrcboth <- dfrcboth[- grep("TCGA_eset", rownames(dfrcboth)),]
-
-# thanks Hmisc for messing up the Surv function
-dfrcboth$y <- Surv(dfrcboth$y[,1], dfrcboth$y[,2])
 
 
 # get dichotomized risk scores, not from the early stage samples

@@ -231,3 +231,43 @@ inverse=FALSE) {
     sapply(1:n, .doBS)
 }
 
+# finds gene sets predictive of the specified label,
+# simply uses limma for differential expression
+.getFingerprintGeneSets <- function(eset, labels,
+p.value,lfc,number) {
+    require(limma)
+    .calcLimma <- function(l) {
+        TS <- rep("Ctrl", length(labels))
+        TS[labels==l] <- "Test"
+        TS <- as.factor(TS)
+        design <- model.matrix(~0+TS)
+        colnames(design) = levels(TS)
+        fit <- lmFit(exprs(eset), design = design)
+        cont <-
+            makeContrasts(Test-Ctrl,levels=design)
+        fit2 <- contrasts.fit(fit, cont)
+        fit2 <- eBayes(fit2)
+    }
+    limma.res <- lapply(levels(labels), .calcLimma)
+    filtered.res <- lapply(limma.res, function(x) topTable(x,
+    number=5000,p.value=p.value,lfc=lfc)[,1:2])
+    genesets <- lapply(filtered.res, function(x)
+    list(Up=utils::head(x[x[,2]>0,1],number),
+        Down=utils::head(x[x[,2]<0,1],number)))
+    for (i in 1:length(genesets)) {
+        names(genesets[[i]]) <- paste(levels(labels)[i], names(genesets[[i]]),
+        sep="_")
+    }    
+    genesets <- unlist(genesets, recursive=FALSE)
+    genesets[order(gsub(".*_","",names(genesets)),decreasing=TRUE)]
+}
+
+.classifyGSVA <- function(X=NULL, eset, genesets,...) {
+    if (is.null(X)) X <- gsva(exprs(eset),
+    genesets,mx.diff=TRUE,parallel.sz=1,...)[[1]]
+    Y <- X[1:4,] - X[5:8,]
+    rownames(Y) <- gsub("_Up","", rownames(Y))
+    Y
+}
+
+
