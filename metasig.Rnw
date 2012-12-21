@@ -310,8 +310,17 @@ the official TCGA subtype labels. We again used default gene set sizes of 200
 genes for each subtype. Applied back to the TCGA data, this approach
 classified \Sexpr{x}\% of the samples correctly. In Supplemental
 Figure~\ref{fig:km:subtypesos}, we show an association of subtype with overall
-survival in all datasets except TCGA. The Immunoreactive subtype had in both
-TCGA and the remaining datasets the best prognosis. 
+survival in all datasets except TCGA. The immunoreactive subtype had in both
+TCGA and the remaining datasets the best prognosis. Poor survival was in
+general observed for samples classified as mesenchymal. 
+
+We then tested for consistent overlaps with the Australian Ovarian Cancer
+Study Group (AOCS) subtypes as published by Tothill et al.
+\cite{Tothill:2008}. All mesenchymal samples were assigned to the AOCS cluster
+c1, which had poor prognosis in the Tothill data (Supplemental
+Figures~\ref{fig:km:subtypesos}C and \ref{fig:overlap:aocstcga}). Most
+immunoreactive samples were assigned to the c2 cluster and c2 samples had consistent
+with our results better outcome in the Tothill dataset.
 
 <<dfrcboth>>=
 dfrcboth <- rbind(dfrc, dfrcval)
@@ -322,18 +331,50 @@ dfrcboth$y <- Surv(dfrcboth$y[,1], dfrcboth$y[,2])
 dfrcboth$subtype<- as.factor( levels(esets.f[[8]]$subtype)[dfrcboth$subtype] )
 @
 
+<<aocscomparison>>=
+clinical.aocs <- read.xls("input/AOCS_subtytpes.xlsx", as.is=TRUE)
+clinical.aocs$X <- toupper(gsub(".cel$","", clinical.aocs$X))
+esets.f$GSE9891_eset$subtype_aocs <-
+    as.factor(clinical.aocs$k[match(sampleNames(esets.f$GSE9891_eset),
+    clinical.aocs$X)])
+
+tbl.aocs <- table( esets.f$GSE9891_eset$subtype_aocs, 
+    apply(gsva.res$GSE9891_eset,2,which.max))
+colnames(tbl.aocs) <- rownames(gsva.res[[1]])
+@
+
 \begin{figure}
-<<subtypesosdiff,fig.width=10,fig.height=5,out.width="0.96\\textwidth",out.height="0.48\\textwidth">>=
-par(mar=c(5,5,3,2), mfrow=c(1,2))
+<<subtypesosdiff,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
+par(mar=c(5,5,3,2), mfrow=c(2,2))
 plotKM(y=dfrcboth$y, strata=dfrcboth$subtype,
 censor.at=365.25*5,main="A)  All datasets except TCGA")
 plotKM(y=esets.f$TCGA_eset$y, strata=esets.f$TCGA_eset$subtype,
 censor.at=365.25*5,main="B)  TCGA")
+plotKM(y=esets.f$GSE9891_eset$y, strata=esets.f$GSE9891_eset$subtype_aocs,
+censor.at=365.25*5,main="C)  AOCS Subtypes in Tothill et al.")
 @
-\caption{Association of subtype and overall survival.
-(A) All training and validation datasets excluding TCGA. (B)
-Stratification of TCGA samples by subtype.}
+\caption{Association of subtype and overall survival.  (A) All training and
+validation datasets excluding TCGA. (B) Stratification of TCGA samples by
+subtype. (C) Kaplan-Meier curves of the subtypes proposed by the Australian
+Ovarian Cancer Study Group (AOCS) in Tothill et al \cite{Tothill:2008}. This
+corresponds to Figure 5B of the Tothill study, with the difference that here
+we show only the late-stage, high-grade, serous tumors used in our
+meta-analysis.}
 \label{fig:km:subtypesos}
+\end{figure}
+
+\begin{figure}
+<<subtypesaocsoverlap,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
+heatmap.2(tbl,col=topo.colors,trace="none",margin=c(12,5))
+@
+\caption{Comparison AOCS and TCGA subtypes in Tothill et al
+\cite{Tothill:2008}. Here
+we compare our classification of Tothill samples in TCGA subtypes with
+the official Tothill et al. clusters. The colors as indicated in the legend
+on the upper left corner visualize the number of patients in the pairwise AOCS (rows)
+and TCGA (columns) subtype combinations. For example, 35 patients of the AOCS
+cluster c1 were classified as Mesenchymal.}
+\label{fig:overlap:aocstcga}
 \end{figure}
 
 \begin{figure}[!htb]
@@ -352,10 +393,11 @@ strata=strata_we[idx,1],censor.at=365.25*5,
 }        
 @
 \caption{Kaplan-Meier analysis of our overall survival signature as in Figures
-1 and 3 of the main paper, but stratified by subtype as in Supplemental
+4A of the main paper, but stratified by subtype as in Supplemental
 Figure~\ref{fig:km:tcgasubtypes}.}
 \label{fig:km:tcgasubtypesother}
 \end{figure}
+
 
 \clearpage
 \section{Detailed comparison of the novel survival signature with existing
