@@ -308,7 +308,9 @@ a single sample GSEA variant as implemented in the GSVA package. Subtype specifi
 gene sets were first identified with the limma package in the TCGA data using
 the official TCGA subtype labels. We again used default gene set sizes of 200
 genes for each subtype. Applied back to the TCGA data, this approach
-classified \Sexpr{x}\% of the samples correctly. In Supplemental
+classified \Sexpr{x}\% of the samples correctly. Note that TCGA used 
+unified expression measures obtained from multiple platforms for training, not the
+the Affymetrix data we used in our meta-analysis. In Supplemental
 Figure~\ref{fig:km:subtypesos}, we show an association of subtype with overall
 survival in all datasets except TCGA. The immunoreactive subtype had in both
 TCGA and the remaining datasets the best prognosis. Poor survival was in
@@ -357,7 +359,7 @@ censor.at=365.25*5,main="C)  AOCS Subtypes in Tothill et al.")
 validation datasets excluding TCGA. (B) Stratification of TCGA samples by
 subtype. (C) Kaplan-Meier curves of the subtypes proposed by the Australian
 Ovarian Cancer Study Group (AOCS) in Tothill et al \cite{Tothill:2008}. This
-corresponds to Figure 5B of the Tothill study, with the difference that here
+analysis corresponds to Figure 5B of the Tothill study, with the difference that here
 we show only the late-stage, high-grade, serous tumors used in our
 meta-analysis.}
 \label{fig:km:subtypesos}
@@ -662,6 +664,8 @@ age_at_initial_pathologic_diagnosis="Age"))
 set.seed(1234)
 aucs.adj <- repCV(fit, cost=ci.auc,R=10)
 aucs_clinical.adj <- repCV(fit_clinical, cost=ci.auc,R=10)
+res.ft <- fisher.test(dfrcboth$subtype=="Mesenchymal",
+    dfrcboth$debulking_orig)
 @
 
 We then adjusted our gene signature risk score for age and debulking status
@@ -671,7 +675,10 @@ predicting early events. In a five-fold cross-validation, the AUC
 of the 
 multivariate model was \Sexpr{.formatDC(aucs.adj[[4]][c(2,1,1,3)])} compared to 
 \Sexpr{.formatDC(aucs_clinical.adj[[4]][c(2,1,1,3)])} for a 
-model utilizing only age and debulking status.
+model utilizing only age and debulking status. We finally tested whether 
+TCGA subtypes were associated with success of debulking surgery. Patients in
+the mesenchymal subtype had the highest occurrence of suboptimal surgery (OR 
+\Sexpr{.formatDC(c(res.ft$estimate,0,res.ft$conf.int))}). 
 
 % add the TCGA early stage samples to the validation data
 <<addearlystage>>=
@@ -755,7 +762,7 @@ aucs.debulking <- repCV(fit.debulking, cost=ci.auc,R=10)
 
 outreg(list(fit.debulking), modelLabels=c("Meta-Analysis"),
 title="Prediction of debulking status. The table lists the
-regressions for our leave-one-dataset-out cross-validated meta-analysis
+regression our leave-one-dataset-out cross-validated meta-analysis
 debulking gene signature
 signature. The predictions were adjusted for tumor stage.",
 label="tbl:reg:debulking", tight=FALSE,
