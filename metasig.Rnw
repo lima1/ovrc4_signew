@@ -915,10 +915,6 @@ as.numeric(dfrc.subtypes$strata)
 ] )
 
 par(mfrow=c(2,3))
-plotKM(y=dfrc.subtypes$y, strata=dfrc.subtypes$tcga_subtype,censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=TRUE,show.HR=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,cex.legend=0.6,main="A) TCGA subtypes")
 
 for (i in 1:4) {
     tcga_subtype <- levels(esets.f$TCGA_eset$tcga_subtype_official)[i]
@@ -929,8 +925,13 @@ for (i in 1:4) {
             show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,
             show.PV=FALSE,
             xlab="Time (Days)",ylab="Overall Survival (%)", cex.HR=0.8,
-            cex.base=1.4,cex.legend=1.1,main=paste(toupper(letters[i+1]), ") ", tcga_subtype, sep=""))
+            cex.base=1.4,cex.legend=1.1,main=paste(toupper(letters[i]), ") ", tcga_subtype, sep=""))
 }        
+
+plotKM(y=dfrc.subtypes$y, strata=dfrc.subtypes$tcga_subtype,censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=TRUE,show.HR=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,cex.legend=0.6,main="E) TCGA subtypes")
 @
 \caption{TCGA subtypes. 
 See caption in the main paper for details.}
