@@ -179,18 +179,18 @@ label="os_1yr") {
 # create a data.frame with clinical covariates out of a list of ExpressionSets
 # from curatedOvarianData
 .createClinical <- function(esets, clinical.covars = NULL) {
-    if (is.null(clinical.covars)) 
-        clinical.covars <- c("age_at_initial_pathologic_diagnosis", "debulking", 
-            "tumorstage", "days_to_death", "vital_status")
-    df <- data.frame(do.call(cbind, lapply(clinical.covars, function(covar) unlist(sapply(esets, 
-        function(X) X[[covar]])))), stringsAsFactors = FALSE)
-    colnames(df) <- clinical.covars
-    df$tumorstage <- as.numeric(df$tumorstage)
+    if (is.null(clinical.covars)) {
+        clinical.covars <- varLabels(esets[[1]])
+        clinical.covars <- clinical.covars[clinical.covars != "y"]
+    }        
+    require(plyr)
+    df <- ldply(esets, function(X) as(phenoData(X),
+        "data.frame")[,clinical.covars])
+
     df$batch <- as.factor(unlist(sapply(esets, function(X) rep(experimentData(X)@lab, 
         ncol(X)))))
     
     df$debulking <- as.factor(gsub("unknown", NA, df$debulking))
-    df$age_at_initial_pathologic_diagnosis <- as.numeric(df$age_at_initial_pathologic_diagnosis)
     df$y <- Surv(as.numeric(df$days_to_death), df$vital_status == "deceased")
     df
 }

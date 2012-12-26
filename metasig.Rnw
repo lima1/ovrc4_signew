@@ -73,19 +73,32 @@ source("src/forestplot.surv.R")
 <<createesets, cache=TRUE>>=
 load("input/eset.scaled.rda")
 esets    <- esets[-match("GSE19829.GPL8300_eset",names(esets))]
+@
+
+<<percentstromaltcga>>=
+# stromal contamination is not curated in our database, so fetch it from the
+# official TCGA clinical data
+x <- read.delim("input/Clinical/Biotab/biospecimen_slide_ov.txt", as.is=TRUE)
+for (i in 1:length(esets)) esets[[i]]$percent_stromal_cells <- NA
+esets$TCGA_eset$percent_stromal_cells <- as.numeric(x[match(sampleNames(esets$TCGA_eset),
+    make.names(substr(x[,1],1,12))),"percent_stromal_cells"])
+@
+
+<<filtergenes, cache=TRUE>>=
+# use only genes common to all platforms
 esets.f  <- metaCMA.common.gene.esets(esets)
 @
 
-% we added the Yoshihara data after we finalized our model, so remove it for
-% now and use it later for validation
-<<addsurvobj, results='hide'>>=
+<<removeyoshihara>>=
+# we added the Yoshihara data after we finalized our model, so remove it for
+# now and use it later for validation
 esets.uf <- esets
 japan.idx <- match("GSE32062.GPL6480_eset",names(esets.f))
 esets.f <- esets.f[-japan.idx]
 @
 
-% Now load all the other data.
 <<loadvaldata,cache=TRUE>>=
+# Now load all the other data.
 load("input/eset.binary.scaled.rda")
 esets.binary <- esets
 load("input/eset.validation.scaled.rda")
@@ -190,12 +203,92 @@ write.csv(data.frame(Genes=sig, probesets, "Pooled Cox Coefficient"=
 row.names=FALSE)
 @
 
-% Create a data.frame that contains all relevant clinical information and
-% the TCGA and our predictions.
+\section{TCGA subtypes}
+
+We validated a prediction model that was trained on all training datasets except
+TCGA in the 4 TCGA subtypes separately. Kaplan-Meier plots for this analysis
+are shown in Supplemental Figure~\ref{fig:km:tcgasubtypes}. Best patient
+stratifications were observed in the Immunoreactive subtype.
+
+\begin{figure}[!htb]
+<<subtypes, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
+# this was obtained from a Broad mailing list, because the supplement refers
+# to an internal link
+subtypes <- read.delim("input/TCGA_489_UE.k4.txt")
+
+esets.f$TCGA_eset$tcga_subtype_official <-
+    subtypes[match(make.names(substr(esets.f$TCGA_eset$alt_sample_name,1,20)),
+    subtypes[,1]),2]
+
+# use the final model on TCGA. The C-Index will be biased, because TCGA was
+# used for training. but we will get an idea in which subtype it works best
+esets.f$TCGA_eset$risk <- predict(final.model, newdata=esets.f$TCGA_eset)@lp
+
+# fetch the unbiased risk scores from the leave-one-dataset-out
+# cross-validation
+esets.f$TCGA_eset$risk_unbiased <- ma[[10]]$fits$TCGA_eset$risk@lp
+
+cutpoint <- median(unlist(lapply(esets.f[-match("TCGA_eset",
+ names(esets.f))], function(X) predict(ma[[10]]$fits$TCGA_eset$fit,
+ newdata=X)@lp))) 
+
+# no generate a forest plot for the unbiased risk scores
+esets.tcga.subtypes <- lapply(levels(esets.f$TCGA_eset$tcga_subtype_official),function(s)
+    esets.f$TCGA_eset[,!is.na(esets.f$TCGA_eset$tcga_subtype_official) &
+    esets.f$TCGA_eset$tcga_subtype_official==s])
+names(esets.tcga.subtypes) <- levels(esets.f$TCGA_eset$tcga_subtype_official)
+par(mfrow=c(2,2))
+strata.subtypes <- lapply(1:length(esets.tcga.subtypes), function(i) plot(ma[[10]]$fits$TCGA_eset$fit,
+newdata=esets.tcga.subtypes[[i]], newy=esets.tcga.subtypes[[i]]$y, 
+        censor.at = 365.25*5, cutpoints=cutpoint, cex.base = 1.4, show.n.risk
+        = FALSE, show.HR = TRUE, show.PV=FALSE, cex.HR=1.1,
+        show.legend = FALSE, main = names(esets.tcga.subtypes)[i],
+))
+@
+\caption{Kaplan-Meier analysis of a model trained in all training datasets except TCGA and
+then validated in TCGA in the 4 subtypes separately.}
+\label{fig:km:tcgasubtypes}
+\end{figure}
+
+<<learnsubtypegenesets, cache=TRUE>>=
+# here we use Limma to find gene sets for the TCGA subtype 
+# we use again a default signature size of 200 (100 up and 100 down-regulated
+# genes. The fold-change was chosen so that ~100 genes passed this filter with
+# a FDR cutoff of 0.001.
+X <- esets.f$TCGA_eset[, !is.na(esets.f$TCGA_eset$tcga_subtype_official)]
+genesets <- .getFingerprintGeneSets(X, as.factor(X$tcga_subtype_official), p.value=0.001,
+lfc=log2(1.45), number=100)
+@
+
+<<classifyesets,cache=TRUE,results='hide'>>=
+gsva.res <- lapply(esets.f, function(X) .classifyGSVA(eset=X, genesets=genesets))
+gsva.res.val <- lapply(esets.validation, function(X) .classifyGSVA(eset=X, genesets=genesets))
+@
+
+<<addsubtyping>>=
+# get the subtype labels out of the GSVA results 
+.fetchSubtypeGSVA <- function(i, esets, gsva, na.cutoff=0.1,
+labels=levels(esets.f[[8]]$tcga_subtype_official) ) {
+    tcga_subtype <- apply(gsva[[i]],2,which.max)
+    # perfect enrichment score would be 2.0 and here we filter a few samples which
+    # we really can't classify. This is still not very conservative, but does not
+    # change much when I increase this threshold.
+    tcga_subtype[apply(gsva[[i]],2,max) < na.cutoff] <- NA
+    as.factor( labels[as.numeric(tcga_subtype)] )
+}
+for (i in 1:length(esets.f)) esets.f[[i]]$tcga_subtype <- .fetchSubtypeGSVA(i, esets.f, gsva.res)
+for (i in 1:length(esets.validation)) esets.validation[[i]]$tcga_subtype <-
+    .fetchSubtypeGSVA(i, esets.validation, gsva.res.val)
+
+@
+
 <<prepareclinicaldf, cache=TRUE>>=
+# Create a data.frame that contains all relevant clinical information and
+# the TCGA and our predictions.
 X <- esets.uf[-japan.idx]
 risk <- lapply(X, function(X) predict(model.tcga, newdata=X,
  type="lp")@lp)
+X <- esets.f
 for (i in 1:length(X)) {
     X[[i]]$risk_tcga <- risk[[i]]
     X[[i]]$risk <- ma[[10]]$fits[[i]]$risk@lp
@@ -215,92 +308,18 @@ dfrc$debulking <- as.numeric(dfrc$debulking)
 <<clinicalvalidation, cache=TRUE>>=
 X <- esets.validation
 dfrcval <- .createClinical(esets.validation)
-for (i in 1:length(X)) X[[i]]$risk <- predict(final.model, newdata=X[[i]], type="lp")@lp
-dfrcval$risk <- unlist(sapply(X, function(x) x$risk))
+dfrcval$percent_stromal_cells <- NA
 for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="lp")@lp
 dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
+for (i in 1:length(X)) X[[i]]$risk <- predict(final.model, newdata=X[[i]], type="lp")@lp
+dfrcval$risk <- unlist(sapply(X, function(x) x$risk))
 
 dfrcval$debulking_orig <- dfrcval$debulking
 @
 
-
-\section{TCGA subtypes}
-
-We validated a prediction model that was trained on all training datasets except
-TCGA in the 4 TCGA subtypes separately. Kaplan-Meier plots for this analysis
-are shown in Supplemental Figure~\ref{fig:km:tcgasubtypes}. Best patient
-stratifications were observed in the Immunoreactive subtype.
-
-\begin{figure}[!htb]
-<<subtypes, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
-# this was obtained from a Broad mailing list, because the supplement refers
-# to an internal link
-subtypes <- read.delim("input/TCGA_489_UE.k4.txt")
-
-esets.f$TCGA_eset$subtype <-
-    subtypes[match(make.names(substr(esets.f$TCGA_eset$alt_sample_name,1,20)),
-    subtypes[,1]),2]
-
-# use the final model on TCGA. The C-Index will be biased, because TCGA was
-# used for training. but we will get an idea in which subtype it works best
-esets.f$TCGA_eset$risk <- predict(final.model, newdata=esets.f$TCGA_eset)@lp
-
-# fetch the unbiased risk scores from the leave-one-dataset-out
-# cross-validation
-esets.f$TCGA_eset$risk_unbiased <- ma[[10]]$fits$TCGA_eset$risk@lp
-
-cutpoint <- median(unlist(lapply(esets.f[-match("TCGA_eset",
- names(esets.f))], function(X) predict(ma[[10]]$fits$TCGA_eset$fit,
- newdata=X)@lp))) 
-
-# no generate a forest plot for the unbiased risk scores
-esets.tcga.subtypes <- lapply(levels(esets.f$TCGA_eset$subtype),function(s)
-    esets.f$TCGA_eset[,!is.na(esets.f$TCGA_eset$subtype) &
-    esets.f$TCGA_eset$subtype==s])
-names(esets.tcga.subtypes) <- levels(esets.f$TCGA_eset$subtype)
-par(mfrow=c(2,2))
-strata.subtypes <- lapply(1:length(esets.tcga.subtypes), function(i) plot(ma[[10]]$fits$TCGA_eset$fit,
-newdata=esets.tcga.subtypes[[i]], newy=esets.tcga.subtypes[[i]]$y, 
-        censor.at = 365.25*5, cutpoints=cutpoint, cex.base = 1.4, show.n.risk
-        = FALSE, show.HR = TRUE, show.PV=FALSE, cex.HR=1.1,
-        show.legend = FALSE, main = names(esets.tcga.subtypes)[i],
-))
-@
-\caption{Kaplan-Meier analysis of a model trained in all training datasets except TCGA and
-then validated in TCGA in the 4 subtypes separately.}
-\label{fig:km:tcgasubtypes}
-\end{figure}
-
-<<learnsubtypegenesets, cache=TRUE>>=
-# here we use Limma to find gene sets for the TCGA subtype 
-# we use again a default signature size of 200 (100 up and 100 down-regulated
-# genes. The fold-change was chosen so that ~100 genes passed this filter with
-# a FDR cutoff of 0.001.
-X <- esets.f$TCGA_eset[, !is.na(esets.f$TCGA_eset$subtype)]
-genesets <- .getFingerprintGeneSets(X, as.factor(X$subtype), p.value=0.001,
-lfc=log2(1.45), number=100)
-@
-
-<<classifyesets,cache=TRUE,results='hide'>>=
-gsva.res <- lapply(esets.f, function(X) .classifyGSVA(eset=X, genesets=genesets))
-gsva.res.val <- lapply(esets.validation, function(X) .classifyGSVA(eset=X, genesets=genesets))
-
-dfrc$subtype <- 
-  unlist(sapply(gsva.res[-8], function(x) apply(x,2,which.max)))
-
-# perfect enrichment score would be 2.0 and here we filter a few samples which
-# we really can't classify. This is still not very conservative, but does not
-# change much when I increase this threshold.
-dfrc$subtype[unlist(lapply(gsva.res[-8], function(x) apply(x,2,max))) < 0.1] <- NA
-
-dfrcval$subtype <- 
-  unlist(sapply(gsva.res.val, function(x) apply(x,2,which.max)))
-dfrcval$subtype[unlist(lapply(gsva.res.val, function(x) apply(x,2,max))) < 0.1] <- NA
-@
 <<accuracytcga>>=
-idx <-  !is.na(esets.f$TCGA_eset$subtype)
-x <- table(apply(gsva.res[[8]],2,which.max)[idx], X$subtype)
-x <- round(sum(sapply(1:4, function(i) x[i,i]))/ncol(X)*100,digits=1)
+x <- table(esets.f$TCGA_eset$tcga_subtype_official, esets.f$TCGA_eset$tcga_subtype)
+x <- round(sum(sapply(1:4, function(i) x[i,i]))/sum(!is.na(esets.f$TCGA_eset$tcga_subtype_official))*100,digits=1)
 @
 
 We then classified all other training and validation datasets by subtype using
@@ -326,33 +345,54 @@ with our results better outcome in the Tothill dataset.
 
 <<dfrcboth>>=
 dfrcboth <- rbind(dfrc, dfrcval)
-dfrcboth <- dfrcboth[- grep("TCGA_eset", rownames(dfrcboth)),]
+dfrcboth <- dfrcboth[!grepl("GenomeAtlas",dfrcboth$batch ),]
 
 # thanks Hmisc for messing up the Surv function
 dfrcboth$y <- Surv(dfrcboth$y[,1], dfrcboth$y[,2])
-dfrcboth$subtype<- as.factor( levels(esets.f[[8]]$subtype)[dfrcboth$subtype] )
 @
 
 <<aocscomparison>>=
 clinical.aocs <- read.xls("input/AOCS_subtytpes.xlsx", as.is=TRUE)
 clinical.aocs$X <- toupper(gsub(".cel$","", clinical.aocs$X))
-esets.f$GSE9891_eset$subtype_aocs <-
+esets.f$GSE9891_eset$aocs_subtype <-
     as.factor(clinical.aocs$k[match(sampleNames(esets.f$GSE9891_eset),
     clinical.aocs$X)])
 
-tbl.aocs <- table( esets.f$GSE9891_eset$subtype_aocs, 
+tbl.aocs <- table( esets.f$GSE9891_eset$aocs_subtype, 
     apply(gsva.res$GSE9891_eset,2,which.max))
 colnames(tbl.aocs) <- rownames(gsva.res[[1]])
 @
 
+
+\begin{figure}[!htb]
+<<subtypesother, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
+par(mfrow=c(2,2))
+for (i in 1:4) {
+tcga_subtype <- levels(esets.f$TCGA_eset$tcga_subtype_official)[i]
+idx <- dfrcboth$tcga_subtype== tcga_subtype
+
+plotKM(y=Surv(strata_we[idx,2][,1],strata_we[idx,2][,2]),
+strata=strata_we[idx,1],censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main=tcga_subtype)
+}        
+@
+\caption{Kaplan-Meier analysis of our overall survival signature as in Figures
+4A of the main paper, but stratified by subtype as in Supplemental
+Figure~\ref{fig:km:tcgasubtypes}.}
+\label{fig:km:tcgasubtypesother}
+\end{figure}
+
 \begin{figure}
 <<subtypesosdiff,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
 par(mar=c(5,5,3,2), mfrow=c(2,2))
-plotKM(y=dfrcboth$y, strata=dfrcboth$subtype,
+plotKM(y=dfrcboth$y, strata=dfrcboth$tcga_subtype,
 censor.at=365.25*5,main="A)  All datasets except TCGA")
-plotKM(y=esets.f$TCGA_eset$y, strata=esets.f$TCGA_eset$subtype,
+plotKM(y=esets.f$TCGA_eset$y, strata=esets.f$TCGA_eset$tcga_subtype,
 censor.at=365.25*5,main="B)  TCGA")
-plotKM(y=esets.f$GSE9891_eset$y, strata=esets.f$GSE9891_eset$subtype_aocs,
+plotKM(y=esets.f$GSE9891_eset$y, strata=esets.f$GSE9891_eset$aocs_subtype,
 censor.at=365.25*5,main="C)  AOCS Subtypes in Tothill et al.")
 @
 \caption{Association of subtype and overall survival.  (A) All training and
@@ -377,27 +417,6 @@ on the upper left corner visualize the number of patients in the pairwise AOCS (
 and TCGA (columns) subtype combinations. For example, 35 patients of the AOCS
 cluster c1 were classified as Mesenchymal.}
 \label{fig:overlap:aocstcga}
-\end{figure}
-
-\begin{figure}[!htb]
-<<subtypesother, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
-par(mfrow=c(2,2))
-for (i in 1:4) {
-subtype <- levels(esets.f$TCGA_eset$subtype)[i]
-idx <- dfrcboth$subtype== subtype
-
-plotKM(y=Surv(strata_we[idx,2][,1],strata_we[idx,2][,2]),
-strata=strata_we[idx,1],censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main=subtype)
-}        
-@
-\caption{Kaplan-Meier analysis of our overall survival signature as in Figures
-4A of the main paper, but stratified by subtype as in Supplemental
-Figure~\ref{fig:km:tcgasubtypes}.}
-\label{fig:km:tcgasubtypesother}
 \end{figure}
 
 
@@ -664,7 +683,7 @@ age_at_initial_pathologic_diagnosis="Age"))
 set.seed(1234)
 aucs.adj <- repCV(fit, cost=ci.auc,R=10)
 aucs_clinical.adj <- repCV(fit_clinical, cost=ci.auc,R=10)
-res.ft <- fisher.test(dfrcboth$subtype=="Mesenchymal",
+res.ft <- fisher.test(dfrcboth$tcga_subtype=="Mesenchymal",
     dfrcboth$debulking_orig)
 @
 
