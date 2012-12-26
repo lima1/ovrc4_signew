@@ -109,6 +109,14 @@ load("input/eset.debulking.scaled.rda")
 esets.debulking <- esets
 @
 
+<<addearlystage>>=
+# add the TCGA early stage samples to the validation data
+ids <- esets.allos$TCGA_eset$summarystage=="early" &
+    esets.allos$TCGA_eset$summarygrade!="low"
+esets.validation <- c(esets.validation_orig, TCGA_eset=esets.allos$TCGA_eset[, ids])
+@
+
+
 <<loadtcga>>=
 # Load the TCGA model from Levi's paper supplement
 load("input/21720365-SuppTable_S6.RData")
@@ -190,7 +198,7 @@ final.model <- tmp$model
 <<tablemodel>>=
 sig <- names(final.model@coefficients)
 esets.f.all <- esets.f
-esets.f.all$GSE32062.GPL6480_eset <- esets.validation_orig$GSE32062.GPL6480_eset
+esets.f.all$GSE32062.GPL6480_eset <- esets.validation$GSE32062.GPL6480_eset
 
 probesets <- do.call(cbind, lapply(esets.f.all, function(X)
  as.character(featureData(X)[sig,]$maxmean_probeset)))
@@ -244,6 +252,9 @@ newdata=esets.tcga.subtypes[[i]], newy=esets.tcga.subtypes[[i]]$y,
         = FALSE, show.HR = TRUE, show.PV=FALSE, cex.HR=1.1,
         show.legend = FALSE, main = names(esets.tcga.subtypes)[i],
 ))
+for (i in 1:4) 
+esets.tcga.subtypes[[i]]$tcga_subtype <-
+    esets.tcga.subtypes[[i]]$tcga_subtype_official 
 @
 \caption{Kaplan-Meier analysis of a model trained in all training datasets except TCGA and
 then validated in TCGA in the 4 subtypes separately.}
@@ -277,8 +288,11 @@ labels=levels(esets.f[[8]]$tcga_subtype_official) ) {
     as.factor( labels[as.numeric(tcga_subtype)] )
 }
 for (i in 1:length(esets.f)) esets.f[[i]]$tcga_subtype <- .fetchSubtypeGSVA(i, esets.f, gsva.res)
-for (i in 1:length(esets.validation)) esets.validation[[i]]$tcga_subtype <-
-    .fetchSubtypeGSVA(i, esets.validation, gsva.res.val)
+for (i in 1:length(esets.validation)) {
+    esets.validation[[i]]$percent_stromal_cells <- NA
+    esets.validation[[i]]$tcga_subtype <-
+        .fetchSubtypeGSVA(i, esets.validation, gsva.res.val)
+}        
 
 @
 
@@ -620,7 +634,7 @@ compared to random signatures.
 Xs.all <- lapply(esets.f, .dichotomizeshortlong, l=365.25, label="os_1yr")
 preds <- lapply(1:length(Xs.all), function(i) predict(ma[[10]]$fits[[i]]$fit,
 newdata=Xs.all[[i]])@lp)
-Xs.all <- c(Xs.all, lapply(esets.validation_orig[3], .dichotomizeshortlong, l=365.25,
+Xs.all <- c(Xs.all, lapply(esets.validation["GSE32062.GPL6480_eset"], .dichotomizeshortlong, l=365.25,
 label="os_1yr"))
 preds <- c(preds,lapply(length(Xs.all), function(i)
 predict(final.model, newdata=Xs.all[[i]])@lp))
@@ -699,13 +713,6 @@ TCGA subtypes were associated with success of debulking surgery. Patients in
 the mesenchymal subtype had the highest occurrence of suboptimal surgery (OR 
 \Sexpr{.formatDC(c(res.ft$estimate,0,res.ft$conf.int))}). 
 
-% add the TCGA early stage samples to the validation data
-<<addearlystage>>=
-ids <- esets.allos$TCGA_eset$summarystage=="early" &
-    esets.allos$TCGA_eset$summarygrade!="low"
-esets.validation <- c(esets.validation_orig, TCGA_eset=esets.allos$TCGA_eset[, ids])
-@
-
 % Prepare the debulking datasets (use only genes common to all platforms)
 <<debulkingmetaprepare>>=
 Xs <- esets.debulking 
@@ -734,9 +741,8 @@ stage (III vs. IV).
 preds <- lapply(res.debulking.s34$fits,function(fit) fit$risk@lp)
 labels <- lapply(Xs.alls34, function(X) X$debulking)
 titles <- .getDatasetNames(Xs.alls34)
-idx <- !sapply(Xs.alls34,.debulkingFilter)
-preds.logit <- .p2logit(Xs.alls34[idx], fits=res.debulking.s34$fits[idx])
-aucs.db <- .plotROCpanel(preds[idx],labels[idx],titles[idx],3,3)
+idx.debfi <- !sapply(Xs.alls34,.debulkingFilter)
+aucs.db <- .plotROCpanel(preds[idx.debfi],labels[idx.debfi],titles[idx.debfi],3,3)
 @
 \caption{Prediction of suboptimally debulked tumors in a leave-one-dataset-out
 cross-validation. The prediction model calculates for each sample a score. The
@@ -770,7 +776,7 @@ final.model.debulking@coefficients,
 save(final.model, final.model.debulking, file="output/models.rda")
 @
 
-<<debulkingadjust,results='asis'>>=
+<<debulkingadjust,results='asis', cache=TRUE>>=
 dfrc.debulking <- .createClinical(Xs.alls34)
 dfrc.debulking$risk <- unlist(lapply(res.debulking.s34$fits, function(X)
 X$risk@lp))
@@ -844,7 +850,7 @@ the study.  The following section generates the figures of the main paper.
 \setcounter{figure}{0}
 
 \begin{figure}
-<<kmplotstrain,results='hide'>>=
+<<kmplotstrain,cache=TRUE,results='hide'>>=
 res.lodo <- .lodocvPlot(esets.f, models=lapply(ma[[10]]$fits, function(x)
 x$fit),ids=1:7)
 res.lodo.tcga <- .lodocvPlot(esets.f, plot=FALSE,models=model.tcga,ids=1:7)
@@ -895,6 +901,40 @@ p <- p +facet_wrap(~Dataset)+coord_cartesian(ylim= c(0.75, 2.9))+ylab("Hazard Ra
 #p <- p+ scale_shape(solid=FALSE, name = "TCGA used for training")
 p <- p +theme(axis.text.x=element_text(angle=45,hjust=1))
 @
+
+\begin{figure}
+<<tcgasubtypescombined,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+dfrc.subtypes <- .createClinical(c(esets.f[-8],esets.validation[-4],
+ esets.tcga.subtypes), clinical.covars=c("days_to_death", "vital_status",
+ "debulking", "tcga_subtype") )
+
+dfrc.subtypes$strata <- c(strata_we[,1], unlist(sapply(strata.subtypes, function(x)
+  x$strata)))
+dfrc.subtypes$strata <- as.factor( levels(strata_we[,1])[
+as.numeric(dfrc.subtypes$strata)
+] )
+
+par(mfrow=c(2,3))
+plotKM(y=dfrc.subtypes$y, strata=dfrc.subtypes$tcga_subtype,censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=TRUE,show.HR=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,cex.legend=0.6,main="A) TCGA subtypes")
+
+for (i in 1:4) {
+    tcga_subtype <- levels(esets.f$TCGA_eset$tcga_subtype_official)[i]
+    idx <- dfrc.subtypes$tcga_subtype== tcga_subtype
+
+    plotKM(y=dfrc.subtypes[idx,"y"],
+    strata=dfrc.subtypes$strata[idx],censor.at=365.25*5,
+            show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,
+            show.PV=FALSE,
+            xlab="Time (Days)",ylab="Overall Survival (%)", cex.HR=0.8,
+            cex.base=1.4,cex.legend=1.1,main=paste(toupper(letters[i+1]), ") ", tcga_subtype, sep=""))
+}        
+@
+\caption{TCGA subtypes. 
+See caption in the main paper for details.}
+\end{figure}
 
 \begin{figure}
 <<plotdatasetshr, cache=TRUE>>=
@@ -988,8 +1028,8 @@ hrdiffci <- quantile(hrdiffemp,c(0.025,0.975))
 priors <- sapply(labels, function(l) sum(l=="suboptimal")/length(l))
 
  xxx <- .forestPlotDebulking(preds1=preds.logit,
-  labels=labels[idx],
- prior=priors[idx],titles=titles[idx])
+  labels=labels[idx.debfi],
+ prior=priors[idx.debfi],titles=titles[idx.debfi])
 @
 \caption{Predicting suboptimally debulked tumors. See caption in the main
 paper for details.}
