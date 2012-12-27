@@ -72,6 +72,7 @@ label="os_1yr") {
     cutpoints <- list(NULL, NULL, cutoff, cutoff)
     
     par(mfrow = c(2, 3))
+    par(mar=c(4.5, 4.1, 2.5, 1.5))
     res <- lapply(1:length(esets.validation), function(i) plot(model, newdata = esets.validation[[i]], 
         newy = esets.validation[[i]]$y, show.n.risk = FALSE, show.legend = FALSE, 
         show.HR = FALSE, cex.base = 1.4, main = titles[i], cutpoints = cutpoints[[i]], 
