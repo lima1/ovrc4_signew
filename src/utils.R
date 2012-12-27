@@ -232,6 +232,20 @@ inverse=FALSE) {
     sapply(1:n, .doBS)
 }
 
+.bootstrapAUCs <- function(data, y="debulking",r1="risk", r2="risk_berchuck04", n=500,
+inverse=FALSE) {
+    .doBS <- function(i) {
+        idx <- sample(nrow(data), replace=TRUE)
+        ldata <- data.frame(y=data[[y]], r1=data[[r1]], r2=data[[r2]])
+        ldata <- ldata[idx,]
+        colnames(ldata) <- c("y", "r1", "r2")
+
+        auc(ldata$y, ldata$r1)[1] - auc(ldata$y, ldata$r2)[1]
+        
+    }
+    sapply(1:n, .doBS)
+}
+
 # finds gene sets predictive of the specified label,
 # simply uses limma for differential expression
 .getFingerprintGeneSets <- function(eset, labels,

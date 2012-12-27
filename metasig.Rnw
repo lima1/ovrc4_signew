@@ -843,6 +843,7 @@ fit.debulking.berchuck04 <-
 
 aucs.debulking.berchuck04 <- repCV(fit.debulking.berchuck04, cost=ci.auc,R=10)
 
+dfrc.debulking$risk_berchuck04 <- dfrc.debulking$risk
 dfrc.debulking$risk <- unlist(lapply(res.debulking.s34$fits, function(X)
 X$risk@lp))
 
@@ -858,6 +859,10 @@ debulking gene signature
 signature and the signature published by Berchuck et al. \\cite{Berchuck:2004}. The predictions were adjusted for tumor stage.",
 label="tbl:reg:debulking", tight=FALSE,
 varLabels=list(risk="Gene Signature",risk_berchuck04="Gene Signature",tumorstage="Stage (III vs IV)"))
+@
+
+<<bootstrapberchuckdiff,cache=TRUE>>=
+aucdiff <- .boostrapAUCs(dfrc.debulking,n=10000)
 @
 
 <<finalmodeldebulkingfoldchanges, cache=TRUE>>=
