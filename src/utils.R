@@ -112,8 +112,9 @@ label="os_1yr") {
     pred.rocr <- prediction(pred, labels)
     perf.rocr <- performance(pred.rocr, "tpr", "fpr")
     auc <- performance(pred.rocr, "auc")@y.values[[1]][[1]]
-    auc.ci <- ci(roc(labels,pred))
-    
+    roc.obj <- roc(labels, pred)
+    auc.ci <- ci(roc.obj)
+    best <- coords(roc.obj,x="best") 
     if (plot) {
         plot(perf.rocr, colorize = FALSE, cex.lab = 1.3, ...)
         text(0, 0.9, paste("AUC =", round(auc, digits = 2)), cex = 1.5, pos = 4)
@@ -121,8 +122,9 @@ label="os_1yr") {
         text(1, 0.1, paste("n =", length(labels)), cex = 1.5, pos = 2)
         abline(a = 0, b = 1, lty = 2)
     }
-    invisible(list(auc,auc.ci))
+    invisible(list(auc,auc.ci,best))
 }
+
 
 .plotROCpanel <- function(preds, labels, titles, nrow, ncol,...) {
     par(mfrow = c(nrow, ncol))
@@ -132,18 +134,29 @@ label="os_1yr") {
     # calculate the pooled AUC     
     sei <- sapply(aucs, function(auc) (auc[[2]][2]-auc[[2]][1])/(3.92/2))
     yi <- sapply(aucs, function(auc) (auc[[1]]))
-    metafor::rma(yi=yi,sei=sei,method="FE")
+    list(rma=metafor::rma(yi=yi,sei=sei,method="FE"),optimal.cutpoints=sapply(aucs, function(auc) auc[[3]]))
 }
 
 .forestPlotDebulking <- function(preds1, labels, prior=NULL, titles, method="FE", ...) {
     dat <- data.frame(opt=sapply(labels, function(x) sum(x=="optimal")),
     subopt=sapply(labels, function(x) sum(x=="suboptimal")))
+    
+    # get optimal cutpoints
+    best <-  .optimalROCclassification(preds1, labels, best.method="closest.topleft")[[1]]
+    
+    # classify samples according cutpoints (either best or the ones keeping the
+    # correct ratio in the validation data) 
+    classification <- lapply(1:length(preds1), function(i) {
+        p1scaled <- scale(preds1[[i]])
+        if (!is.null(prior)) p1scaled <- as.factor(p1scaled > quantile(p1scaled,
+            p=1-prior[i]))
+        else  p1scaled <- as.factor(p1scaled > best[i])
+        p1scaled
+    })
 
     res <- lapply(1:length(preds1), function(i) {
-    p1scaled <- scale(preds1[[i]])
-    if (!is.null(prior)) p1scaled <- as.factor(p1scaled > quantile(p1scaled,
-        p=1-prior[i]))
-    summary(glm(labels[[i]]~p1scaled,
+
+    summary(glm(labels[[i]]~classification[[i]],
     family="binomial"))$coefficients})
     #res1 <- metafor::rma(yi, vi, data=dat, method=method)
     yi <- sapply(res, function(x) x[2,1])
@@ -162,7 +175,7 @@ label="os_1yr") {
     text(4,10, "Gene Signature Odds Ratio [95% CI]",pos=2)
     par(op)
 
-    list(rma1,dat)
+    list(rma1,classification,dat)
 }
 
 .reclassPlot <- function(y, r1, r2, t0, title, plot = TRUE) {
@@ -232,19 +245,6 @@ inverse=FALSE) {
     sapply(1:n, .doBS)
 }
 
-.bootstrapAUCs <- function(data, y="debulking",r1="risk", r2="risk_berchuck04", n=500,
-inverse=FALSE) {
-    .doBS <- function(i) {
-        idx <- sample(nrow(data), replace=TRUE)
-        ldata <- data.frame(y=data[[y]], r1=data[[r1]], r2=data[[r2]])
-        ldata <- ldata[idx,]
-        colnames(ldata) <- c("y", "r1", "r2")
-
-        auc(ldata$y, ldata$r1)[1] - auc(ldata$y, ldata$r2)[1]
-        
-    }
-    sapply(1:n, .doBS)
-}
 
 # finds gene sets predictive of the specified label,
 # simply uses limma for differential expression
@@ -285,4 +285,15 @@ p.value,lfc,number) {
     Y
 }
 
+.optimalROCclassification <- function(preds, labels, ...) {
+    .doIt <- function(i) {
+        roc.obj <- roc(unlist(labels[-i]), unlist(preds[-i]))
+        coords(roc.obj, x="best", ...)[1]
+    }
+    best <- sapply(1:length(preds), .doIt)
+    classification  <- lapply(1:length(best), function(i) preds[[i]] > best[i])
+    cohorts <- lapply(1:length(preds), function(i) table(classification[[i]], labels[[i]]))
+    combined <- table(unlist(classification), unlist(labels))
+    list(best, cohorts, combined)
+}
 

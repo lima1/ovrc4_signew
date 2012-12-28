@@ -12,6 +12,7 @@
 \usepackage{verbatim}
 \usepackage{subfigure}
 \usepackage{booktabs}
+\usepackage[parfill]{parskip}
 \begin{document}
 
 <<setup, include=FALSE, cache=FALSE>>=
@@ -648,6 +649,7 @@ Xs.all <- c(Xs.all, lapply(esets.validation["GSE32062.GPL6480_eset"], .dichotomi
 label="os_1yr"))
 preds <- c(preds,lapply(length(Xs.all), function(i)
 predict(final.model, newdata=Xs.all[[i]])@lp))
+prior.short <- lapply(labels, function(x) sum(x=="short")/length(x))
 
 preds_tcga <- lapply(1:length(Xs.all), function(i) predict(model.tcga,
 newdata=Xs.all[[i]])@lp)
@@ -671,13 +673,17 @@ using only the remaining datasets (Figure 1).}
 \label{fig:roc:1yr}
 \end{figure}
 
+<<optimalcutpoints>>=
+ret <- .optimalROCclassification(preds[idx], labels[idx], best.method="closest.topleft")
+@
+
 We evaluated the ability of our overall survival signature to predict
 deaths within the first 12 months after diagnosis of the disease. This
 endpoint was used as a surrogate for the presence of tumors refractory to
 first-line adjuvant chemotherapy. In Supplemental Figure~\ref{fig:roc:1yr}, we
 show ROC curves for our meta-analysis signature alone. The pooled AUC was
-\Sexpr{.formatDC(aucs[c(1,2,5,6)])}, compared to 
-\Sexpr{.formatDC(aucs_tcga[c(1,2,5,6)])} for the TCGA signature. 
+\Sexpr{.formatDC(aucs$rma[c(1,2,5,6)])}, compared to 
+\Sexpr{.formatDC(aucs_tcga$rma[c(1,2,5,6)])} for the TCGA signature. 
 
 <<oneyrfun, results='asis'>>=
 df1yr <- .createClinical(Xs.all[idx], c("age_at_initial_pathologic_diagnosis",
@@ -746,9 +752,7 @@ Figure~\ref{fig:forest:debulking} in a forest plot and Supplemental
 Figure~\ref{fig:roc:debulking} are the corresponding ROC curves. In
 Supplemental Table~\ref{ tbl:reg:debulking }, we show the logistic regression
 coefficients of the gene signature risk score adjusted for FIGO stage (III vs.
-IV). We also compared our results with the only published model predicting
-debulking success \cite{Berchuck:2004} we were aware of, with the corresponding
-forest plot shown in Supplemental Figure~\ref{fig:forest:debulking:berchuck04}.
+IV). 
 
 <<debulkingmeta, cache=TRUE>>=
 preds <- lapply(res.debulking.s34$fits,function(fit) fit$risk@lp)
@@ -764,10 +768,13 @@ priors <- sapply(labels, function(l) sum(l=="suboptimal")/length(l))
  xxx <- .forestPlotDebulking(preds1=preds[idx.debfi],
   labels=labels[idx.debfi],
  prior=priors[idx.debfi],titles=titles[idx.debfi])
+
+#table(unlist(xxx[[2]]), unlist(labels[idx.debfi]))
+
 @
 \caption{Predicting suboptimally debulked tumors. 
 This figure lists the odds ratios (ORs) for  the predictions of our debulking
-gene signature. The column \textit{debulking} lists the number of patients with
+gene signature. The column \textit{Debulking} lists the number of patients with
 optimal and suboptimal debulking in each cohort. The OR for the gene signature
 shows the odds of surgery failure for high-risk patients compared to low-risk
 patients (see Supplemental Figure~\ref{fig:roc:debulking} for ROC curves).  The gene signature risk
@@ -803,6 +810,7 @@ the probability cutoffs.}
 berchuck04 <- read.csv("input/berchuck04.csv",as.is=TRUE)
 berchuck04.coefs <- berchuck04[,2]
 names(berchuck04.coefs) <- berchuck04[,1]
+# this uses a simple weighted average of the up minus the down regulated genes to calculate patient risk scores
 model.berchuck04 <- new("linearriskscore", coefficients=berchuck04.coefs)
 preds.berchuck04 <- lapply(esets.debulking, function(X) predict(model.berchuck04, newdata=X)@lp)
  xxx <- .forestPlotDebulking(preds1=preds.berchuck04[idx.debfi],
@@ -861,9 +869,19 @@ label="tbl:reg:debulking", tight=FALSE,
 varLabels=list(risk="Gene Signature",risk_berchuck04="Gene Signature",tumorstage="Stage (III vs IV)"))
 @
 
-<<bootstrapberchuckdiff,cache=TRUE>>=
-aucdiff <- .boostrapAUCs(dfrc.debulking,n=10000)
+<<berchuckaucdiff,cache=TRUE>>=
+aucdiff <- roc.test(roc(dfrc.debulking$debulking, dfrc.debulking$risk_berchuck04), roc(dfrc.debulking$debulking, dfrc.debulking$risk),alternative="less")
 @
+
+We compared our results to the only published model predicting debulking
+success \cite{Berchuck:2004} we were aware of, with the corresponding forest
+plot shown in Supplemental Figure~\ref{fig:forest:debulking:berchuck04}. Genes
+of the signature were converted to current HGNC symbols and risk scores were
+calculated by averaging the scaled expression values: the expression average of
+genes down-regulated in suboptimal was subtracted from the average of
+up-regulated genes. The AUC of the Berchuck signature was significantly smaller
+($P < \Sexpr{round(aucdiff$p.value,2)}$, \cite{DeLong:1988}) than the AUC of
+our meta-analysis signature.
 
 <<finalmodeldebulkingfoldchanges, cache=TRUE>>=
 load("input/eset.debulking.rda")
