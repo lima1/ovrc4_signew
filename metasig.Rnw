@@ -124,6 +124,13 @@ load("input/21720365-SuppTable_S6.RData")
 model.tcga <- model.official
 @
 
+<<loadjci, cache=TRUE>>=
+jci.sig <- read.xls("input/JCI65833sd1.xls", sheet=3, skip=1, as.is=TRUE)
+jci.coefs <- ifelse(jci.sig$CLASS=="GOOD",-1,1)
+names(jci.coefs) <- jci.sig$Gene.Symbol
+model.jci <- new("linearriskscore", coefficients=jci.coefs, modeltype="tscore")
+@
+
 % calculate univariate Cox regression coefficients for each dataset and each
 % gene
 <<optimizecoefs, cache=TRUE>>=
@@ -943,6 +950,7 @@ the study.  The following section generates the figures of the main paper.
 res.lodo <- .lodocvPlot(esets.f, models=lapply(ma[[10]]$fits, function(x)
 x$fit),ids=1:7)
 res.lodo.tcga <- .lodocvPlot(esets.f, plot=FALSE,models=model.tcga,ids=1:7)
+res.lodo.jci <- .lodocvPlot(esets.f, plot=FALSE,models=model.jci,ids=1:7)
 @
 \caption{\textit{Leave-one-dataset-out} cross-validation of a novel gene signature for
 predicting overall survival in late stage ovarian cancer.
@@ -1030,6 +1038,7 @@ See caption in the main paper for details.}
 <<validationexternal,cache=TRUE,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
 res.val <- .valPlot(final.model)
 res.val.tcga <- .valPlot(model.tcga, plot=FALSE)
+res.val.jci <- .valPlot(model.jci, plot=FALSE)
 @
 \caption{Validation of the final signature in independent data. 
 See caption in the main paper for details.}
@@ -1046,6 +1055,8 @@ data.frame(x$strata, x$y)))
 strata_tcga <-   do.call(rbind, lapply(c(res.lodo.tcga,res.val.tcga[-4]), function(x)
 data.frame(x$strata, x$y)))
 
+strata_jci <-   do.call(rbind, lapply(c(res.lodo.jci,res.val.jci[-4]), function(x)
+data.frame(x$strata, x$y)))
 
 par(mfrow=c(2,2))
 par(mar=c(4.5, 4.1, 2.5, 1.5))
@@ -1061,6 +1072,12 @@ strata=strata_tcga[,1],censor.at=365.25*5,
         show.PV=FALSE,
         xlab="Time (Days)",ylab="Overall Survival (%)",
         cex.base=1.4,main="B)   TCGA Signature")
+plotKM(y=Surv(strata_jci[,2][,1],strata_jci[,2][,2]),
+strata=strata_jci[,1],censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main="B)   JCI Signature")
 plotKM(y=dfrcboth$y,strata=factor(dfrcboth$debulking_orig,levels=c("suboptimal", "optimal")),censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
         show.PV=FALSE,
