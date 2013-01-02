@@ -439,7 +439,7 @@ meta-analysis.}
 
 \begin{figure}
 <<subtypesaocsoverlap,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
-heatmap.2(tbl,col=topo.colors,trace="none",margin=c(12,5))
+heatmap.2(tbl.aocs,col=topo.colors,trace="none",margin=c(12,5))
 @
 \caption{Comparison AOCS and TCGA subtypes in Tothill et al
 \cite{Tothill:2008}. Here
@@ -1046,62 +1046,73 @@ See caption in the main paper for details.}
 
 \begin{figure}
 \subfigure[]{
-<<comptcga,fig.width=7,fig.height=7,out.width="0.6\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
-
+<<comptcga,fig.width=5.33,fig.height=8,out.width="0.467\\textwidth",out.height="0.7\\textwidth",results='hide'>>=
 
 # get dichotomized risk scores, not from the early stage samples
-strata_we <-   do.call(rbind, lapply(c(res.lodo,res.val[-4]), function(x)
-data.frame(x$strata, x$y)))
-strata_tcga <-   do.call(rbind, lapply(c(res.lodo.tcga,res.val.tcga[-4]), function(x)
-data.frame(x$strata, x$y)))
+dfrcboth$strata <-  unlist(lapply(c(res.lodo,res.val[-4]), function(x)
+    x$strata))
 
-strata_jci <-   do.call(rbind, lapply(c(res.lodo.jci,res.val.jci[-4]), function(x)
-data.frame(x$strata, x$y)))
+dfrcboth$strata_tcga <-  unlist(lapply(c(res.lodo.tcga,res.val.tcga[-4]), function(x)
+    x$strata))
 
-par(mfrow=c(2,2))
+dfrcboth$strata_jci <-  unlist(lapply(c(res.lodo.jci,res.val.jci[-4]), function(x)
+    x$strata))
+
+fit.clinical <- coxph(y~tumorstage+debulking_orig,dfrcboth)
+
+fit <- coxph(y~strata+tumorstage+debulking_orig,dfrcboth)
+yhat <- cvRisk(fit, dfrcboth)
+yhat.clinical <- cvRisk(fit.clinical, dfrcboth)
+
+par(mfrow=c(3,2))
 par(mar=c(4.5, 4.1, 2.5, 1.5))
-plotKM(y=Surv(strata_we[,2][,1],strata_we[,2][,2]),
-strata=strata_we[,1],censor.at=365.25*5,
+plotKM(y=dfrcboth$y, strata=dfrcboth$strata,
+        censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
         show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
+        xlab="Time (Days)",
         cex.base=1.4,main="A)   Meta-Analysis Signature")
-plotKM(y=Surv(strata_tcga[,2][,1],strata_tcga[,2][,2]),
-strata=strata_tcga[,1],censor.at=365.25*5,
+plotKMStratifyBy("median",y=dfrcboth$y,linearriskscore=yhat,
+        censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
         show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="B)   TCGA Signature")
-plotKM(y=Surv(strata_jci[,2][,1],strata_jci[,2][,2]),
-strata=strata_jci[,1],censor.at=365.25*5,
+        xlab="Time (Days)",
+        cex.base=1.4,main="B)  Signature + Stage + Debulking")
+plotKMStratifyBy("median",y=dfrcboth$y,linearriskscore=yhat.clinical,
+        censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
         show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="B)   JCI Signature")
-plotKM(y=dfrcboth$y,strata=factor(dfrcboth$debulking_orig,levels=c("suboptimal", "optimal")),censor.at=365.25*5,
+        xlab="Time (Days)",
+        cex.base=1.4,main="C)  Stage and Debulking only")
+plotKM(y=dfrcboth$y, strata=dfrcboth$strata_tcga,
+        censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
         show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="C)   Debulking (subopt. vs opt.)")
-plotKM(y=dfrcboth$y, strata=factor(dfrcboth$tumorstage,levels=c(4,3)),censor.at=365.25*5,
+        xlab="Time (Days)",
+        cex.base=1.4,main="D)   TCGA Signature")
+plotKM(y=dfrcboth$y, strata=dfrcboth$strata_jci,
+        censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
         show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main="D)   Stage (4 vs. 3)")
+        xlab="Time (Days)",
+        cex.base=1.4,main="E)   Verhaak et al. Signature")
+
 @
 }
 \subfigure[]{
-<<fpcomptcga,fig.width=5.75,fig.height=9,out.width="0.4\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+<<fpcomptcga,fig.width=5.75,fig.height=10,out.width="0.4\\textwidth",out.height="0.7\\textwidth",results='hide'>>=
 Xs.all <- c(esets.f[-8], esets.validation[-4])
 names(Xs.all) <- .getDatasetNames(Xs.all)
 
 res.strata <- lapply(c(res.lodo, res.val[-4]), function(x) x$strata)
 res.strata.tcga <- lapply(c(res.lodo.tcga, res.val.tcga[-4]), function(x) x$strata)
+res.strata.jci <- lapply(c(res.lodo.jci, res.val.jci[-4]), function(x) x$strata)
 
-x <- metaCMA.forest.models(metaCMA.censor(Xs.all,censor.at=365.25*5), risks1=res.strata, risks2=res.strata.tcga,
+x <- metaCMA.forest.models(metaCMA.censor(Xs.all,censor.at=365.25*5),
+risks=list(res.strata, res.strata.tcga, res.strata.jci),
  graphwidth=unit(2.5,
- "inches"),concordance=FALSE,inverse=TRUE,x.ticks=c(0.5,1,2,4,8),clip=log(c(0.5,8)))
-mtext("E)",cex=1.4,font=2)
+ "inches"),concordance=FALSE,inverse=TRUE,x.ticks=c(0.5,1,2,4,8),clip=log(c(0.5,8)),
+ cols=c("darkblue","seagreen", "red"))
 @
 }
 \caption{Comparison of our novel meta-analysis gene signature with existing
@@ -1116,7 +1127,7 @@ res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfr
 
 <<hrdiffconfint, cache=TRUE>>=
 d.f <- data.frame( do.call(rbind,lapply(metaCMA.censor(Xs.all,censor.at=365.25*5), function(X) X$y)),
-strata=strata_we[,1], strata_tcga=strata_tcga[,1])
+strata=dfrcboth$strata, strata_tcga=dfrcboth$strata_tcga)
 
 hrdiffemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
 hrdiffci <- quantile(hrdiffemp,c(0.025,0.975))

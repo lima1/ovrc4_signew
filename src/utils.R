@@ -297,3 +297,10 @@ p.value,lfc,number) {
     list(best, cohorts, combined)
 }
 
+cvRisk <- function(fit, data, y=data$y, ...) {
+    folds <- cvFolds(nrow(data),...)
+    yhat <- cvFit(fit, y=y, data=data, folds=folds, cost=function(y, yhat) yhat )
+    folds.order <- folds$subset[order(folds$which)]
+    yhat$cv[order(folds.order)]
+}
+
