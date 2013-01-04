@@ -189,16 +189,17 @@ metaCMA.forest <- function(esets, metacma, y="y", mlab="Overall", ...) {
     .forestplot(esets, y, label="risk", rma.method=metacma$rma.method, mlab=mlab, ...)
 }
 
-metaCMA.forest.models <- function(esets, y="y", risks,
-mlab="Overall",concordance=TRUE,inverse=FALSE,cols=c("darkblue", "seagreen"),...) {
+metaCMA.forest.models <- function(esets, y="y", risks, labeltext=NULL,
+summary=TRUE, mlab="Overall",concordance=TRUE,inverse=FALSE,cols=c("darkblue", "seagreen"),...) {
     tmp <- names(esets)
-    labeltext <- cbind(c("", sapply(tmp, function(x)
-    c(x,rep(NA,length(risks)))),"Overall",rep(NA,length(risks)-1)))
+    if (is.null(labeltext)) 
+        labeltext <- cbind(c("", sapply(tmp, function(x)
+        c(x,rep(NA,length(risks)))),"Overall",rep(NA,length(risks)-1)))
                      #  c("Signature", rep(c("Meta-Analysis","TCGA",NA),
                      #  length(tmp)), c("Meta-Analysis", "TCGA") ))
     if (concordance) {
         rmas <- lapply(risks, function(risk) metaCMA.concordance(esets,y,
-            risks))
+            risk))
     } else {
         rmas <- lapply(risks, function(risk) metaCMA.hr(esets,y, risk,
             inverse=inverse))
@@ -210,15 +211,19 @@ mlab="Overall",concordance=TRUE,inverse=FALSE,cols=c("darkblue", "seagreen"),...
     r.lower <- c(NA,r[,1]-(r[,2]*1.96), sapply(rmas, function(rma) rma[[1]]$ci.lb))
     r.upper <- c(NA,r[,1]+(r[,2]*1.96), sapply(rmas, function(rma)
         rma[[1]]$ci.ub))
-    col=meta.colors(line=c(rep(c(NA, cols),length(tmp)+1)), zero="firebrick",
-    box=c(rep(c(NA,cols),length(tmp)+1)))
+    idx <- 1:length(r.mean)
+    if (!summary)  idx <- 1:(length(r.mean)-length(risks)-1)
 
-    forestplot.surv(labeltext=labeltext, mean=r.mean, lower=r.lower,
-    upper=r.upper,zero=ifelse(concordance,0.5,0), col=col,
+    col=meta.colors(line=c(rep(c(NA, cols),length(tmp)+1))[idx], zero="firebrick",
+    box=c(rep(c(NA,cols),length(tmp)+1))[idx])
+
+    forestplot.surv(labeltext=matrix(labeltext[idx,],ncol=ncol(labeltext)), mean=r.mean[idx],
+    lower=r.lower[idx],
+    upper=r.upper[idx],zero=ifelse(concordance,0.5,0), col=col,
     xlog=concordance==FALSE,
     align=c("l"),  xlab=ifelse(concordance, "Concordance Index", "Hazard Ratio"),
-    is.summary=(c(rep(FALSE,length(tmp)*(length(risks)+1)+1), rep(TRUE,
-    length(risks)))),...)
+    is.summary=c(rep(FALSE,length(tmp)*(length(risks)+1)+1), rep(TRUE,
+    length(risks)))[idx],...)
     rmas
 }
 

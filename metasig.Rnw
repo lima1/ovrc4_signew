@@ -57,6 +57,8 @@ library(limma)
 library(cvTools)
 library(rockchalk)
 library(GSVA)
+library(ez)
+library(sampling)
 
 # only to print the version number in the Appendix. We load the data generated
 # with the createEsetsList script
@@ -317,16 +319,18 @@ for (i in 1:length(esets.validation)) {
 # Create a data.frame that contains all relevant clinical information and
 # the TCGA and our predictions.
 X <- esets.uf[-japan.idx]
-risk <- lapply(X, function(X) predict(model.tcga, newdata=X,
- type="lp")@lp)
+risk_tcga <- lapply(X, function(X) predict(model.tcga, newdata=X, type="lp")@lp)
+risk_jci <- lapply(X, function(X) predict(model.jci, newdata=X, type="lp")@lp)
 X <- esets.f
 for (i in 1:length(X)) {
-    X[[i]]$risk_tcga <- risk[[i]]
+    X[[i]]$risk_tcga <- risk_tcga[[i]]
+    X[[i]]$risk_jci  <- risk_jci[[i]]
     X[[i]]$risk <- ma[[10]]$fits[[i]]$risk@lp
 }    
 X <- X[-grep("TCGA",names(X))]
 dfrc <- .createClinical(X)
 dfrc$risk_tcga <- unlist(sapply(X, function(x) x$risk_tcga))
+dfrc$risk_jci <- unlist(sapply(X, function(x) x$risk_jci))
 dfrc$risk <- unlist(sapply(X, function(x) x$risk))  
 idx.stagedeb <- !is.na(dfrc$age) & !is.na(dfrc$debulking)
 idx.stagedeb <- !is.na(dfrc$tumorstage) & !is.na(dfrc$debulking)
@@ -342,6 +346,8 @@ dfrcval <- .createClinical(esets.validation)
 dfrcval$percent_stromal_cells <- NA
 for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="lp")@lp
 dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
+for (i in 1:length(X)) X[[i]]$risk <- predict(model.jci, newdata=X[[i]], type="lp")@lp
+dfrcval$risk_jci <- unlist(sapply(X, function(x) x$risk))
 for (i in 1:length(X)) X[[i]]$risk <- predict(final.model, newdata=X[[i]], type="lp")@lp
 dfrcval$risk <- unlist(sapply(X, function(x) x$risk))
 
@@ -635,7 +641,7 @@ reproduced the reported performance of this model in the three TCGA test
 datasets \cite{Bonome:2008,Dressman:2007,Tothill:2008} to ensure the
 correctness of our model implementation (Supplemental
 Figure~\ref{fig:tcga:reproduce}). Among the 200 genes in our signature, 19
-overlapped with the TCGA signature (p < 0.001).  The probability of this
+overlapped with the TCGA signature ($P < 0.001$).  The p-value of this
 overlap between our and the TCGA signature was calculated with the
 hypergeometric distribution, using the number of genes common to all training
 datasets as background.  The C-Index of our signature compared to TCGA
@@ -643,7 +649,26 @@ improved moderately (\Sexpr{.formatDC(res.c.delta.tcga[3,])}). As random
 signatures in ovarian cancer achieve a C-Index of 0.54 (Waldron et al.,
 submitted), our signature represents a 33\% C-Index improvement over TCGA
 compared to random signatures. 
+
+
+
 \clearpage
+
+\begin{figure}
+<<correlationriskscores>>=
+X <- dfrcboth[,c("risk", "risk_tcga", "risk_jci")]
+colnames(X) <- c("Meta-Analysis", "TCGA", "Verhaak et al.")
+ezCor(X, label_size=7)
+@
+\caption{Pairwise correlation of the gene signature risk scores for the
+Meta-Analysis, TCGA and Verhaak et al. signatures. 
+Numbers in the upper-right, tringular half of the matrix
+are the Pearson correlation coefficients, which were all statistically
+significant ($P < 0.05$). Pairwise scatterplots of expression values are shown
+in the lower-left half and the expression histograms are shown on the matrix
+diagonal.}
+\label{fig:cor:risk}
+\end{figure}
 
 \section{The survival signature predicts refractory cases}
 
@@ -719,6 +744,7 @@ age_at_initial_pathologic_diagnosis="Age"))
 
 set.seed(1234)
 aucs.adj <- repCV(fit, cost=ci.auc,R=10)
+cvRisk(fit)
 aucs_clinical.adj <- repCV(fit_clinical, cost=ci.auc,R=10)
 res.ft <- fisher.test(dfrcboth$tcga_subtype=="Mesenchymal",
     dfrcboth$debulking_orig)
@@ -750,6 +776,30 @@ res.debulking.s34  <-
 metaCMA(Xs.alls34,y="debulking",coefs=coefs.debulking.s34, n=200,
 filter.fun=.debulkingFilter)
 @
+
+
+<<debulkingwithbonome>>=
+X <- Xs.alls34$GSE26712_eset
+set.seed(1234)
+s <- balancedstratification(X=cbind(1:ncol(X)),strata=paste(X$debulking,X$tumorstage),pik=rep(0.5,ncol(X)))
+idx.bonometraining <- s==1
+Xs.alls34b <- Xs.alls34
+Xs.alls34b$GSE26712_eset <- X[, idx.bonometraining]
+Y <- X[, !idx.bonometraining]
+write.csv(data.frame(GEO=sampleNames(Y), debulking=Y$debulking,
+tumorstage=Y$tumorstage),file="output/bonomesamples_NOT_used_for_training.csv")
+@
+
+
+<<debulkingmetas34b, cache=TRUE, results='hide'>>=
+coefs.debulking.s34b <- metaCMA.coefs(Xs.alls34b, y="debulking", family=binomial)
+res.debulking.s34b  <-
+metaCMA(Xs.alls34b,y="debulking",coefs=coefs.debulking.s34b, n=200,
+filter.fun=.debulkingFilter)
+tmp <- metaCMA.opt(Xs.alls34b, coefs=coefs.debulking.s34b,n=200,y="debulking")
+final.model.debulking.bonome <- tmp$model
+@
+
 \section{A novel signature predicts suboptimal debulking surgery}
 
 We generated a gene signature for suboptimal debulking surgery and validated
@@ -828,6 +878,8 @@ preds.berchuck04 <- lapply(esets.debulking, function(X) predict(model.berchuck04
 \label{fig:forest:debulking:berchuck04}
 \end{figure}
 
+tmp <- .createXy(Xs.alls34, coefs=coefs.debulking.s34,n=200,y="debulking")
+
 % Write the final debulking model to a spreadsheet.
 <<finalmodeldebulking,cache=TRUE>>=
 tmp <- metaCMA.opt(Xs.alls34, coefs=coefs.debulking.s34,n=200,y="debulking")
@@ -895,21 +947,29 @@ load("input/eset.debulking.rda")
 esets.db <- esets
 esets.db <- esets.db[!sapply(esets.db, .debulkingFilter)]
 
-res <- metaCMA.limma(lapply(esets.db, function(X)
-    X[names(final.model.debulking@coefficients),]), "debulking",
-    "suboptimal-optimal")
-resM <- do.call(cbind, lapply(res, function(r) topTable(r,number=200,
-    sort.by="none")[,2]))
-resM <- cbind(resM, Weighted.Mean=apply(resM,1, weighted.mean, w=sqrt(sapply(
-    esets.db, ncol))))
-rownames(resM) <- names(final.model.debulking@coefficients)
-resM <- cbind(resM,
-FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig)))
-resM <- resM[order(abs(resM[,ncol(resM)-1]),decreasing=TRUE),]
-resM[,1:9] <- 2^resM[,1:9]
-resM[,1:9] <- apply(resM[,1:9],c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
+.getFoldChanges <- function(esets.db, model) {
+    res <- metaCMA.limma(lapply(esets.db, function(X)
+        X[names(model@coefficients),]), "debulking",
+        "suboptimal-optimal")
+    resM <- do.call(cbind, lapply(res, function(r) topTable(r,number=200,
+        sort.by="none")[,2]))
+    resM <- cbind(resM, Weighted.Mean=apply(resM,1, weighted.mean, w=sqrt(sapply(
+        esets.db, ncol))))
+    rownames(resM) <- names(model@coefficients)
+    resM <- cbind(resM,
+    FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig)))
+    resM <- resM[order(abs(resM[,ncol(resM)-1]),decreasing=TRUE),]
+    resM[,1:9] <- 2^resM[,1:9]
+    resM[,1:9] <- apply(resM[,1:9],c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
+    resM    
+}
+
+resM <- .getFoldChanges(esets.db, final.model.debulking)
+resM2 <- .getFoldChanges(esets.db, final.model.debulking.bonome)
+
 
 write.csv(resM, "output/final_signature_debulking_foldchanges.csv")
+write.csv(resM2, file="output/signature_debulking_without_bonome.csv")
 @
 \clearpage
 \begin{figure}
@@ -1100,7 +1160,7 @@ plotKM(y=dfrcboth$y, strata=dfrcboth$strata_jci,
 @
 }
 \subfigure[]{
-<<fpcomptcga,fig.width=5.75,fig.height=10,out.width="0.4\\textwidth",out.height="0.7\\textwidth",results='hide'>>=
+<<fpcomptcga,fig.width=5.75,fig.height=11.5,out.width="0.4\\textwidth",out.height="0.7\\textwidth",results='hide'>>=
 Xs.all <- c(esets.f[-8], esets.validation[-4])
 names(Xs.all) <- .getDatasetNames(Xs.all)
 
