@@ -33,7 +33,8 @@ label="os_1yr") {
     eset[!is.na(eset[[label]]),]
 }
 # show a Kaplan-Meier analysis of a leave-one-dataset-out cross-validation
-.lodocvPlot <- function(X, models, ids = 1:length(X), nrow = 3, ncol = 3, censor.at = 365.25 * 5, ...) {
+.lodocvPlot <- function(X, models, ids = 1:length(X), nrow = 3, ncol = 3,
+censor.at = 365.25 * 5, cutpoint=NULL,...) {
 #    X <- X[-match("TCGA_eset", names(X))]
     names(X) <- .getDatasetNames(X)
     names(X) <- paste(1:length(X),". ", names(X), sep="")
@@ -43,8 +44,8 @@ label="os_1yr") {
         # calculate median risk score in the training data
         if (length(models) == 1) model <- models
         else model <- models[[i]]
-        cutpoint <- median(unlist(lapply(X[-i], function(x) predict(model,
-        newdata=x)@lp)))
+        if (is.null(cutpoint))
+            cutpoint <- median(unlist(lapply(X[-i], function(x) predict(model, newdata=x)@lp)))
 
         plotKMStratifyBy(cutpoints = cutpoint,
         linearriskscore = predict(model,newdata=X[[i]])@lp, y = X[[i]]$y, 

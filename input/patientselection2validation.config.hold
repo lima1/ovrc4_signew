@@ -26,7 +26,7 @@ meta.required <- c("days_to_death", "vital_status")
 
 #Regexes for filtering of patients
 rule.1 <- c("sample_type","^tumor$")
-rule.2 <- c("subtype","^ser$")
+rule.2 <- c("histological_type","^ser$")
 rule.3 <- c("summarystage","^late$")
 rule.4 <- c("summarygrade","^high$")
 

@@ -78,15 +78,6 @@ load("input/eset.scaled.rda")
 esets    <- esets[-match("GSE19829.GPL8300_eset",names(esets))]
 @
 
-<<percentstromaltcga>>=
-# stromal contamination is not curated in our database, so fetch it from the
-# official TCGA clinical data
-x <- read.delim("input/Clinical/Biotab/biospecimen_slide_ov.txt", as.is=TRUE)
-for (i in 1:length(esets)) esets[[i]]$percent_stromal_cells <- NA
-esets$TCGA_eset$percent_stromal_cells <- as.numeric(x[match(sampleNames(esets$TCGA_eset),
-    make.names(substr(x[,1],1,12))),"percent_stromal_cells"])
-@
-
 <<filtergenes, cache=TRUE>>=
 # use only genes common to all platforms
 esets.f  <- metaCMA.common.gene.esets(esets)
@@ -136,13 +127,13 @@ model.jci <- new("linearriskscore", coefficients=jci.coefs, modeltype="tscore")
 % calculate univariate Cox regression coefficients for each dataset and each
 % gene
 <<optimizecoefs, cache=TRUE>>=
-coefs = metaCMA.coefs(esets.f)
+coefs <- metaCMA.coefs(esets.f)
 @
 
 % Do our leave-one-dataset-out cross-validation for different gene-signature
 % sizes. 
 <<optimizegrid, cache=TRUE,results='hide'>>=
-ma = lapply(c(5,10,seq(25,250,25)), function(i)
+ma <- lapply(c(5,10,seq(25,250,25)), function(i)
     #metaCMA(esets.f,coefs=coefs,n=i,method="penalizedSurv",fold=5))
     metaCMA(esets.f,coefs=coefs,n=i))
 @
@@ -308,7 +299,6 @@ labels=levels(esets.f[[8]]$tcga_subtype_official) ) {
 }
 for (i in 1:length(esets.f)) esets.f[[i]]$tcga_subtype <- .fetchSubtypeGSVA(i, esets.f, gsva.res)
 for (i in 1:length(esets.validation)) {
-    esets.validation[[i]]$percent_stromal_cells <- NA
     esets.validation[[i]]$tcga_subtype <-
         .fetchSubtypeGSVA(i, esets.validation, gsva.res.val)
 }        
@@ -343,7 +333,6 @@ dfrc$debulking <- as.numeric(dfrc$debulking)
 <<clinicalvalidation, cache=TRUE>>=
 X <- esets.validation
 dfrcval <- .createClinical(esets.validation)
-dfrcval$percent_stromal_cells <- NA
 for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="lp")@lp
 dfrcval$risk_tcga <- unlist(sapply(X, function(x) x$risk))
 for (i in 1:length(X)) X[[i]]$risk <- predict(model.jci, newdata=X[[i]], type="lp")@lp
