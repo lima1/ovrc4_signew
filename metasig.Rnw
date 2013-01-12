@@ -18,8 +18,10 @@
 <<setup, include=FALSE, cache=FALSE>>=
 # this is equivalent to \SweaveOpts{...}
 opts_chunk$set(fig.path='output/figures/metasig-', fig.align='center',
-fig.show='hold',warning=FALSE, echo=FALSE)
+fig.show='hold',warning=FALSE, echo=FALSE, autodep=TRUE)
 options(replace.assign=TRUE,width=90)
+
+dep_auto()  # figure out dependencies automatically
 @
 
 \renewcommand{\thefigure}{S\arabic{figure}}
@@ -78,6 +80,16 @@ load("input/eset.scaled.rda")
 esets    <- esets[-match("GSE19829.GPL8300_eset",names(esets))]
 @
 
+<<removeduplicates>>=
+# 10 Bonome samples were included in TCGA late-stage, high grade serous
+btdups <- read.xls("input/bonometcgaduplicates.xls", as.is=TRUE)
+btdups <- btdups[btdups[,1] %in%
+            make.names(esets$TCGA_eset$unique_patient_ID),]
+
+esets$TCGA_eset <- esets$TCGA_eset[,-na.omit(match(btdups[,1],
+    make.names(esets$TCGA_eset$unique_patient_ID)))]
+@
+
 <<filtergenes, cache=TRUE>>=
 # use only genes common to all platforms
 esets.f  <- metaCMA.common.gene.esets(esets)
@@ -107,7 +119,7 @@ esets.debulking <- esets
 # add the TCGA early stage samples to the validation data
 ids <- esets.allos$TCGA_eset$summarystage=="early" &
     esets.allos$TCGA_eset$summarygrade!="low"
-esets.validation <- c(esets.validation_orig, TCGA_eset=esets.allos$TCGA_eset[, ids])
+esets.validation <- c( esets.validation_orig, TCGA_eset=esets.allos$TCGA_eset[, ids] )
 @
 
 
@@ -172,9 +184,9 @@ order in which patients die.
     dfCV <- stack(as.data.frame(do.call(rbind,cidx)))
     dfCV <- cbind(dfCV, Genes=c(5,10,seq(25,250,25)))
     dfCV$ind <- unlist(lapply(.getDatasetNames(esets), rep, 12))
-    ggplot(dfCV, aes(values, Genes))+geom_point()+facet_wrap(~ind) +
-    ylab("Number of Genes") + 
-    xlab("C-Index (Concordance)") + 
+    ggplot(dfCV, aes(Genes, values))+geom_point()+facet_wrap(~ind) +
+    xlab("Number of Genes") + 
+    ylab("C-Index (Concordance)") + 
     theme_classic(base_size=13) + 
     theme(axis.text.x=element_text(angle=45,hjust=1))
 }
@@ -184,7 +196,7 @@ facetAdjust(.plotN(esets.f,ma))
 \textbf{Figure 1-2}
 of the main paper, we used a fixed gene signature size of 200 genes.  Here we
 show the influence of this cutoff on the prediction concordance. Each point
-represents the prediction concordance of a model with $y$ genes in the
+represents the prediction concordance of a model with $x$ genes in the
 corresponding dataset that was trained using the remaining datasets only.}
 \label{fig:cutoff:train}
 \end{figure}
@@ -375,6 +387,11 @@ dfrcboth <- dfrcboth[!grepl("GenomeAtlas",dfrcboth$batch ),]
 
 # thanks Hmisc for messing up the Surv function
 dfrcboth$y <- Surv(dfrcboth$y[,1], dfrcboth$y[,2])
+
+g <- do.call(cbind, lapply(1:4, function(st)
+ unlist(lapply(c(gsva.res[-8],gsva.res.val[-4]), function(x) x[st,]))))
+colnames(g) <-  rownames(gsva.res[[1]])
+dfrcboth <- data.frame(dfrcboth, g)
 @
 
 <<aocscomparison>>=
@@ -398,8 +415,8 @@ for (i in 1:4) {
 tcga_subtype <- levels(esets.f$TCGA_eset$tcga_subtype_official)[i]
 idx <- dfrcboth$tcga_subtype== tcga_subtype
 
-plotKM(y=Surv(strata_we[idx,2][,1],strata_we[idx,2][,2]),
-strata=strata_we[idx,1],censor.at=365.25*5,
+plotKM(y=dfrcboth[idx,]$y,
+strata=dfrcboth[idx,]$strata,censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
         show.PV=FALSE,
         xlab="Time (Days)",ylab="Overall Survival (%)",
@@ -453,7 +470,7 @@ gene signatures}
 
 We compared our overall survival prediction model to (i) a model using only
 stage (III vs. IV) and debulking status (optimal vs.  suboptimal) and to (ii)
-the TCGA prediction model as described in \cite{TCGA:2011}. In addition to the
+the TCGA prediction models as described in \cite{TCGA:2011,Verhaak:2013}. In addition to the
 comparison presented in the main paper, we compared models by the Integrated
 Discrimination Improvement (IDI) reclassification measure \cite{Pencina:2008}
 as implemented in the survIDINRI package \cite{Uno:2012}.  The IDI compares
@@ -639,7 +656,20 @@ signatures in ovarian cancer achieve a C-Index of 0.54 (Waldron et al.,
 submitted), our signature represents a 33\% C-Index improvement over TCGA
 compared to random signatures. 
 
-
+The TCGA project recently published a slightly improved gene signature called
+CLOVAR \cite{Verhaak:2013}. The correlation of the risk scores of our
+meta-analysis signature and both TCGA signatures are shown in Supplemental
+Figure~\ref{fig:cor:risk}. Verhaak et al. proposed a multi-variate model including
+tumor stage, debulking status, BRCA1/2 mutation status and ssGSEA scores for
+the immunoreactive and mesenchymal subtypes. BRCA1/2 mutation status was
+unavailable for our validation datasets. As the survival association of the
+ssGSEA scores were discovered in most of our validation datasets, we tested
+a multivariate model using the CLOVAR patient stratifications in high- and
+low-risk (based on the median of CLOVAR risk scores in all datasets except the
+validation data), tumor stage, debulking status and ssGSEA scores for all 4
+subtypes. This model was then 5-fold cross-validated using all datasets
+combined. This model performed very similar to the one proposed by the authors
+using only 2 ssGSEA scores, but did not require any biased feature selection.
 
 \clearpage
 
@@ -650,12 +680,11 @@ colnames(X) <- c("Meta-Analysis", "TCGA", "Verhaak et al.")
 ezCor(X, label_size=7)
 @
 \caption{Pairwise correlation of the gene signature risk scores for the
-Meta-Analysis, TCGA and Verhaak et al. signatures. 
-Numbers in the upper-right, tringular half of the matrix
-are the Pearson correlation coefficients, which were all statistically
-significant ($P < 0.05$). Pairwise scatterplots of expression values are shown
-in the lower-left half and the expression histograms are shown on the matrix
-diagonal.}
+Meta-Analysis, TCGA and Verhaak et al. signatures.  Numbers in the
+upper-right, tringular half of the matrix are the Pearson correlation
+coefficients, which were all statistically significant ($P < 0.05$). Pairwise
+scatterplots of expression values are shown in the lower-left half and the
+expression histograms are shown on the matrix diagonal.}
 \label{fig:cor:risk}
 \end{figure}
 
@@ -767,7 +796,7 @@ filter.fun=.debulkingFilter)
 @
 
 
-<<debulkingwithbonome>>=
+<<debulkingwithbonome,results='hide'>>=
 X <- Xs.alls34$GSE26712_eset
 set.seed(1234)
 s <- balancedstratification(X=cbind(1:ncol(X)),strata=paste(X$debulking,X$tumorstage),pik=rep(0.5,ncol(X)))
@@ -835,10 +864,6 @@ is shown in Supplemental Table 3.
 
 \begin{figure}
 <<debulkingmetaplot, cache=TRUE>>=
-preds <- lapply(res.debulking.s34$fits,function(fit) fit$risk@lp)
-labels <- lapply(Xs.alls34, function(X) X$debulking)
-titles <- .getDatasetNames(Xs.alls34)
-idx.debfi <- !sapply(Xs.alls34,.debulkingFilter)
 aucs.db <- .plotROCpanel(preds[idx.debfi],labels[idx.debfi],titles[idx.debfi],3,3)
 @
 \caption{Prediction of suboptimally debulked tumors in a leave-one-dataset-out
@@ -866,8 +891,6 @@ preds.berchuck04 <- lapply(esets.debulking, function(X) predict(model.berchuck04
 \caption{Prediction of debulking status with the Berchuck et al. signature \cite{Berchuck:2004} as in Supplemental Figure~\ref{fig:forest:debulking}.}
 \label{fig:forest:debulking:berchuck04}
 \end{figure}
-
-tmp <- .createXy(Xs.alls34, coefs=coefs.debulking.s34,n=200,y="debulking")
 
 % Write the final debulking model to a spreadsheet.
 <<finalmodeldebulking,cache=TRUE>>=
@@ -995,9 +1018,9 @@ the study.  The following section generates the figures of the main paper.
 \setcounter{figure}{0}
 
 \begin{figure}
-<<kmplotstrain,cache=TRUE,results='hide'>>=
+<<kmplotstrain,cache=TRUE,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
 res.lodo <- .lodocvPlot(esets.f, models=lapply(ma[[10]]$fits, function(x)
-x$fit),ids=1:7)
+    x$fit),ids=1:8)[-8]
 res.lodo.tcga <- .lodocvPlot(esets.f, plot=FALSE,models=model.tcga,ids=1:7)
 res.lodo.jci <- .lodocvPlot(esets.f, plot=FALSE,models=model.jci,ids=1:7)
 @
@@ -1049,42 +1072,7 @@ p <- p +theme(axis.text.x=element_text(angle=45,hjust=1))
 @
 
 \begin{figure}
-<<tcgasubtypescombined,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
-dfrc.subtypes <- .createClinical(c(esets.f[-8],esets.validation[-4],
- esets.tcga.subtypes), clinical.covars=c("days_to_death", "vital_status",
- "debulking", "tcga_subtype") )
-
-dfrc.subtypes$strata <- c(strata_we[,1], unlist(sapply(strata.subtypes, function(x)
-  x$strata)))
-dfrc.subtypes$strata <- as.factor( levels(strata_we[,1])[
-as.numeric(dfrc.subtypes$strata)
-] )
-
-par(mfrow=c(2,3))
-par(mar=c(4.5, 4.1, 2.5, 1.5))
-
-for (i in 1:4) {
-    tcga_subtype <- levels(esets.f$TCGA_eset$tcga_subtype_official)[i]
-    idx <- dfrc.subtypes$tcga_subtype== tcga_subtype
-
-    plotKM(y=dfrc.subtypes[idx,"y"],
-    strata=dfrc.subtypes$strata[idx],censor.at=365.25*5,
-            show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,
-            show.PV=FALSE, cex.HR=0.88,
-            cex.base=1.4,cex.legend=1.1,main=paste(toupper(letters[i]), ") ", tcga_subtype, sep=""))
-}        
-
-plotKM(y=dfrc.subtypes$y, strata=dfrc.subtypes$tcga_subtype,censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=TRUE,show.HR=FALSE,
-        cex.base=1.4,cex.legend=0.75,main="E) TCGA subtypes")
-@
-\caption{TCGA subtypes. 
-See caption in the main paper for details.}
-\end{figure}
-
-
-\begin{figure}
-<<validationexternal,cache=TRUE,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+<<validationexternal,cache=TRUE,results='hide'>>=
 res.val <- .valPlot(final.model)
 res.val.tcga <- .valPlot(model.tcga, plot=FALSE)
 res.val.jci <- .valPlot(model.jci, plot=FALSE)
@@ -1093,11 +1081,10 @@ res.val.jci <- .valPlot(model.jci, plot=FALSE)
 See caption in the main paper for details.}
 \end{figure}
 
+
 \begin{figure}
 \subfigure[]{
 <<comptcga,fig.width=5.33,fig.height=8,out.width="0.467\\textwidth",out.height="0.7\\textwidth",results='hide'>>=
-
-# get dichotomized risk scores, not from the early stage samples
 dfrcboth$strata <-  unlist(lapply(c(res.lodo,res.val[-4]), function(x)
     x$strata))
 
@@ -1107,10 +1094,15 @@ dfrcboth$strata_tcga <-  unlist(lapply(c(res.lodo.tcga,res.val.tcga[-4]), functi
 dfrcboth$strata_jci <-  unlist(lapply(c(res.lodo.jci,res.val.jci[-4]), function(x)
     x$strata))
 
+
 fit.clinical <- coxph(y~tumorstage+debulking_orig,dfrcboth)
 
 fit <- coxph(y~strata+tumorstage+debulking_orig,dfrcboth)
+fit.jci <-
+coxph(y~strata_jci+tumorstage+debulking_orig+Immunoreactive+Mesenchymal+Proliferative+Differentiated,dfrcboth)
+
 yhat <- cvRisk(fit, dfrcboth)
+yhat.jci <- cvRisk(fit.jci, dfrcboth)
 yhat.clinical <- cvRisk(fit.clinical, dfrcboth)
 
 par(mfrow=c(3,2))
@@ -1146,10 +1138,17 @@ plotKM(y=dfrcboth$y, strata=dfrcboth$strata_jci,
         xlab="Time (Days)",
         cex.base=1.4,main="E)   Verhaak et al. Signature")
 
+plotKMStratifyBy("median", y=dfrcboth$y, linearriskscore=yhat.jci,
+        censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
+        xlab="Time (Days)",
+        cex.base=1.4,main="F)   Verhaak et al. Multivariate")
+
 @
 }
 \subfigure[]{
-<<fpcomptcga,fig.width=5.75,fig.height=11.5,out.width="0.4\\textwidth",out.height="0.7\\textwidth",results='hide'>>=
+<<fpcomptcga,fig.width=7.75,fig.height=11.5,out.width="0.4\\textwidth",out.height="0.7\\textwidth",results='hide'>>=
 Xs.all <- c(esets.f[-8], esets.validation[-4])
 names(Xs.all) <- .getDatasetNames(Xs.all)
 
@@ -1169,6 +1168,42 @@ prognostic factors.
 See caption in the main paper for details.}
 \end{figure}
 
+\begin{figure}
+<<tcgasubtypescombined,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+# get dichotomized risk scores, not from the early stage samples
+
+dfrc.subtypes <- .createClinical(c(esets.f[-8],esets.validation[-4],
+ esets.tcga.subtypes), clinical.covars=c("days_to_death", "vital_status",
+ "debulking", "tcga_subtype") )
+
+dfrc.subtypes$strata <- c(dfrcboth$strata, unlist(sapply(strata.subtypes, function(x)
+  x$strata)))
+dfrc.subtypes$strata <- as.factor( levels(dfrcboth$strata)[
+as.numeric(dfrc.subtypes$strata)
+] )
+
+par(mfrow=c(2,3))
+par(mar=c(4.5, 4.1, 2.5, 1.5))
+
+for (i in 1:4) {
+    tcga_subtype <- levels(esets.f$TCGA_eset$tcga_subtype_official)[i]
+    idx <- dfrc.subtypes$tcga_subtype== tcga_subtype
+
+    plotKM(y=dfrc.subtypes[idx,"y"],
+    strata=dfrc.subtypes$strata[idx],censor.at=365.25*5,
+            show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,
+            show.PV=FALSE, cex.HR=0.88,
+            cex.base=1.4,cex.legend=1.1,main=paste(toupper(letters[i]), ") ", tcga_subtype, sep=""))
+}        
+
+plotKM(y=dfrc.subtypes$y, strata=dfrc.subtypes$tcga_subtype,censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=TRUE,show.HR=FALSE,
+        cex.base=1.4,cex.legend=0.75,main="E) TCGA subtypes")
+@
+\caption{TCGA subtypes. 
+See caption in the main paper for details.}
+\end{figure}
+
 <<unocdiff, cache=TRUE>>=
 res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfrcboth$vital_status=="deceased"), dfrcboth$risk_tcga, dfrcboth$risk,tau=365.25*4)
 @
@@ -1180,6 +1215,14 @@ strata=dfrcboth$strata, strata_tcga=dfrcboth$strata_tcga)
 
 hrdiffemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
 hrdiffci <- quantile(hrdiffemp,c(0.025,0.975))
+@
+
+<<hrdiffconfintjci, cache=TRUE>>=
+d.f <- data.frame( do.call(rbind,lapply(metaCMA.censor(Xs.all,censor.at=365.25*5), function(X) X$y)),
+strata=dfrcboth$strata_jci, strata_tcga=dfrcboth$strata_tcga)
+
+hrdiffjciemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
+hrdiffjcici <- quantile(hrdiffjciemp,c(0.025,0.975))
 @
 
 \begin{figure}

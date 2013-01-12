@@ -33,11 +33,12 @@ label="os_1yr") {
     eset[!is.na(eset[[label]]),]
 }
 # show a Kaplan-Meier analysis of a leave-one-dataset-out cross-validation
-.lodocvPlot <- function(X, models, ids = 1:length(X), nrow = 3, ncol = 3,
-censor.at = 365.25 * 5, cutpoint=NULL,...) {
+.lodocvPlot <- function(X, models, ids = 1:length(X), nrow = 2, ncol = 3,
+censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
 #    X <- X[-match("TCGA_eset", names(X))]
-    names(X) <- .getDatasetNames(X)
-    names(X) <- paste(1:length(X),". ", names(X), sep="")
+    i <- !sapply(X, .defaultFilter)
+    names(X)[i] <- .getDatasetNames(X[i])
+    names(X)[i] <- paste(1:length(X[i]),". ", names(X)[i], sep="")
     par(mfrow = c(nrow, ncol))
     par(mar = c(4.3, 4.5, 3, 1))
     res <- lapply(ids, function(i) {
@@ -46,11 +47,12 @@ censor.at = 365.25 * 5, cutpoint=NULL,...) {
         else model <- models[[i]]
         if (is.null(cutpoint))
             cutpoint <- median(unlist(lapply(X[-i], function(x) predict(model, newdata=x)@lp)))
-
+        local.plot <- plot 
+        if (.defaultFilter(X[[i]])) local.plot=FALSE
         plotKMStratifyBy(cutpoints = cutpoint,
         linearriskscore = predict(model,newdata=X[[i]])@lp, y = X[[i]]$y, 
         censor.at = censor.at, cex.base = 1.4, show.n.risk = FALSE, show.HR = FALSE, 
-        show.legend = FALSE, main = names(X)[i], ...)
+        show.legend = FALSE, main = names(X)[i], plot = local.plot, ...)
     })
     for (i in 1:length(res)) res[[i]]$y <- X[ids][[i]]$y
     res
@@ -62,21 +64,28 @@ censor.at = 365.25 * 5, cutpoint=NULL,...) {
     # all genes of the signature
     risk.fmtrain <- lapply(esets.f, function(X) predict(final.model, newdata = X)@lp)
     cutoff <- median(unlist(risk.fmtrain))
+    esets.f.too.small <- esets.f[sapply(esets.f, .defaultFilter)]
     
     titles <- c(
-        "A) Konstantinopoulos 2010",
-        paste("B) Gillet 2012 (", sum(coefficients %in% featureNames(esets.validation$GSE30009_eset)), 
+        paste(c("A) ", "B) "), .getDatasetNames(esets.f.too.small)),
+        "C) Konstantinopoulos 2010",
+        paste("D) Gillet 2012 (", sum(coefficients %in% featureNames(esets.validation$GSE30009_eset)), 
         " genes)",sep=""), 
-        paste("C) ",
+        paste("E) ",
             .getDatasetNames(list(esets.validation$GSE32062.GPL6480_eset))), 
-        "D) Early Stage TCGA")
-    cutpoints <- list(NULL, NULL, cutoff, cutoff)
+        "F) Early Stage TCGA")
+    cutpoints <- list(cutoff, cutoff, NULL, NULL, cutoff, cutoff)
     
-    par(mfrow = c(2, 3))
+    par(mfrow = c(3, 3))
     par(mar=c(4.5, 4.1, 2.5, 1.5))
+    res <- lapply(1:length(esets.f.too.small), function(i) plot(model, newdata = esets.f.too.small[[i]], 
+        newy = esets.f.too.small[[i]]$y, show.n.risk = FALSE, show.legend = FALSE, 
+        show.HR = FALSE, cex.base = 1.4, main = titles[i], cutpoints = cutpoints[[i]], 
+        plot = plot, censor.at = 365.25 * 5))
     res <- lapply(1:length(esets.validation), function(i) plot(model, newdata = esets.validation[[i]], 
         newy = esets.validation[[i]]$y, show.n.risk = FALSE, show.legend = FALSE, 
-        show.HR = FALSE, cex.base = 1.4, main = titles[i], cutpoints = cutpoints[[i]], 
+        show.HR = FALSE, cex.base = 1.4, main = titles[i+2], cutpoints =
+        cutpoints[[i+1]], 
         plot = plot, censor.at = 365.25 * 5))
     for (i in 1:length(esets.validation)) res[[i]]$y <- esets.validation[[i]]$y
     
