@@ -18,10 +18,8 @@
 <<setup, include=FALSE, cache=FALSE>>=
 # this is equivalent to \SweaveOpts{...}
 opts_chunk$set(fig.path='output/figures/metasig-', fig.align='center',
-fig.show='hold',warning=FALSE, echo=FALSE, autodep=TRUE)
+fig.show='hold',warning=FALSE, echo=FALSE)
 options(replace.assign=TRUE,width=90)
-
-dep_auto()  # figure out dependencies automatically
 @
 
 \renewcommand{\thefigure}{S\arabic{figure}}
@@ -319,7 +317,8 @@ for (i in 1:length(esets.validation)) {
 
 <<prepareclinicaldf, cache=TRUE>>=
 # Create a data.frame that contains all relevant clinical information and
-# the TCGA and our predictions.
+# the TCGA and our predictions. Use esets.uf, because esets.f contains only
+# probesets common to all platforms.
 X <- esets.uf[-japan.idx]
 risk_tcga <- lapply(X, function(X) predict(model.tcga, newdata=X, type="lp")@lp)
 risk_jci <- lapply(X, function(X) predict(model.jci, newdata=X, type="lp")@lp)
