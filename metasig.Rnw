@@ -127,7 +127,7 @@ load("input/21720365-SuppTable_S6.RData")
 model.tcga <- model.official
 @
 
-<<loadjci, cache=TRUE>>=
+<<cached_short_loadjci, cache=TRUE>>=
 jci.sig <- read.xls("input/JCI65833sd1.xls", sheet=3, skip=1, as.is=TRUE)
 jci.coefs <- ifelse(jci.sig$CLASS=="GOOD",-1,1)
 names(jci.coefs) <- jci.sig$Gene.Symbol
@@ -172,7 +172,7 @@ of 1.0 of to a perfect model. Such a perfect model would predict the correct
 order in which patients die. 
 
 \begin{figure}[!htb]
-<<validate, out.width='0.75\\textwidth', cache=TRUE>>=
+<<cached_short_validate, out.width='0.75\\textwidth', cache=TRUE>>=
 .plotN <- function(esets, ma) {
     w <- sapply(esets,ncol)
     cidx = lapply(ma, function(x) sapply(1:length(esets), function(i)
@@ -200,7 +200,7 @@ corresponding dataset that was trained using the remaining datasets only.}
 \end{figure}
 
 % This now uses all datasets for calculating the final model.
-<<finalmodel,cache=TRUE>>=
+<<cached_short_finalmodel,cache=TRUE>>=
 tmp <- metaCMA.opt(esets.f,coef=coefs,n=200)
 final.model <- tmp$model
 @
@@ -315,7 +315,7 @@ for (i in 1:length(esets.validation)) {
 
 @
 
-<<prepareclinicaldf, cache=TRUE>>=
+<<cached_short_prepareclinicaldf, cache=TRUE>>=
 # Create a data.frame that contains all relevant clinical information and
 # the TCGA and our predictions. Use esets.uf, because esets.f contains only
 # probesets common to all platforms.
@@ -341,7 +341,7 @@ dfrc$debulking <- as.numeric(dfrc$debulking)
 
 % make another data.frame with clinical information as signature risk scores,
 % this time for the validation data
-<<clinicalvalidation, cache=TRUE>>=
+<<cached_short_clinicalvalidation, cache=TRUE>>=
 X <- esets.validation
 dfrcval <- .createClinical(esets.validation)
 for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="lp")@lp
@@ -381,16 +381,43 @@ immunoreactive samples were assigned to the c2 cluster and c2 samples had consis
 with our results better outcome in the Tothill dataset.
 
 <<dfrcboth>>=
+# combine both leave-one-dataset-out validation and independent validation in
+# one easy to work with data.frame
 dfrcboth <- rbind(dfrc, dfrcval)
 dfrcboth <- dfrcboth[!grepl("GenomeAtlas",dfrcboth$batch ),]
 
 # thanks Hmisc for messing up the Surv function
 dfrcboth$y <- Surv(dfrcboth$y[,1], dfrcboth$y[,2])
 
+# add the ssGSEA subtype scores as covariates to the data.frame
 g <- do.call(cbind, lapply(1:4, function(st)
  unlist(lapply(c(gsva.res[-8],gsva.res.val[-4]), function(x) x[st,]))))
 colnames(g) <-  rownames(gsva.res[[1]])
 dfrcboth <- data.frame(dfrcboth, g)
+@
+
+<<cached_short_figure1,cache=TRUE,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide',include=FALSE>>=
+res.lodo <- .lodocvPlot(esets.f, models=lapply(ma[[10]]$fits, function(x)
+    x$fit),ids=1:8)[-8]
+res.lodo.tcga <- .lodocvPlot(esets.f, plot=FALSE,models=model.tcga,ids=1:7)
+res.lodo.jci <- .lodocvPlot(esets.f, plot=FALSE,models=model.jci,ids=1:7)
+@
+
+<<cached_short_validationexternal,cache=TRUE,results='hide', include=FALSE>>=
+res.val <- .valPlot(final.model)
+res.val.tcga <- .valPlot(model.tcga, plot=FALSE)
+res.val.jci <- .valPlot(model.jci, plot=FALSE)
+@
+
+<<addtodfrcboth>>=
+dfrcboth$strata <-  unlist(lapply(c(res.lodo,res.val[-4]), function(x)
+    x$strata))
+
+dfrcboth$strata_tcga <-  unlist(lapply(c(res.lodo.tcga,res.val.tcga[-4]), function(x)
+    x$strata))
+
+dfrcboth$strata_jci <-  unlist(lapply(c(res.lodo.jci,res.val.jci[-4]), function(x)
+    x$strata))
 @
 
 <<aocscomparison>>=
@@ -461,7 +488,6 @@ and TCGA (columns) subtype combinations. For example, 35 patients of the AOCS
 cluster c1 were classified as Mesenchymal.}
 \label{fig:overlap:aocstcga}
 \end{figure}
-
 
 \clearpage
 \section{The survival signature is superior to existing prognostic factors and
@@ -638,6 +664,11 @@ factors.
 
 \subsection{Comparison with the TCGA signature}
 
+<<cached_medium_unocdiff, cache=TRUE>>=
+# calculate Uno's C difference between our signature and TCGA
+res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfrcboth$vital_status=="deceased"), dfrcboth$risk_tcga, dfrcboth$risk,tau=365.25*4)
+@
+
 We then compared our signature to the TCGA signature. To apply the TCGA
 signature across microarray platforms, we matched the 193 probe sets in the
 signature to unique gene symbols used in curatedOvarianData \cite{Seal:2011};
@@ -761,7 +792,6 @@ age_at_initial_pathologic_diagnosis="Age"))
 
 set.seed(1234)
 aucs.adj <- repCV(fit, cost=ci.auc,R=10)
-cvRisk(fit)
 aucs_clinical.adj <- repCV(fit_clinical, cost=ci.auc,R=10)
 res.ft <- fisher.test(dfrcboth$tcga_subtype=="Mesenchymal",
     dfrcboth$debulking_orig)
@@ -1008,25 +1038,6 @@ p-value distribution, the histograms the observed p-value distributions.}
 \newpage
 \clearpage
 \appendix
-\section{Main Figures}
-This supplement was generated with the knitr R package and contains the
-complete analysis of this study. The source code is available at
-\url{https://bitbucket.org/lima1/ovrc4_signew} to ease the reproducibility of
-the study.  The following section generates the figures of the main paper.
-\renewcommand{\thefigure}{\arabic{figure}}
-\setcounter{figure}{0}
-
-\begin{figure}
-<<kmplotstrain,cache=TRUE,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
-res.lodo <- .lodocvPlot(esets.f, models=lapply(ma[[10]]$fits, function(x)
-    x$fit),ids=1:8)[-8]
-res.lodo.tcga <- .lodocvPlot(esets.f, plot=FALSE,models=model.tcga,ids=1:7)
-res.lodo.jci <- .lodocvPlot(esets.f, plot=FALSE,models=model.jci,ids=1:7)
-@
-\caption{\textit{Leave-one-dataset-out} cross-validation of a novel gene signature for
-predicting overall survival in late stage ovarian cancer.
-See caption in the main paper for details.}
-\end{figure}
 
 <<datasetshr2prepare>>=
 .allCombsEval <- function(ids, esets, object) {
@@ -1070,29 +1081,11 @@ p <- p +facet_wrap(~Dataset)+coord_cartesian(ylim= c(0.75, 2.9))+ylab("Hazard Ra
 p <- p +theme(axis.text.x=element_text(angle=45,hjust=1))
 @
 
-\begin{figure}
-<<validationexternal,cache=TRUE,results='hide'>>=
-res.val <- .valPlot(final.model)
-res.val.tcga <- .valPlot(model.tcga, plot=FALSE)
-res.val.jci <- .valPlot(model.jci, plot=FALSE)
+<<plotdatasetshr, include=FALSE>>=
+facetAdjust(p+theme_classic(14)+theme(axis.text.x = element_text(angle = 45, hjust = 1)))
 @
-\caption{Validation of the final signature in independent data. 
-See caption in the main paper for details.}
-\end{figure}
 
-
-\begin{figure}
-\subfigure[]{
-<<comptcga,fig.width=5.33,fig.height=8,out.width="0.467\\textwidth",out.height="0.7\\textwidth",results='hide'>>=
-dfrcboth$strata <-  unlist(lapply(c(res.lodo,res.val[-4]), function(x)
-    x$strata))
-
-dfrcboth$strata_tcga <-  unlist(lapply(c(res.lodo.tcga,res.val.tcga[-4]), function(x)
-    x$strata))
-
-dfrcboth$strata_jci <-  unlist(lapply(c(res.lodo.jci,res.val.jci[-4]), function(x)
-    x$strata))
-
+<<comptcga,fig.width=5.33,fig.height=8,out.width="0.467\\textwidth",out.height="0.7\\textwidth",results='hide',include=FALSE>>=
 
 fit.clinical <- coxph(y~tumorstage+debulking_orig,dfrcboth)
 
@@ -1145,9 +1138,8 @@ plotKMStratifyBy("median", y=dfrcboth$y, linearriskscore=yhat.jci,
         cex.base=1.4,main="F)   Verhaak et al. Multivariate")
 
 @
-}
-\subfigure[]{
-<<fpcomptcga,fig.width=7.75,fig.height=11.5,out.width="0.4\\textwidth",out.height="0.7\\textwidth",results='hide'>>=
+
+<<fpcomptcga,fig.width=7.75,fig.height=11.5,out.width="0.4\\textwidth",out.height="0.7\\textwidth",results='hide',include=FALSE>>=
 Xs.all <- c(esets.f[-8], esets.validation[-4])
 names(Xs.all) <- .getDatasetNames(Xs.all)
 
@@ -1161,14 +1153,8 @@ risks=list(res.strata, res.strata.tcga, res.strata.jci),
  "inches"),concordance=FALSE,inverse=TRUE,x.ticks=c(0.5,1,2,4,8),clip=log(c(0.5,8)),
  cols=c("darkblue","seagreen", "red"))
 @
-}
-\caption{Comparison of our novel meta-analysis gene signature with existing
-prognostic factors.
-See caption in the main paper for details.}
-\end{figure}
 
-\begin{figure}
-<<tcgasubtypescombined,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+<<tcgasubtypescombined,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide',include=FALSE>>=
 # get dichotomized risk scores, not from the early stage samples
 
 dfrc.subtypes <- .createClinical(c(esets.f[-8],esets.validation[-4],
@@ -1199,16 +1185,8 @@ plotKM(y=dfrc.subtypes$y, strata=dfrc.subtypes$tcga_subtype,censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=TRUE,show.HR=FALSE,
         cex.base=1.4,cex.legend=0.75,main="E) TCGA subtypes")
 @
-\caption{TCGA subtypes. 
-See caption in the main paper for details.}
-\end{figure}
 
-<<unocdiff, cache=TRUE>>=
-res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfrcboth$vital_status=="deceased"), dfrcboth$risk_tcga, dfrcboth$risk,tau=365.25*4)
-@
-
-
-<<hrdiffconfint, cache=TRUE>>=
+<<cached_medium_hrdiffconfint, cache=TRUE>>=
 d.f <- data.frame( do.call(rbind,lapply(metaCMA.censor(Xs.all,censor.at=365.25*5), function(X) X$y)),
 strata=dfrcboth$strata, strata_tcga=dfrcboth$strata_tcga)
 
@@ -1216,21 +1194,13 @@ hrdiffemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
 hrdiffci <- quantile(hrdiffemp,c(0.025,0.975))
 @
 
-<<hrdiffconfintjci, cache=TRUE>>=
+<<cached_medium_hrdiffconfintjci, cache=TRUE>>=
 d.f <- data.frame( do.call(rbind,lapply(metaCMA.censor(Xs.all,censor.at=365.25*5), function(X) X$y)),
 strata=dfrcboth$strata_jci, strata_tcga=dfrcboth$strata_tcga)
 
 hrdiffjciemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
 hrdiffjcici <- quantile(hrdiffjciemp,c(0.025,0.975))
 @
-
-\begin{figure}
-<<plotdatasetshr, cache=TRUE>>=
-facetAdjust(p+theme_classic(14)+theme(axis.text.x = element_text(angle = 45, hjust = 1)))
-@
-\caption{Hazard Ratios as a function of training sample size.
-See caption in the main paper for details.}
-\end{figure}
 
 
 \clearpage

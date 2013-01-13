@@ -85,7 +85,7 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
     res <- lapply(1:length(esets.validation), function(i) plot(model, newdata = esets.validation[[i]], 
         newy = esets.validation[[i]]$y, show.n.risk = FALSE, show.legend = FALSE, 
         show.HR = FALSE, cex.base = 1.4, main = titles[i+2], cutpoints =
-        cutpoints[[i+1]], 
+        cutpoints[[i+2]], 
         plot = plot, censor.at = 365.25 * 5))
     for (i in 1:length(esets.validation)) res[[i]]$y <- esets.validation[[i]]$y
     
