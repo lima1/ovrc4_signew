@@ -681,10 +681,7 @@ overlapped with the TCGA signature ($P < 0.001$).  The p-value of this
 overlap between our and the TCGA signature was calculated with the
 hypergeometric distribution, using the number of genes common to all training
 datasets as background.  The C-Index of our signature compared to TCGA
-improved moderately (\Sexpr{.formatDC(res.c.delta.tcga[3,])}). As random
-signatures in ovarian cancer achieve a C-Index of 0.54 (Waldron et al.,
-submitted), our signature represents a 33\% C-Index improvement over TCGA
-compared to random signatures. 
+improved moderately (\Sexpr{.formatDC(res.c.delta.tcga[3,])}). 
 
 The TCGA project recently published a slightly improved gene signature called
 CLOVAR \cite{Verhaak:2013}. The correlation of the risk scores of our
@@ -795,6 +792,8 @@ aucs.adj <- repCV(fit, cost=ci.auc,R=10)
 aucs_clinical.adj <- repCV(fit_clinical, cost=ci.auc,R=10)
 res.ft <- fisher.test(dfrcboth$tcga_subtype=="Mesenchymal",
     dfrcboth$debulking_orig)
+zl <- cvRisk(fit,data=df1yr,y=df1yr$os_1yr,linear=FALSE)    
+opt.adj <- .optimalROCclassification(zl$risk, zl$y)    
 @
 
 We then adjusted our gene signature risk score for age and debulking status
@@ -1129,7 +1128,6 @@ plotKM(y=dfrcboth$y, strata=dfrcboth$strata_jci,
         show.PV=FALSE,
         xlab="Time (Days)",
         cex.base=1.4,main="E)   Verhaak et al. Signature")
-
 plotKMStratifyBy("median", y=dfrcboth$y, linearriskscore=yhat.jci,
         censor.at=365.25*5,
         show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,

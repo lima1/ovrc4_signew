@@ -307,10 +307,14 @@ p.value,lfc,number) {
     list(best, cohorts, combined)
 }
 
-cvRisk <- function(fit, data, y=data$y, ...) {
+cvRisk <- function(fit, data, y=data$y, linear=TRUE,...) {
     folds <- cvFolds(nrow(data),...)
     yhat <- cvFit(fit, y=y, data=data, folds=folds, cost=function(y, yhat) yhat )
     folds.order <- folds$subset[order(folds$which)]
-    yhat$cv[order(folds.order)]
+    if (linear) return(yhat$cv[order(folds.order)]  )
+    list(risk=lapply(1:max(folds$which), function(i)
+    yhat$cv[sort(folds$which)==i]),
+         y   =  lapply(1:max(folds$which), function(i)
+         y[folds$subset[folds$which==i] ]))
 }
 
