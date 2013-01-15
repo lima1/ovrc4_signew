@@ -73,7 +73,7 @@ source("src/forestplot.surv.R")
 
 % load the filtered expression data (run ./runEsetList.sh in the input
 % directory
-<<createesets, cache=TRUE>>=
+<<cached_short_createesets, cache=TRUE>>=
 load("input/eset.scaled.rda")
 esets    <- esets[-match("GSE19829.GPL8300_eset",names(esets))]
 @
@@ -88,7 +88,7 @@ esets$TCGA_eset <- esets$TCGA_eset[,-na.omit(match(btdups[,1],
     make.names(esets$TCGA_eset$unique_patient_ID)))]
 @
 
-<<filtergenes, cache=TRUE>>=
+<<cached_short_filtergenes, cache=TRUE>>=
 # use only genes common to all platforms
 esets.f  <- metaCMA.common.gene.esets(esets)
 @
@@ -101,7 +101,7 @@ japan.idx <- match("GSE32062.GPL6480_eset",names(esets.f))
 esets.f <- esets.f[-japan.idx]
 @
 
-<<loadvaldata,cache=TRUE>>=
+<<cached_short_loadvaldata,cache=TRUE>>=
 # Now load all the other data.
 load("input/eset.binary.scaled.rda")
 esets.binary <- esets
@@ -161,15 +161,19 @@ that smaller signatures tend to be less robust than large signatures. Our
 algorithm weighs genes according their rank (see Methods).  This means
 increasing the signature size is expected to have only limited influence on
 the prediction performance at some point as the weight of the genes decreases
-consistently. In Supplemental Figure~\ref{fig:cutoff:train} we confirm that
-the signature size had only modest impact on the prediction accuracy in our
-algorithm, as long as the signature size was larger than 100 genes.  In this
-figure, the prediction accuracy is reported with the C-Index metric. The
-C-Index is a pairwise comparison of patients, summarizing the fraction of
-pairs where the patient predicted to be at higher risk in fact has shorter
-survival.  A C-Index of 0.5 would correspond to a random model, and a C-Index
-of 1.0 of to a perfect model. Such a perfect model would predict the correct
-order in which patients die. 
+consistently. 
+
+In Supplemental Figure~\ref{fig:cutoff:train} we confirm that the signature
+size had only modest impact on the prediction accuracy in our algorithm, as
+long as the signature size was larger than 100 genes.  In this figure, the
+prediction accuracy is reported with the C-Index metric. The C-Index is a
+pairwise comparison of patients, summarizing the fraction of pairs where the
+patient predicted to be at higher risk in fact has shorter survival.  A
+C-Index of 0.5 would correspond to a random model, and a C-Index of 1.0 of to
+a perfect model. Such a perfect model would predict the correct order in which
+patients die. We chose this performance measure here instead of Hazard Ratios
+because it has an easy interpretation, is essentially parameter free and does
+not require a dichotomization of the prediction scores.
 
 \begin{figure}[!htb]
 <<cached_short_validate, out.width='0.75\\textwidth', cache=TRUE>>=
@@ -190,12 +194,11 @@ order in which patients die.
 }
 facetAdjust(.plotN(esets.f,ma))
 @
-\caption{In the \textit{leave-one-dataset-out} cross-validation in
-\textbf{Figure 1-2}
-of the main paper, we used a fixed gene signature size of 200 genes.  Here we
-show the influence of this cutoff on the prediction concordance. Each point
-represents the prediction concordance of a model with $x$ genes in the
-corresponding dataset that was trained using the remaining datasets only.}
+\caption{We used for all our gene signatures a fixed gene signature size of
+200 genes. Here we show the influence of this cutoff on the prediction
+concordance of the overall survival signature. Each point represents the
+prediction concordance of a model with $x$ genes in the corresponding dataset
+that was trained using the remaining datasets only.}
 \label{fig:cutoff:train}
 \end{figure}
 
@@ -205,8 +208,8 @@ tmp <- metaCMA.opt(esets.f,coef=coefs,n=200)
 final.model <- tmp$model
 @
 
-% Print the model for the supplement
 <<tablemodel>>=
+# Print the model for the supplement
 sig <- names(final.model@coefficients)
 esets.f.all <- esets.f
 esets.f.all$GSE32062.GPL6480_eset <- esets.validation$GSE32062.GPL6480_eset
@@ -222,23 +225,8 @@ write.csv(data.frame(Genes=sig, probesets, "Pooled Cox Coefficient"=
 row.names=FALSE)
 @
 
-\section{Best prediction accuracy is achieved in the TCGA immunoreactive
-subtype}
-
-In this section of the main paper, we showed the patient risk stratifications
-in the 4 TCGA subtypes separately. Here we repeated the same analysis (i) in
-TCGA only, using the official classification obtained from TCGA, (ii) in all
-other datasets, which we classified in TCGA subtypes using the TCGA data for
-training, and (iii) demonstrated consistent results using the alternative
-classification proposed by the Australian Ovarian Cancer Study Group
-(AOCS,\cite{Tothill:2008}). 
-
-First we validated a prediction model that was trained on all training datasets except
-TCGA in the 4 TCGA subtypes separately. Kaplan-Meier plots for this analysis
-are shown in Supplemental Figure~\ref{fig:km:tcgasubtypes}. 
-
-\begin{figure}[!htb]
-<<subtypes, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
+<<tcgasubtypes>>=
+# get the official TCGA subtype labels and add it to the eset
 # this was obtained from a Broad mailing list, because the supplement refers
 # to an internal link
 subtypes <- read.delim("input/TCGA_489_UE.k4.txt")
@@ -246,40 +234,7 @@ subtypes <- read.delim("input/TCGA_489_UE.k4.txt")
 esets.f$TCGA_eset$tcga_subtype_official <-
     subtypes[match(make.names(substr(esets.f$TCGA_eset$alt_sample_name,1,20)),
     subtypes[,1]),2]
-
-# use the final model on TCGA. The C-Index will be biased, because TCGA was
-# used for training. but we will get an idea in which subtype it works best
-esets.f$TCGA_eset$risk <- predict(final.model, newdata=esets.f$TCGA_eset)@lp
-
-# fetch the unbiased risk scores from the leave-one-dataset-out
-# cross-validation
-esets.f$TCGA_eset$risk_unbiased <- ma[[10]]$fits$TCGA_eset$risk@lp
-
-cutpoint <- median(unlist(lapply(esets.f[-match("TCGA_eset",
- names(esets.f))], function(X) predict(ma[[10]]$fits$TCGA_eset$fit,
- newdata=X)@lp))) 
-
-# no generate a forest plot for the unbiased risk scores
-esets.tcga.subtypes <- lapply(levels(esets.f$TCGA_eset$tcga_subtype_official),function(s)
-    esets.f$TCGA_eset[,!is.na(esets.f$TCGA_eset$tcga_subtype_official) &
-    esets.f$TCGA_eset$tcga_subtype_official==s])
-names(esets.tcga.subtypes) <- levels(esets.f$TCGA_eset$tcga_subtype_official)
-par(mfrow=c(2,2))
-par(mar=c(4.5, 4.1, 2.5, 1.5))
-strata.subtypes <- lapply(1:length(esets.tcga.subtypes), function(i) plot(ma[[10]]$fits$TCGA_eset$fit,
-newdata=esets.tcga.subtypes[[i]], newy=esets.tcga.subtypes[[i]]$y, 
-        censor.at = 365.25*5, cutpoints=cutpoint, cex.base = 1.4, show.n.risk
-        = FALSE, show.HR = TRUE, show.PV=FALSE, cex.HR=1.1,
-        show.legend = FALSE, main = names(esets.tcga.subtypes)[i],
-))
-for (i in 1:4) 
-esets.tcga.subtypes[[i]]$tcga_subtype <-
-    esets.tcga.subtypes[[i]]$tcga_subtype_official 
 @
-\caption{Kaplan-Meier analysis of a model trained in all training datasets except TCGA and
-then validated in TCGA in the 4 subtypes separately.}
-\label{fig:km:tcgasubtypes}
-\end{figure}
 
 <<learnsubtypegenesets, cache=TRUE>>=
 # here we use Limma to find gene sets for the TCGA subtype 
@@ -339,9 +294,9 @@ dfrc$debulking_orig <- dfrc$debulking
 dfrc$debulking <- as.numeric(dfrc$debulking)
 @
 
-% make another data.frame with clinical information as signature risk scores,
-% this time for the validation data
 <<cached_short_clinicalvalidation, cache=TRUE>>=
+# make another data.frame with clinical information as signature risk scores,
+# this time for the validation data
 X <- esets.validation
 dfrcval <- .createClinical(esets.validation)
 for (i in 1:length(X)) X[[i]]$risk <- predict(model.tcga, newdata=X[[i]], type="lp")@lp
@@ -353,32 +308,6 @@ dfrcval$risk <- unlist(sapply(X, function(x) x$risk))
 
 dfrcval$debulking_orig <- dfrcval$debulking
 @
-
-<<accuracytcga>>=
-x <- table(esets.f$TCGA_eset$tcga_subtype_official, esets.f$TCGA_eset$tcga_subtype)
-x <- round(sum(sapply(1:4, function(i) x[i,i]))/sum(!is.na(esets.f$TCGA_eset$tcga_subtype_official))*100,digits=1)
-@
-
-We then classified all other training and validation datasets by subtype using
-a single sample GSEA variant as implemented in the GSVA package. Subtype specific
-gene sets were first identified with the limma package in the TCGA data using
-the official TCGA subtype labels. We again used default gene set sizes of 200
-genes for each subtype. Applied back to the TCGA data, this approach
-classified \Sexpr{x}\% of the samples correctly. Note that TCGA used 
-unified expression measures obtained from multiple platforms for training, not the
-the Affymetrix data we used in our meta-analysis. In Supplemental
-Figure~\ref{fig:km:subtypesos}, we show an association of subtype with overall
-survival in all datasets except TCGA. The immunoreactive subtype had in both
-TCGA and the remaining datasets the best prognosis. Poor survival was in
-general observed for samples classified as mesenchymal. 
-
-We then tested for consistent overlaps with the Australian Ovarian Cancer
-Study Group (AOCS) subtypes as published by Tothill et al.
-\cite{Tothill:2008}. All mesenchymal samples were assigned to the AOCS cluster
-c1, which had poor prognosis in the Tothill data (Supplemental
-Figures~\ref{fig:km:subtypesos}C and \ref{fig:overlap:aocstcga}). Most
-immunoreactive samples were assigned to the c2 cluster and c2 samples had consistent
-with our results better outcome in the Tothill dataset.
 
 <<dfrcboth>>=
 # combine both leave-one-dataset-out validation and independent validation in
@@ -410,6 +339,7 @@ res.val.jci <- .valPlot(model.jci, plot=FALSE)
 @
 
 <<addtodfrcboth>>=
+# here we add the patient stratifications (high-risk vs low-risk) to the data.frame
 dfrcboth$strata <-  unlist(lapply(c(res.lodo,res.val[-4]), function(x)
     x$strata))
 
@@ -420,94 +350,22 @@ dfrcboth$strata_jci <-  unlist(lapply(c(res.lodo.jci,res.val.jci[-4]), function(
     x$strata))
 @
 
-<<aocscomparison>>=
-clinical.aocs <- read.xls("input/AOCS_subtytpes.xlsx", as.is=TRUE)
-clinical.aocs$X <- toupper(gsub(".cel$","", clinical.aocs$X))
-esets.f$GSE9891_eset$aocs_subtype <-
-    as.factor(clinical.aocs$k[match(sampleNames(esets.f$GSE9891_eset),
-    clinical.aocs$X)])
-
-tbl.aocs <- table( esets.f$GSE9891_eset$aocs_subtype, 
-    apply(gsva.res$GSE9891_eset,2,which.max))
-colnames(tbl.aocs) <- rownames(gsva.res[[1]])
-@
-
-
-\begin{figure}[!htb]
-<<subtypesother, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
-par(mfrow=c(2,2))
-par(mar=c(4.5, 4.1, 2.5, 1.5))
-for (i in 1:4) {
-tcga_subtype <- levels(esets.f$TCGA_eset$tcga_subtype_official)[i]
-idx <- dfrcboth$tcga_subtype== tcga_subtype
-
-plotKM(y=dfrcboth[idx,]$y,
-strata=dfrcboth[idx,]$strata,censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main=tcga_subtype)
-}        
-@
-\caption{Kaplan-Meier analysis of our overall survival signature as in Figures
-4A of the main paper, but stratified by subtype as in Supplemental
-Figure~\ref{fig:km:tcgasubtypes}.}
-\label{fig:km:tcgasubtypesother}
-\end{figure}
-
-\begin{figure}
-<<subtypesosdiff,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
-par(mar=c(5,5,3,2), mfrow=c(2,2))
-plotKM(y=dfrcboth$y, strata=dfrcboth$tcga_subtype,
-censor.at=365.25*5,main="A)  All datasets except TCGA")
-plotKM(y=esets.f$TCGA_eset$y, strata=esets.f$TCGA_eset$tcga_subtype,
-censor.at=365.25*5,main="B)  TCGA")
-plotKM(y=esets.f$GSE9891_eset$y, strata=esets.f$GSE9891_eset$aocs_subtype,
-censor.at=365.25*5,main="C)  AOCS Subtypes in Tothill et al.")
-@
-\caption{Association of subtype and overall survival.  (A) All training and
-validation datasets excluding TCGA. (B) Stratification of TCGA samples by
-subtype. (C) Kaplan-Meier curves of the subtypes proposed by the Australian
-Ovarian Cancer Study Group (AOCS) in Tothill et al \cite{Tothill:2008}. This
-analysis corresponds to Figure 5B of the Tothill study, with the difference that here
-we show only the late-stage, high-grade, serous tumors used in our
-meta-analysis.}
-\label{fig:km:subtypesos}
-\end{figure}
-
-\begin{figure}
-<<subtypesaocsoverlap,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
-heatmap.2(tbl.aocs,col=topo.colors,trace="none",margin=c(12,5))
-@
-\caption{Comparison AOCS and TCGA subtypes in Tothill et al
-\cite{Tothill:2008}. Here
-we compare our classification of Tothill samples in TCGA subtypes with
-the official Tothill et al. clusters. The colors as indicated in the legend
-on the upper left corner visualize the number of patients in the pairwise AOCS (rows)
-and TCGA (columns) subtype combinations. For example, 35 patients of the AOCS
-cluster c1 were classified as Mesenchymal.}
-\label{fig:overlap:aocstcga}
-\end{figure}
-
 \clearpage
-\section{The survival signature is superior to existing prognostic factors and
-gene signatures}
 
-We compared our overall survival prediction model to (i) a model using only
-stage (III vs. IV) and debulking status (optimal vs.  suboptimal) and to (ii)
-the TCGA prediction models as described in \cite{TCGA:2011,Verhaak:2013}. In addition to the
-comparison presented in the main paper, we compared models by the Integrated
-Discrimination Improvement (IDI) reclassification measure \cite{Pencina:2008}
-as implemented in the survIDINRI package \cite{Uno:2012}.  The IDI compares
-two models to estimate whether one model provides an advantage over the other;
-that is, whether it assigns higher risk to the patients who die within a
-specified time compared to the competing model and a lower risk to patients
-who do not die within this time frame. 
+\section{Comparison with the TCGA signature}
 
-Finally, we compared the models by their C-Indices.  Statistical significance
-of C-index differences between two models was estimated with the survC1 R
-package \cite{Uno:2011}. Performance reports of test datasets always
-correspond to leave-one-dataset-out cross-validated patient risk scores.
+We then compared our signature to the TCGA signature. To apply the TCGA
+signature across microarray platforms, we matched the 193 probe sets in the
+signature to unique gene symbols \cite{Seal:2011} used in curatedOvarianData;
+this approach led to 185 unique genes involved in our signature.  We first
+reproduced the reported performance of this model in the three TCGA test
+datasets \cite{Bonome:2008,Dressman:2007,Tothill:2008} to ensure the
+correctness of our model implementation (Supplemental
+Figure~\ref{fig:tcga:reproduce}). Among the 200 genes in our signature, 17
+overlapped with the TCGA signature ($P < 0.001$).  The p-value of this overlap
+between our and the TCGA signature was calculated with the hypergeometric
+distribution, using the number of genes common to all training datasets as
+background.  
 
 % Validate the TCGA model. Stolen from Levi's paper supplement.
 <<validatetcgamodel, cache=TRUE,results='hide'>>=
@@ -544,43 +402,6 @@ PMID17290060_eset$y <- Surv(PMID17290060_eset$days_to_death / 30,
 @
 
 \begin{figure}
-<<reclassificationclinical,cache=TRUE,fig.width=12,fig.height=3,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
-par(mfrow=c(1,3))
-.reclassPlot(dfrc[idx.stagedeb,"y"],dfrc[idx.stagedeb,c("tumorstage",
-"debulking" )]
-, dfrc[idx.stagedeb,c("tumorstage", "debulking","risk")]
-, t0=365.25*1, 
-title="All Training Datasets")
-.reclassPlot(dfrc[idx.stagedeb,"y"],dfrc[idx.stagedeb,c("tumorstage",
-"debulking" )]
-, dfrc[idx.stagedeb,c("tumorstage", "debulking","risk")]
-, t0=365.25*3, 
-title="All Training Datasets")
-.reclassPlot(dfrc[idx.stagedeb,"y"],dfrc[idx.stagedeb,c("tumorstage",
-"debulking" )]
-, dfrc[idx.stagedeb,c("tumorstage", "debulking","risk")]
-, t0=365.25*5, 
-title="All Training Datasets")
-@
-\caption{The additional value of our gene signature compared to age and
-debulking status alone.  These plots visualize the Integrated Discrimination
-Improvement (IDI, \cite{Pencina:2008,Uno:2012}), a measure of discrimination
-of two competing nested survival models. Shown are plots for events within the
-first 1, 3 and 5 years, respectively. The y-axis shows the probability that
-the differences in predicted risk between the new and old models are smaller
-than $s$, $P(D \leq s)$. The bold curve shows this probability for patients
-who suffered from an event within the specified time, the thin line for those
-who did not. The new model is better when patients with events have a higher
-estimated risk (low probability that the risk difference is smaller than $s$)
-and those without event a lower risk (high probability that risk difference is
-smaller than $s$). The y-axis shows the discrimination improvement by varying
-$s$, with the grey dots representing the IDI. See also \cite{Uno:2012} for a
-more detailed explanation of these plots.  Our gene signature improved for all
-three tested time points a model using only debulking status and age.} 
-\label{fig:reclass}
-\end{figure}
-
-\begin{figure}
 <<plotmodeltcgavalidation, results='hide'>>=
 par(mfrow=c(2,2))
 
@@ -607,41 +428,6 @@ blue curves to low risk patients.}
 \label{fig:tcga:reproduce}
 \end{figure}
 
-\begin{figure}
-<<reclassification,cache=TRUE,fig.width=12,fig.height=3,out.width="0.9\\textwidth",out.height="0.3\\textwidth",results='hide'>>=
-par(mfrow=c(1,3))
-.reclassPlot(dfrc$y, dfrc$risk_tcga, dfrc$risk, t0=365.25, 
-title="All Training Datasets")
-.reclassPlot(dfrc$y, dfrc$risk_tcga, dfrc$risk, t0=365.25*3, 
-title="All Training Datasets")
-.reclassPlot(dfrc$y, dfrc$risk_tcga, dfrc$risk, t0=365.25*5, 
-title="All Training Datasets")
-@
-\caption{Comparison of all \textit{leave-one-dataset-out} cross-validated risk
-scores and the risk scores calculated by the TCGA model.  See
-\textbf{Supplemental Figure~\ref{fig:reclass}} and \cite{Uno:2012} for an
-explanation of these plots.  Shown are again plots for events within the first
-1, 3 and 5 years, respectively. Our model shows a small but consistent
-reclassification improvement over all three time points.}
-\label{fig:reclass:tcga}
-\end{figure}
-
-% Calculate the C-Index differences
-<<concdeltaclinical1, cache=TRUE>>=
-res.dfrc <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.stagedeb]),
-dfrc$vital_status[idx.stagedeb]=="deceased"),
-cbind(dfrc$tumorstage[idx.stagedeb], dfrc$debulking[idx.stagedeb] ), 
-cbind(dfrc$tumorstage[idx.stagedeb],
-dfrc$debulking[idx.stagedeb], dfrc$risk[idx.stagedeb]),tau=365.25*4)
-@
-
-<<concdeltaclinical2, cache=TRUE>>=
-res.dfrc2 <- Inf.Cval.Delta(cbind(as.numeric(dfrc$days_to_death[idx.stagedeb]),
-dfrc$vital_status[idx.stagedeb]=="deceased"),
-dfrc$risk[idx.stagedeb],
-cbind(dfrc$tumorstage[idx.stagedeb],
-dfrc$debulking[idx.stagedeb], dfrc$risk[idx.stagedeb]),tau=365.25*4)
-@
 <<formatdeltac>>=
 .formatDC <- function(conf) {
           conf <- sapply(conf, function(x) format(x, digits=2))
@@ -650,53 +436,181 @@ dfrc$debulking[idx.stagedeb], dfrc$risk[idx.stagedeb]),tau=365.25*4)
 }
 
 @
-\subsection{Comparison with clinicopathologic and demographic characteristics}
 
-A model including both risk score and clinical variables was superior to a
-model based on clinical factors alone. This was true both in terms of
-concordance ($\Delta C$ \Sexpr{.formatDC(res.dfrc[3,])}) and reclassification
-within the first 1, 3 and 5 years after diagnosis (Supplemental
-Figure~\ref{fig:reclass}).  Finally, the combined model provided a modest
-improvement over the gene signature alone ($\Delta C$
-\Sexpr{.formatDC(res.dfrc2[3,])} in the six datasets with available clinical
-factors.
+\clearpage
+
+\section{TCGA subtypes}
 
 
-\subsection{Comparison with the TCGA signature}
-
-<<cached_medium_unocdiff, cache=TRUE>>=
-# calculate Uno's C difference between our signature and TCGA
-res.c.delta.tcga <- Inf.Cval.Delta(cbind(as.numeric(dfrcboth$days_to_death), dfrcboth$vital_status=="deceased"), dfrcboth$risk_tcga, dfrcboth$risk,tau=365.25*4)
+<<accuracytcga>>=
+x <- table(esets.f$TCGA_eset$tcga_subtype_official, esets.f$TCGA_eset$tcga_subtype)
+x <- round(sum(sapply(1:4, function(i) x[i,i]))/sum(!is.na(esets.f$TCGA_eset$tcga_subtype_official))*100,digits=1)
 @
 
-We then compared our signature to the TCGA signature. To apply the TCGA
-signature across microarray platforms, we matched the 193 probe sets in the
-signature to unique gene symbols used in curatedOvarianData \cite{Seal:2011};
-this approach led to 185 unique genes involved in our signature.  We first
-reproduced the reported performance of this model in the three TCGA test
-datasets \cite{Bonome:2008,Dressman:2007,Tothill:2008} to ensure the
-correctness of our model implementation (Supplemental
-Figure~\ref{fig:tcga:reproduce}). Among the 200 genes in our signature, 19
-overlapped with the TCGA signature ($P < 0.001$).  The p-value of this
-overlap between our and the TCGA signature was calculated with the
-hypergeometric distribution, using the number of genes common to all training
-datasets as background.  The C-Index of our signature compared to TCGA
-improved moderately (\Sexpr{.formatDC(res.c.delta.tcga[3,])}). 
+We classified all datasets by TCGA subtype using a single sample GSEA variant
+as implemented in the GSVA package. Subtype specific gene sets were first
+identified with the limma package in the TCGA data using the official TCGA
+subtype labels. Final subtype scores were obtained by subtracting the ssGSEA
+scores for the down-regulated gene sets from the up-regulated genes. We again
+used default gene set sizes of 200 genes for each subtype (100 up- and 100
+down-regulated genes per subtype). Applied back to the TCGA data, this
+approach classified \Sexpr{x}\% of the samples correctly. Note that TCGA used
+unified expression measures obtained from multiple platforms for training, not
+the Affymetrix data we used in our meta-analysis. In Supplemental
+Figure~\ref{fig:km:subtypesos}, we show an association of subtype with overall
+survival in all datasets except TCGA. The immunoreactive subtype had in both
+TCGA and the remaining datasets the best prognosis. Poor survival was in
+general observed for samples classified as mesenchymal. 
 
-The TCGA project recently published a slightly improved gene signature called
-CLOVAR \cite{Verhaak:2013}. The correlation of the risk scores of our
+<<aocscomparison>>=
+clinical.aocs <- read.xls("input/AOCS_subtytpes.xlsx", as.is=TRUE)
+clinical.aocs$X <- toupper(gsub(".cel$","", clinical.aocs$X))
+esets.f$GSE9891_eset$aocs_subtype <-
+    as.factor(clinical.aocs$k[match(sampleNames(esets.f$GSE9891_eset),
+    clinical.aocs$X)])
+
+tbl.aocs <- table( esets.f$GSE9891_eset$aocs_subtype, 
+    apply(gsva.res$GSE9891_eset,2,which.max))
+colnames(tbl.aocs) <- rownames(gsva.res[[1]])
+@
+
+\begin{figure}
+<<subtypesosdiff,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
+par(mar=c(5,5,3,2), mfrow=c(2,2))
+plotKM(y=dfrcboth$y, strata=dfrcboth$tcga_subtype,
+censor.at=365.25*5,main="A)  All datasets except TCGA")
+plotKM(y=esets.f$TCGA_eset$y, strata=esets.f$TCGA_eset$tcga_subtype,
+censor.at=365.25*5,main="B)  TCGA")
+plotKM(y=esets.f$GSE9891_eset$y, strata=esets.f$GSE9891_eset$aocs_subtype,
+censor.at=365.25*5,main="C)  AOCS Subtypes in Tothill et al.")
+@
+\caption{Association of subtype and overall survival.  (A) All training and
+validation datasets excluding TCGA. (B) Stratification of TCGA samples by
+subtype. (C) Kaplan-Meier curves of the subtypes proposed by the Australian
+Ovarian Cancer Study Group (AOCS) in Tothill et al \cite{Tothill:2008}. This
+analysis corresponds to Figure 5B of the Tothill study, with the difference that here
+we show only the late-stage, high-grade, serous tumors used in our
+meta-analysis.}
+\label{fig:km:subtypesos}
+\end{figure}
+
+We then tested for consistent overlaps with the Australian Ovarian Cancer
+Study Group (AOCS) subtypes as published by Tothill et al.
+\cite{Tothill:2008}. All mesenchymal samples were assigned to the AOCS cluster
+c1, which had poor prognosis in the Tothill data (Supplemental
+Figures~\ref{fig:km:subtypesos}C and \ref{fig:overlap:aocstcga}). Most
+immunoreactive samples were assigned to the c2 cluster and c2 samples had
+consistent with our results better outcome in the Tothill dataset.
+
+
+\begin{figure}
+<<subtypesaocsoverlap,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
+heatmap.2(tbl.aocs,col=topo.colors,trace="none",margin=c(12,5))
+@
+\caption{Comparison AOCS and TCGA subtypes in Tothill et al.
+\cite{Tothill:2008}. Here we compare our classification of Tothill samples in
+TCGA subtypes with the official Tothill et al. clusters. The colors as
+indicated in the legend on the upper left corner visualize the number of
+patients in the pairwise AOCS (rows) and TCGA (columns) subtype combinations.
+For example, 35 patients of the AOCS cluster c1 were classified as
+Mesenchymal.}
+\label{fig:overlap:aocstcga}
+\end{figure}
+
+\clearpage
+\section{Best prediction accuracy is achieved in the TCGA immunoreactive
+subtype}
+
+In this section of the main paper, we showed the patient risk stratifications
+in the 4 TCGA subtypes separately. Here we repeated the same analysis (i) in
+TCGA only, using the official classification obtained from TCGA, (ii) in all
+other datasets, which we classified in TCGA subtypes using the TCGA data for
+training as described above.
+
+First we validated a prediction model that was trained on all training datasets except
+TCGA in the 4 TCGA subtypes separately. Kaplan-Meier plots for this analysis
+are shown in Supplemental Figure~\ref{fig:km:tcgasubtypes}. 
+Supplemental Figure~\ref{fig:km:tcgasubtypesother}, in contrast, shows the
+patient stratification in inferred TCGA subtypes in all other datasets.
+
+\begin{figure}[!htb]
+<<kmsubtypes, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
+# fetch the unbiased risk scores from the leave-one-dataset-out
+# cross-validation for TCGA
+esets.f$TCGA_eset$risk_unbiased <- ma[[10]]$fits$TCGA_eset$risk@lp
+
+cutpoint <- median(unlist(lapply(esets.f[-match("TCGA_eset",
+ names(esets.f))], function(X) predict(ma[[10]]$fits$TCGA_eset$fit,
+ newdata=X)@lp))) 
+
+# now generate a forest plot for the unbiased risk scores
+esets.tcga.subtypes <- lapply(levels(esets.f$TCGA_eset$tcga_subtype_official),function(s)
+    esets.f$TCGA_eset[,!is.na(esets.f$TCGA_eset$tcga_subtype_official) &
+    esets.f$TCGA_eset$tcga_subtype_official==s])
+names(esets.tcga.subtypes) <- levels(esets.f$TCGA_eset$tcga_subtype_official)
+par(mfrow=c(2,2))
+par(mar=c(4.5, 4.1, 2.5, 1.5))
+strata.subtypes <- lapply(1:length(esets.tcga.subtypes), function(i) plot(ma[[10]]$fits$TCGA_eset$fit,
+newdata=esets.tcga.subtypes[[i]], newy=esets.tcga.subtypes[[i]]$y, 
+        censor.at = 365.25*5, cutpoints=cutpoint, cex.base = 1.4, show.n.risk
+        = FALSE, show.HR = TRUE, show.PV=FALSE, cex.HR=1.1,
+        show.legend = FALSE, main = names(esets.tcga.subtypes)[i],
+))
+for (i in 1:4) 
+esets.tcga.subtypes[[i]]$tcga_subtype <-
+    esets.tcga.subtypes[[i]]$tcga_subtype_official 
+@
+\caption{Kaplan-Meier analysis of a model trained in all training datasets except TCGA and
+then validated in TCGA in the 4 subtypes separately.}
+\label{fig:km:tcgasubtypes}
+\end{figure}
+
+
+\begin{figure}[!htb]
+<<subtypesother, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
+par(mfrow=c(2,2))
+par(mar=c(4.5, 4.1, 2.5, 1.5))
+for (i in 1:4) {
+tcga_subtype <- levels(esets.f$TCGA_eset$tcga_subtype_official)[i]
+idx <- dfrcboth$tcga_subtype== tcga_subtype
+
+plotKM(y=dfrcboth[idx,]$y,
+strata=dfrcboth[idx,]$strata,censor.at=365.25*5,
+        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,
+        xlab="Time (Days)",ylab="Overall Survival (%)",
+        cex.base=1.4,main=tcga_subtype)
+}        
+@
+\caption{Kaplan-Meier analysis of our overall survival signature as in Figures
+4A-D of the main paper, but excluding the TCGA data here, showing consistent
+results with the TCGA data in Supplemental Figure~\ref{fig:km:tcgasubtypes}.
+Point of this figure is to show that in our own stratification of datasets in
+TCGA subtypes, we see similar trends as we see in the official TCGA data and
+subtypes, with the only exception being the proliferative subtype.}
+\label{fig:km:tcgasubtypesother}
+\end{figure}
+
+\clearpage
+\section{Comparison with the CLOVAR signature}
+
+The TCGA project recently published an improved gene signature called CLOVAR
+\cite{Verhaak:2013}. We could map 87 of the 100 genes of the signature to
+probesets used curatedOvarianData. 21 of these genes overlapped with our gene
+signature ($P < 0.001$). The correlation of the risk scores of our
 meta-analysis signature and both TCGA signatures are shown in Supplemental
-Figure~\ref{fig:cor:risk}. Verhaak et al. proposed a multi-variate model including
-tumor stage, debulking status, BRCA1/2 mutation status and ssGSEA scores for
-the immunoreactive and mesenchymal subtypes. BRCA1/2 mutation status was
-unavailable for our validation datasets. As the survival association of the
-ssGSEA scores were discovered in most of our validation datasets, we tested
-a multivariate model using the CLOVAR patient stratifications in high- and
-low-risk (based on the median of CLOVAR risk scores in all datasets except the
-validation data), tumor stage, debulking status and ssGSEA scores for all 4
-subtypes. This model was then 5-fold cross-validated using all datasets
-combined. This model performed very similar to the one proposed by the authors
-using only 2 ssGSEA scores, but did not require any biased feature selection.
+Figure~\ref{fig:cor:risk}. Verhaak et al.  proposed a multi-variate model
+including tumor stage, debulking status, BRCA1/2 mutation status and ssGSEA
+scores for the immunoreactive and mesenchymal subtypes.  BRCA1/2 mutation
+status was unavailable for our validation datasets. As the survival
+association of the ssGSEA scores were discovered in most of our validation
+datasets, we tested a multivariate model using the CLOVAR patient
+stratifications in high- and low-risk (based on the median of CLOVAR risk
+scores in all datasets except the validation data), tumor stage, debulking
+status and ssGSEA scores for all 4 subtypes. This model was then 5-fold
+cross-validated using all datasets combined. This model performed very similar
+to the one proposed by the authors using only 2 ssGSEA scores, but did not
+require any biased feature selection.
 
 \clearpage
 
@@ -715,6 +629,7 @@ expression histograms are shown on the matrix diagonal.}
 \label{fig:cor:risk}
 \end{figure}
 
+\clearpage
 \section{The survival signature predicts refractory cases}
 
 \begin{figure}
@@ -1011,25 +926,6 @@ resM2 <- .getFoldChanges(esets.db, final.model.debulking.bonome)
 write.csv(resM, "output/final_signature_debulking_foldchanges.csv")
 write.csv(resM2, file="output/signature_debulking_without_bonome.csv")
 @
-\clearpage
-\begin{figure}
-<<signgenes,cache=TRUE>>=
-res.rcts <- lapply(esets.f, function(X) rowCoxTests(X, X$y))
-nsig <- sapply(res.rcts, function(x) sum(x[,3] < 0.05))/nrow(esets.f[[1]])*100
-d.f <- do.call(rbind, lapply(1:length(res.rcts), function(i)
- data.frame(Dataset=.getDatasetNames(esets.f)[i], P=res.rcts[[i]][,3])))
-
-#ggplot(data.frame(Dataset=.getDatasetNames(esets.f), Genes=nsig),
-#aes(Dataset,Genes))+geom_bar()+theme_classic()+theme(axis.text.x=element_text(angle=45,hjust=1))+
-#ylab("Percentage of genes signficantly associated with OS (P < 0.05)")
-facetAdjust(ggplot(d.f,aes(P))+geom_histogram(aes(y=..density..),binwidth=0.05)+facet_wrap(~Dataset)+xlab("Univariate Cox Regression P-values")+ylab("Density")+theme_classic()+geom_abline(intercept=1,slope=0,linetype="dashed"))
-@
-\caption{P-value distributions of association of mRNA expression with
-overall survival (OS) for each gene in each dataset. For this plot, we
-calculated for each training dataset and gene common to all platforms a
-univariate Cox regression p-value. The dashed lines visualize a uniform
-p-value distribution, the histograms the observed p-value distributions.}
-\end{figure}
 
 \clearpage
 \bibliographystyle{plain}
