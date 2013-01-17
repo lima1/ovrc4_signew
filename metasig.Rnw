@@ -101,6 +101,19 @@ japan.idx <- match("GSE32062.GPL6480_eset",names(esets.f))
 esets.f <- esets.f[-japan.idx]
 @
 
+<<changedebulkingtcga>>=
+.debulkingTCGA <- function(eset) {
+    debulking <- sapply(sapply(strsplit(eset$uncurated,
+    "///"), function(x) x[grep("tumor_residual_disease: ",x)]),function(y)
+    y[[1]])
+    idx <- debulking == "tumor_residual_disease: No Macroscopic disease"
+    debulking[idx] <- "optimal"
+    debulking[!idx] <- "suboptimal"
+    as.factor(debulking)
+}
+
+@
+
 <<cached_short_loadvaldata,cache=TRUE>>=
 # Now load all the other data.
 load("input/eset.binary.scaled.rda")
@@ -352,20 +365,27 @@ dfrcboth$strata_jci <-  unlist(lapply(c(res.lodo.jci,res.val.jci[-4]), function(
 
 \clearpage
 
-\section{Comparison with the TCGA signature}
+\section{Comparison with the TCGA signatures}
 
-We then compared our signature to the TCGA signature. To apply the TCGA
-signature across microarray platforms, we matched the 193 probe sets in the
-signature to unique gene symbols \cite{Seal:2011} used in curatedOvarianData;
-this approach led to 185 unique genes involved in our signature.  We first
-reproduced the reported performance of this model in the three TCGA test
-datasets \cite{Bonome:2008,Dressman:2007,Tothill:2008} to ensure the
-correctness of our model implementation (Supplemental
+We then compared our signature to the TCGA signature \cite{TCGA:2011}. To
+apply the TCGA signature across microarray platforms, we matched the 193 probe
+sets in the signature to unique gene symbols \cite{Seal:2011} used in
+curatedOvarianData; this approach led to 185 unique genes involved in our
+signature.  We first reproduced the reported performance of this model in the
+three TCGA test datasets \cite{Bonome:2008,Dressman:2007,Tothill:2008} to
+ensure the correctness of our model implementation (Supplemental
 Figure~\ref{fig:tcga:reproduce}). Among the 200 genes in our signature, 17
 overlapped with the TCGA signature ($P < 0.001$).  The p-value of this overlap
 between our and the TCGA signature was calculated with the hypergeometric
 distribution, using the number of genes common to all training datasets as
 background.  
+
+The TCGA project recently published an improved gene signature called CLOVAR
+\cite{Verhaak:2013}. We could map 87 of the 100 genes of the signature to
+probesets used curatedOvarianData. 21 of these genes overlapped with our gene
+signature ($P < 0.001$). The correlation of the risk scores of our
+meta-analysis signature and both TCGA signatures are shown in Supplemental
+Figure~\ref{fig:cor:risk}. 
 
 % Validate the TCGA model. Stolen from Levi's paper supplement.
 <<validatetcgamodel, cache=TRUE,results='hide'>>=
@@ -428,19 +448,26 @@ blue curves to low risk patients.}
 \label{fig:tcga:reproduce}
 \end{figure}
 
-<<formatdeltac>>=
-.formatDC <- function(conf) {
-          conf <- sapply(conf, function(x) format(x, digits=2))
-          dc <- paste(conf[1],"; 95\\% CI, ", conf[3], " - ",
-                      conf[4], sep="")
-}
+\clearpage
 
+\begin{figure}
+<<correlationriskscores>>=
+X <- dfrcboth[,c("risk", "risk_tcga", "risk_jci")]
+colnames(X) <- c("Meta-Analysis", "TCGA", "Verhaak et al.")
+ezCor(X, label_size=7)
 @
+\caption{Pairwise correlation of the gene signature risk scores for the
+Meta-Analysis, TCGA and Verhaak et al. signatures.  Numbers in the
+upper-right, tringular half of the matrix are the Pearson correlation
+coefficients, which were all statistically significant ($P < 0.05$). Pairwise
+scatterplots of expression values are shown in the lower-left half and the
+expression histograms are shown on the matrix diagonal.}
+\label{fig:cor:risk}
+\end{figure}
 
 \clearpage
 
 \section{TCGA subtypes}
-
 
 <<accuracytcga>>=
 x <- table(esets.f$TCGA_eset$tcga_subtype_official, esets.f$TCGA_eset$tcga_subtype)
@@ -518,6 +545,22 @@ Mesenchymal.}
 \end{figure}
 
 \clearpage
+\section{Comparison with the CLOVAR multivariate model}
+
+Verhaak et al.  proposed a multi-variate model
+including tumor stage, debulking status, BRCA1/2 mutation status and ssGSEA
+scores for the immunoreactive and mesenchymal subtypes.  BRCA1/2 mutation
+status was unavailable for our validation datasets. As the survival
+association of the ssGSEA scores were discovered in most of our validation
+datasets, we tested a multivariate model using the CLOVAR patient
+stratifications in high- and low-risk (based on the median of CLOVAR risk
+scores in all datasets except the validation data), tumor stage, debulking
+status and ssGSEA scores for all 4 subtypes. This model was then 5-fold
+cross-validated using all datasets combined. This model performed very similar
+to the one proposed by the authors using only 2 ssGSEA scores, but did not
+require any biased feature selection.
+
+\clearpage
 \section{Best prediction accuracy is achieved in the TCGA immunoreactive
 subtype}
 
@@ -591,137 +634,6 @@ subtypes, with the only exception being the proliferative subtype.}
 \label{fig:km:tcgasubtypesother}
 \end{figure}
 
-\clearpage
-\section{Comparison with the CLOVAR signature}
-
-The TCGA project recently published an improved gene signature called CLOVAR
-\cite{Verhaak:2013}. We could map 87 of the 100 genes of the signature to
-probesets used curatedOvarianData. 21 of these genes overlapped with our gene
-signature ($P < 0.001$). The correlation of the risk scores of our
-meta-analysis signature and both TCGA signatures are shown in Supplemental
-Figure~\ref{fig:cor:risk}. Verhaak et al.  proposed a multi-variate model
-including tumor stage, debulking status, BRCA1/2 mutation status and ssGSEA
-scores for the immunoreactive and mesenchymal subtypes.  BRCA1/2 mutation
-status was unavailable for our validation datasets. As the survival
-association of the ssGSEA scores were discovered in most of our validation
-datasets, we tested a multivariate model using the CLOVAR patient
-stratifications in high- and low-risk (based on the median of CLOVAR risk
-scores in all datasets except the validation data), tumor stage, debulking
-status and ssGSEA scores for all 4 subtypes. This model was then 5-fold
-cross-validated using all datasets combined. This model performed very similar
-to the one proposed by the authors using only 2 ssGSEA scores, but did not
-require any biased feature selection.
-
-\clearpage
-
-\begin{figure}
-<<correlationriskscores>>=
-X <- dfrcboth[,c("risk", "risk_tcga", "risk_jci")]
-colnames(X) <- c("Meta-Analysis", "TCGA", "Verhaak et al.")
-ezCor(X, label_size=7)
-@
-\caption{Pairwise correlation of the gene signature risk scores for the
-Meta-Analysis, TCGA and Verhaak et al. signatures.  Numbers in the
-upper-right, tringular half of the matrix are the Pearson correlation
-coefficients, which were all statistically significant ($P < 0.05$). Pairwise
-scatterplots of expression values are shown in the lower-left half and the
-expression histograms are shown on the matrix diagonal.}
-\label{fig:cor:risk}
-\end{figure}
-
-\clearpage
-\section{The survival signature predicts refractory cases}
-
-\begin{figure}
-<<elmeta,results='hide'>>=
-Xs.all <- lapply(esets.f, .dichotomizeshortlong, l=365.25, label="os_1yr")
-preds <- lapply(1:length(Xs.all), function(i) predict(ma[[10]]$fits[[i]]$fit,
-newdata=Xs.all[[i]])@lp)
-Xs.all <- c(Xs.all, lapply(esets.validation["GSE32062.GPL6480_eset"], .dichotomizeshortlong, l=365.25,
-label="os_1yr"))
-preds <- c(preds,lapply(length(Xs.all), function(i)
-predict(final.model, newdata=Xs.all[[i]])@lp))
-prior.short <- lapply(labels, function(x) sum(x=="short")/length(x))
-
-preds_tcga <- lapply(1:length(Xs.all), function(i) predict(model.tcga,
-newdata=Xs.all[[i]])@lp)
-
-labels <- lapply(Xs.all, function(X) X$os_1yr)
-titles <- .getDatasetNames(Xs.all)
-# remove TCGA again because we compare to the TCGA model
-idx <- -8
-
-aucs <- .plotROCpanel(preds[idx],labels[idx],titles[idx],3,3)
-aucs_tcga <-
-.plotROCpanel(preds_tcga[idx],labels[idx],titles[idx],2,3,plot=FALSE)
-@
-\caption{Prediction of refactory cases in a \textit{leave-one-dataset-out}
-cross-validation.  Here the patient risk scores obtained by our overall
-survival signature were used to predict events in the first year. ROC curves
-visualize true and false positive rates for all possible risk score cutoffs.
-The higher the score, the higher the probability the patient will die within
-the first year. For each dataset, the overall survival signature was trained
-using only the remaining datasets (Figure 1).}
-\label{fig:roc:1yr}
-\end{figure}
-
-<<optimalcutpoints>>=
-ret <- .optimalROCclassification(preds[idx], labels[idx], best.method="closest.topleft")
-@
-
-We evaluated the ability of our overall survival signature to predict
-deaths within the first 12 months after diagnosis of the disease. This
-endpoint was used as a surrogate for the presence of tumors refractory to
-first-line adjuvant chemotherapy. In Supplemental Figure~\ref{fig:roc:1yr}, we
-show ROC curves for our meta-analysis signature alone. The pooled AUC was
-\Sexpr{.formatDC(aucs$rma[c(1,2,5,6)])}, compared to 
-\Sexpr{.formatDC(aucs_tcga$rma[c(1,2,5,6)])} for the TCGA signature. 
-
-<<oneyrfun, results='asis'>>=
-df1yr <- .createClinical(Xs.all[idx], c("age_at_initial_pathologic_diagnosis",
-"debulking","os_1yr", "tumorstage", "debulking", "days_to_death",
-"vital_status"))
-df1yr$os_1yr <- as.factor(df1yr$os_1yr)
-
-df1yr$risk <- unlist(preds_tcga[idx])
-fit_tcga <-
-    glm(os_1yr~risk+age_at_initial_pathologic_diagnosis+debulking,data=df1yr,family="binomial")
-
-df1yr$risk <- unlist(preds[idx])
-fit <-
-    glm(os_1yr~risk+age_at_initial_pathologic_diagnosis+debulking,data=df1yr,family="binomial")
-
-fit_clinical <-
-    glm(os_1yr~age_at_initial_pathologic_diagnosis+debulking,data=df1yr,family="binomial")
-
-outreg(list(fit,fit_tcga), modelLabels=c("Meta-Analysis", "TCGA"),
-title="Prediction of refractory cases. The table lists two logistic
-regressions, one for our leave-one-dataset-out cross-validated meta-analysis gene signature, one for the TCGA
-signature. The predictions from both models were adjusted for age and debulking
-status. ", label="tbl:reg:1yr", tight=FALSE,
-varLabels=list(risk="Gene Signature",debulkingsuboptimal="Debulking (Suboptimal)", 
-age_at_initial_pathologic_diagnosis="Age"))
-
-set.seed(1234)
-aucs.adj <- repCV(fit, cost=ci.auc,R=10)
-aucs_clinical.adj <- repCV(fit_clinical, cost=ci.auc,R=10)
-res.ft <- fisher.test(dfrcboth$tcga_subtype=="Mesenchymal",
-    dfrcboth$debulking_orig)
-zl <- cvRisk(fit,data=df1yr,y=df1yr$os_1yr,linear=FALSE)    
-opt.adj <- .optimalROCclassification(zl$risk, zl$y)    
-@
-
-We then adjusted our gene signature risk score for age and debulking status
-(Supplemental Table~\ref{ tbl:reg:1yr }). While significant, both our and the
-TCGA signature provided only modest improvement over clinical factors in
-predicting early events. In a five-fold cross-validation, the AUC 
-of the 
-multivariate model was \Sexpr{.formatDC(aucs.adj[[4]][c(2,1,1,3)])} compared to 
-\Sexpr{.formatDC(aucs_clinical.adj[[4]][c(2,1,1,3)])} for a 
-model utilizing only age and debulking status. We finally tested whether 
-TCGA subtypes were associated with success of debulking surgery. Patients in
-the mesenchymal subtype had the highest occurrence of suboptimal surgery (OR 
-\Sexpr{.formatDC(c(res.ft$estimate,0,res.ft$conf.int))}). 
 
 % Prepare the debulking datasets (use only genes common to all platforms)
 <<debulkingmetaprepare>>=
@@ -738,7 +650,6 @@ metaCMA(Xs.alls34,y="debulking",coefs=coefs.debulking.s34, n=200,
 filter.fun=.debulkingFilter)
 @
 
-
 <<debulkingwithbonome,results='hide'>>=
 X <- Xs.alls34$GSE26712_eset
 set.seed(1234)
@@ -750,7 +661,6 @@ Y <- X[, !idx.bonometraining]
 write.csv(data.frame(GEO=sampleNames(Y), debulking=Y$debulking,
 tumorstage=Y$tumorstage),file="output/bonomesamples_NOT_used_for_training.csv")
 @
-
 
 <<debulkingmetas34b, cache=TRUE, results='hide'>>=
 coefs.debulking.s34b <- metaCMA.coefs(Xs.alls34b, y="debulking", family=binomial)
@@ -869,6 +779,12 @@ dfrc.debulking$risk_berchuck04 <- dfrc.debulking$risk
 dfrc.debulking$risk <- unlist(lapply(res.debulking.s34$fits, function(X)
 X$risk@lp))
 
+dfrc.debulking$risk_os <-  unlist(lapply(names(Xs.alls34), function(id)  if
+    (id %in% names(ma[[10]]$fits)) predict(ma[[10]]$fits[[id]]$fit,
+        newdata=Xs.alls34[[id]])@lp else predict(final.model,
+        newdata=Xs.alls34[[id]])@lp) )
+
+
 fit.debulking <-
     glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
 
@@ -934,23 +850,27 @@ write.csv(resM2, file="output/signature_debulking_without_bonome.csv")
 \clearpage
 \appendix
 
-<<datasetshr2prepare>>=
+<<cached_medium_datasetshr2prepare, cache=TRUE>>=
 .allCombsEval <- function(ids, esets, object) {
        lodo <- .lodocvPlot(esets, models=object$fits[[1]]$fit, ids=ids,
        plot=FALSE)[[1]]
        fit <- coxph(lodo$y~lodo$strata)
        summary(fit)$coefficients
 }
+esets.fx <- c(esets.f, GSE32062.GPL6480_eset=esets.validation$GSE32062.GPL6480_eset)
+esets.fx <- metaCMA.common.gene.esets(esets.fx)
+coefs.fx <- metaCMA.coefs(esets.fx)
 @
 
-<<datasetshr2, cache=TRUE>>=
-ret.hr <- lapply(1:length(esets.f), metaCMA.allcombinations, esets.f, n=200,eval.fun=.allCombsEval )
+<<cached_long_datasetshr2, cache=TRUE>>=
+ret.hr <- lapply(1:length(esets.fx), metaCMA.allcombinations, esets=esets.fx,
+    coefs=coefs.fx, n=200,eval.fun=.allCombsEval )
 @
 
 <<plotdatasetshrprepare>>=
 
-df.hr <- do.call(rbind, lapply(1:length(esets.f),
-function(i) data.frame(.getDatasetNames(esets.f)[i], unlist(ret.hr[[i]]$n),
+df.hr <- do.call(rbind, lapply(1:length(esets.fx),
+function(i) data.frame(.getDatasetNames(esets.fx)[i], unlist(ret.hr[[i]]$n),
   sapply(ret.hr[[i]]$evaluation, function(y) 1/y[2]))))
  
 colnames(df.hr) <-c("Dataset", "n", "HR")
@@ -964,9 +884,9 @@ colnames(df.hr) <-c("Dataset", "n", "HR")
      ret <- lapply(pss, .doPS)
 }
 
-df.hr$containstcga <- unlist(lapply(1:length(esets.f), .psContains, esets.f,"TCGA"))
+df.hr$containstcga <- unlist(lapply(1:length(esets.fx), .psContains, esets.fx,"TCGA"))
 
-df.hr <- df.hr[df.hr[,1]!="TCGA 2011",]
+#df.hr <- df.hr[df.hr[,1]!="TCGA 2011",]
 
 p <-ggplot(df.hr, aes(n,HR))+geom_smooth(method="lm")
 #p <- p +geom_point(aes(shape=containstcga))

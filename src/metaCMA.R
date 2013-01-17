@@ -295,7 +295,7 @@ metaCMA.powerset <- function(n) {
         lapply(1:ncol(x), function(i)  x[,i])),recursive=FALSE)
 }
 
-metaCMA.allcombinations <- function(i, esets, eval.fun = metaCMA.eval, ...) {
+metaCMA.allcombinations <- function(i, esets, coefs, eval.fun = metaCMA.eval, ...) {
     .doPS <- function(ps) {
         idx <- c(i,(1:length(esets))[-i][ps])
         tmp <- metaCMA.train(1, esets[idx], coefs=.getCoefsSubset(coefs,idx),filter.fun=function(eset)
