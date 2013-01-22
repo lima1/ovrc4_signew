@@ -84,8 +84,34 @@ btdups <- read.xls("input/bonometcgaduplicates.xls", as.is=TRUE)
 btdups <- btdups[btdups[,1] %in%
             make.names(esets$TCGA_eset$unique_patient_ID),]
 
-esets$TCGA_eset <- esets$TCGA_eset[,-na.omit(match(btdups[,1],
-    make.names(esets$TCGA_eset$unique_patient_ID)))]
+@
+
+<<changedebulkingtcga>>=
+# remove Bonome samples, change debulkig definition
+.fixTCGA <- function(esets) {
+    esets$TCGA_eset <- esets$TCGA_eset[,-na.omit(match(btdups[,1],
+        make.names(esets$TCGA_eset$unique_patient_ID)))]
+
+    .debulkingTCGA <- function(eset) {
+        debulking <- sapply(sapply(strsplit(eset$uncurated,
+        "///"), function(x) x[grep("tumor_residual_disease: ",x)]),function(y)
+        y[[1]])
+        tmp <- debulking
+        idx <- debulking == "tumor_residual_disease: No Macroscopic disease"
+        debulking[idx] <- "optimal"
+        debulking[!idx] <- "suboptimal"
+        debulking[tmp == "tumor_residual_disease: NA"] <- NA
+        as.factor(debulking)
+    }
+
+    esets$TCGA_eset$debulkingold <-  esets$TCGA_eset$debulking
+
+    # change TCGA debulking definition to no macroscopic disease
+    esets$TCGA_eset$debulking <-  as.vector(.debulkingTCGA(esets$TCGA_eset))
+    esets
+}
+
+esets <- .fixTCGA(esets)
 @
 
 <<cached_short_filtergenes, cache=TRUE>>=
@@ -101,18 +127,6 @@ japan.idx <- match("GSE32062.GPL6480_eset",names(esets.f))
 esets.f <- esets.f[-japan.idx]
 @
 
-<<changedebulkingtcga>>=
-.debulkingTCGA <- function(eset) {
-    debulking <- sapply(sapply(strsplit(eset$uncurated,
-    "///"), function(x) x[grep("tumor_residual_disease: ",x)]),function(y)
-    y[[1]])
-    idx <- debulking == "tumor_residual_disease: No Macroscopic disease"
-    debulking[idx] <- "optimal"
-    debulking[!idx] <- "suboptimal"
-    as.factor(debulking)
-}
-
-@
 
 <<cached_short_loadvaldata,cache=TRUE>>=
 # Now load all the other data.
@@ -126,13 +140,17 @@ load("input/eset.debulking.scaled.rda")
 esets.debulking <- esets
 @
 
+<<changedebulkingtcga2>>=
+esets.debulking <- .fixTCGA(esets.debulking)
+esets.allos <- .fixTCGA(esets.allos)
+@
+
 <<addearlystage>>=
 # add the TCGA early stage samples to the validation data
 ids <- esets.allos$TCGA_eset$summarystage=="early" &
     esets.allos$TCGA_eset$summarygrade!="low"
 esets.validation <- c( esets.validation_orig, TCGA_eset=esets.allos$TCGA_eset[, ids] )
 @
-
 
 <<loadtcga>>=
 # Load the TCGA model from Levi's paper supplement
@@ -388,7 +406,7 @@ meta-analysis signature and both TCGA signatures are shown in Supplemental
 Figure~\ref{fig:cor:risk}. 
 
 % Validate the TCGA model. Stolen from Levi's paper supplement.
-<<validatetcgamodel, cache=TRUE,results='hide'>>=
+<<cached_short_validatetcgamodel, cache=TRUE,results='hide'>>=
 data(TCGA_eset, package="curatedOvarianData")
 featureNames(TCGA_eset) <- sub("-", "hyphen", featureNames(TCGA_eset))
 TCGA_eset <- TCGA_eset[ ,!is.na(TCGA_eset$days_to_death) &
@@ -643,7 +661,7 @@ for (i in 1:length(Xs.all)) Xs.all[[i]]$debulking <- as.factor(Xs.all[[i]]$debul
 Xs.alls34 <- Xs.all 
 @
 
-<<debulkingmetas34, cache=TRUE, results='hide'>>=
+<<cached_medium_debulking_metas34, cache=TRUE, results='hide'>>=
 coefs.debulking.s34 <- metaCMA.coefs(Xs.alls34, y="debulking", family=binomial)
 res.debulking.s34  <-
 metaCMA(Xs.alls34,y="debulking",coefs=coefs.debulking.s34, n=200,
@@ -662,7 +680,7 @@ write.csv(data.frame(GEO=sampleNames(Y), debulking=Y$debulking,
 tumorstage=Y$tumorstage),file="output/bonomesamples_NOT_used_for_training.csv")
 @
 
-<<debulkingmetas34b, cache=TRUE, results='hide'>>=
+<<cached_medium_debulking_metas34b, cache=TRUE, results='hide'>>=
 coefs.debulking.s34b <- metaCMA.coefs(Xs.alls34b, y="debulking", family=binomial)
 res.debulking.s34b  <-
 metaCMA(Xs.alls34b,y="debulking",coefs=coefs.debulking.s34b, n=200,
@@ -682,11 +700,11 @@ Supplemental Table~\ref{ tbl:reg:debulking }, we show the logistic regression
 coefficients of the gene signature risk score adjusted for FIGO stage (III vs.
 IV). 
 
-<<debulkingmeta, cache=TRUE>>=
-preds <- lapply(res.debulking.s34$fits,function(fit) fit$risk@lp)
-labels <- lapply(Xs.alls34, function(X) X$debulking)
-titles <- .getDatasetNames(Xs.alls34)
-idx.debfi <- !sapply(Xs.alls34,.debulkingFilter)
+<<debulking_meta>>=
+preds <- lapply(res.debulking.s34b$fits,function(fit) fit$risk@lp)
+labels <- lapply(Xs.alls34b, function(X) X$debulking)
+titles <- .getDatasetNames(Xs.alls34b)
+idx.debfi <- !sapply(Xs.alls34b,.debulkingFilter)
 @
 
 \begin{figure}
@@ -716,7 +734,7 @@ is shown in Supplemental Table 3.
 
 
 \begin{figure}
-<<debulkingmetaplot, cache=TRUE>>=
+<<cached_short_debulking_metaplot, cache=TRUE>>=
 aucs.db <- .plotROCpanel(preds[idx.debfi],labels[idx.debfi],titles[idx.debfi],3,3)
 @
 \caption{Prediction of suboptimally debulked tumors in a leave-one-dataset-out
@@ -730,7 +748,7 @@ the probability cutoffs.}
 \end{figure}
 
 \begin{figure}
-<<comparisonberchuck04, cache=TRUE,fig.width=9.5,fig.height=6,out.width="0.95\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+<<cached_short_debulking_berchuck04, cache=TRUE,fig.width=9.5,fig.height=6,out.width="0.95\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
 berchuck04 <- read.csv("input/berchuck04.csv",as.is=TRUE)
 berchuck04.coefs <- berchuck04[,2]
 names(berchuck04.coefs) <- berchuck04[,1]
@@ -746,7 +764,7 @@ preds.berchuck04 <- lapply(esets.debulking, function(X) predict(model.berchuck04
 \end{figure}
 
 % Write the final debulking model to a spreadsheet.
-<<finalmodeldebulking,cache=TRUE>>=
+<<cached_short_debulking_finalmodel,cache=TRUE>>=
 tmp <- metaCMA.opt(Xs.alls34, coefs=coefs.debulking.s34,n=200,y="debulking")
 final.model.debulking <- tmp$model
 sig <- names(final.model.debulking@coefficients)
@@ -767,7 +785,7 @@ final.model.debulking@coefficients,
 save(final.model, final.model.debulking, file="output/models.rda")
 @
 
-<<debulkingadjust,results='asis', cache=TRUE>>=
+<<cached_short_debulking_adjust,results='asis', cache=TRUE>>=
 dfrc.debulking <- .createClinical(Xs.alls34)
 dfrc.debulking$risk <- unlist(preds.berchuck04)
 fit.debulking.berchuck04 <-
@@ -799,7 +817,7 @@ label="tbl:reg:debulking", tight=FALSE,
 varLabels=list(risk="Gene Signature",risk_berchuck04="Gene Signature",tumorstage="Stage (III vs IV)"))
 @
 
-<<berchuckaucdiff,cache=TRUE>>=
+<<cached_short_debulking_berchuck04_aucdiff,cache=TRUE>>=
 aucdiff <- roc.test(roc(dfrc.debulking$debulking, dfrc.debulking$risk_berchuck04), roc(dfrc.debulking$debulking, dfrc.debulking$risk),alternative="less")
 @
 
@@ -813,10 +831,11 @@ up-regulated genes. The AUC of the Berchuck signature was significantly smaller
 ($P < \Sexpr{round(aucdiff$p.value,2)}$, \cite{DeLong:1988}) than the AUC of
 our meta-analysis signature.
 
-<<finalmodeldebulkingfoldchanges, cache=TRUE>>=
+<<cached_short_debulking_finalmodel_foldchanges, cache=TRUE>>=
 load("input/eset.debulking.rda")
 esets.db <- esets
 esets.db <- esets.db[!sapply(esets.db, .debulkingFilter)]
+esets.db <- .fixTCGA(esets.db)
 
 .getFoldChanges <- function(esets.db, model) {
     res <- metaCMA.limma(lapply(esets.db, function(X)
@@ -883,16 +902,27 @@ colnames(df.hr) <-c("Dataset", "n", "HR")
      pss <- metaCMA.powerset(length(esets[-i]))
      ret <- lapply(pss, .doPS)
 }
-
 df.hr$containstcga <- unlist(lapply(1:length(esets.fx), .psContains, esets.fx,"TCGA"))
+
+.psContains <- function(i, esets) {
+    .doPS <- function(ps) {
+        idx <- (1:length(esets))[-i][ps]
+        ifelse(length( names(esets)[idx])>1, "Yes", "No")
+     }
+     pss <- metaCMA.powerset(length(esets[-i]))
+     ret <- lapply(pss, .doPS)
+}
+
+df.hr$meta <- unlist(lapply(1:length(esets.fx), .psContains, esets.fx))
+
 
 #df.hr <- df.hr[df.hr[,1]!="TCGA 2011",]
 
 p <-ggplot(df.hr, aes(n,HR))+geom_smooth(method="lm")
-#p <- p +geom_point(aes(shape=containstcga))
+#p <- p +geom_point(aes(shape=meta))
 p <- p +geom_point(size=0.75)
 p <- p +facet_wrap(~Dataset)+coord_cartesian(ylim= c(0.75, 2.9))+ylab("Hazard Ratio")+xlab("Total Training Sample Size")
-#p <- p+ scale_shape(solid=FALSE, name = "TCGA used for training")
+#p <- p+ scale_shape(solid=FALSE, name = "Meta-Analysis")
 p <- p +theme(axis.text.x=element_text(angle=45,hjust=1))
 @
 
