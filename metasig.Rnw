@@ -87,7 +87,7 @@ btdups <- btdups[btdups[,1] %in%
 @
 
 <<changedebulkingtcga>>=
-# remove Bonome samples, change debulkig definition
+# remove Bonome samples, change debulking definition
 .fixTCGA <- function(esets) {
     esets$TCGA_eset <- esets$TCGA_eset[,-na.omit(match(btdups[,1],
         make.names(esets$TCGA_eset$unique_patient_ID)))]
@@ -159,6 +159,8 @@ model.tcga <- model.official
 @
 
 <<cached_short_loadjci, cache=TRUE>>=
+# create the CLOVAR model from their supplement. They use the same TCGA
+# algorithm
 jci.sig <- read.xls("input/JCI65833sd1.xls", sheet=3, skip=1, as.is=TRUE)
 jci.coefs <- ifelse(jci.sig$CLASS=="GOOD",-1,1)
 names(jci.coefs) <- jci.sig$Gene.Symbol
@@ -655,29 +657,28 @@ subtypes, with the only exception being the proliferative subtype.}
 
 % Prepare the debulking datasets (use only genes common to all platforms)
 <<debulkingmetaprepare>>=
-Xs <- esets.debulking 
-Xs.all <- metaCMA.common.gene.esets(Xs)
-for (i in 1:length(Xs.all)) Xs.all[[i]]$debulking <- as.factor(Xs.all[[i]]$debulking)
+esets.debulking.f <- metaCMA.common.gene.esets(esets.debulking)
+for (i in 1:length(esets.debulking.f)) esets.debulking.f[[i]]$debulking <- as.factor(esets.debulking.f[[i]]$debulking)
 @
 
 <<debulkingwithbonome,results='hide'>>=
-X <- Xs.all$GSE26712_eset
+X <- esets.debulking.f$GSE26712_eset
 set.seed(1234)
 s <- balancedstratification(X=cbind(1:ncol(X)),strata=paste(X$debulking,X$tumorstage),pik=rep(0.5,ncol(X)))
 idx.bonometraining <- s==1
-Xs.alls34b <- Xs.all
-Xs.alls34b$GSE26712_eset <- X[, idx.bonometraining]
+esets.debulking.f <- esets.debulking.f
+esets.debulking.f$GSE26712_eset <- X[, idx.bonometraining]
 Y <- X[, !idx.bonometraining]
 write.csv(data.frame(GEO=sampleNames(Y), debulking=Y$debulking,
 tumorstage=Y$tumorstage),file="output/bonomesamples_NOT_used_for_training.csv")
 @
 
 <<cached_medium_debulking_metas34b, cache=TRUE, results='hide'>>=
-coefs.debulking.s34b <- metaCMA.coefs(Xs.alls34b, y="debulking", family=binomial)
+coefs.debulking.s34b <- metaCMA.coefs(esets.debulking.f, y="debulking", family=binomial)
 res.debulking.s34b  <-
-metaCMA(Xs.alls34b,y="debulking",coefs=coefs.debulking.s34b, n=200,
+metaCMA(esets.debulking.f,y="debulking",coefs=coefs.debulking.s34b, n=200,
 filter.fun=.debulkingFilter)
-tmp <- metaCMA.opt(Xs.alls34b, coefs=coefs.debulking.s34b,n=200,y="debulking")
+tmp <- metaCMA.opt(esets.debulking.f, coefs=coefs.debulking.s34b,n=200,y="debulking")
 final.model.debulking.bonome <- tmp$model
 @
 
@@ -694,9 +695,9 @@ IV).
 
 <<debulking_meta>>=
 preds <- lapply(res.debulking.s34b$fits,function(fit) fit$risk@lp)
-labels <- lapply(Xs.alls34b, function(X) X$debulking)
-titles <- .getDatasetNames(Xs.alls34b)
-idx.debfi <- !sapply(Xs.alls34b,.debulkingFilter)
+labels <- lapply(esets.debulking.f, function(X) X$debulking)
+titles <- .getDatasetNames(esets.debulking.f)
+idx.debfi <- !sapply(esets.debulking.f,.debulkingFilter)
 @
 
 \begin{figure}
@@ -746,7 +747,7 @@ berchuck04.coefs <- berchuck04[,2]
 names(berchuck04.coefs) <- berchuck04[,1]
 # this uses a simple weighted average of the up minus the down regulated genes to calculate patient risk scores
 model.berchuck04 <- new("linearriskscore", coefficients=berchuck04.coefs)
-preds.berchuck04 <- lapply(Xs.alls34b, function(X) predict(model.berchuck04, newdata=X)@lp)
+preds.berchuck04 <- lapply(esets.debulking.f, function(X) predict(model.berchuck04, newdata=X)@lp)
  xxx <- .forestPlotDebulking(preds1=preds.berchuck04[idx.debfi][-7],
   labels=labels[idx.debfi][-7],
  prior=priors[idx.debfi][-7],titles=titles[idx.debfi][-7])
@@ -757,11 +758,11 @@ preds.berchuck04 <- lapply(Xs.alls34b, function(X) predict(model.berchuck04, new
 
 % Write the final debulking model to a spreadsheet.
 <<cached_short_debulking_finalmodel,cache=TRUE>>=
-tmp <- metaCMA.opt(Xs.alls34b, coefs=coefs.debulking.s34b,n=200,y="debulking")
+tmp <- metaCMA.opt(esets.debulking.f, coefs=coefs.debulking.s34b,n=200,y="debulking")
 final.model.debulking <- tmp$model
 sig <- names(final.model.debulking@coefficients)
 
-probesets <- do.call(cbind, lapply(Xs.alls34b, function(X)
+probesets <- do.call(cbind, lapply(esets.debulking.f, function(X)
  as.character(featureData(X)[sig,]$maxmean_probeset)))
 
 write.csv(data.frame(Genes=sig, probesets, 
@@ -773,34 +774,32 @@ final.model.debulking@coefficients,
  FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig))),
  file="output/final_signature_debulking.csv",row.names=FALSE)
 @
+
 <<writemodelobjs>>=
 save(final.model, final.model.debulking, file="output/models.rda")
 @
 
 <<cached_short_debulking_adjust,results='asis', cache=TRUE>>=
-dfrc.debulking <- .createClinical(Xs.alls34b)
+dfrc.debulking <- .createClinical(esets.debulking.f)
 dfrc.debulking$risk <- unlist(preds.berchuck04)
 dfrc.debulking$risk[grepl("Dressman",dfrc.debulking$batch)] <- NA
 
 fit.debulking.berchuck04 <-
     glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
 
-aucs.debulking.berchuck04 <- repCV(fit.debulking.berchuck04, cost=ci.auc,R=10)
-
 dfrc.debulking$risk_berchuck04 <- dfrc.debulking$risk
 dfrc.debulking$risk <- unlist(lapply(res.debulking.s34b$fits, function(X)
 X$risk@lp))
 
-dfrc.debulking$risk_os <-  unlist(lapply(names(Xs.alls34b), function(id)  if
+dfrc.debulking$risk_os <-  unlist(lapply(names(esets.debulking.f), function(id)  if
     (id %in% names(ma[[10]]$fits)) predict(ma[[10]]$fits[[id]]$fit,
-        newdata=Xs.alls34b[[id]])@lp else predict(final.model,
-        newdata=Xs.alls34b[[id]])@lp) )
-
+        newdata=esets.debulking.f[[id]])@lp else predict(final.model,
+        newdata=esets.debulking.f[[id]])@lp) )
 
 fit.debulking <-
     glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
-
-aucs.debulking <- repCV(fit.debulking, cost=ci.auc,R=10)
+fit.debulking <-
+    glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
 
 outreg(list(fit.debulking,fit.debulking.berchuck04), modelLabels=c("Meta-Analysis", "Berchuck et al. 2004"),
 title="Prediction of debulking status. The table lists the
@@ -824,6 +823,24 @@ genes down-regulated in suboptimal was subtracted from the average of
 up-regulated genes. The AUC of the Berchuck signature was significantly smaller
 ($P < \Sexpr{round(aucdiff$p.value,2)}$, \cite{DeLong:1988}) than the AUC of
 our meta-analysis signature.
+
+<<qrtpcr, include=FALSE>>=
+qrtpcr <- read.xls("input/qrtpcr.xls", as.is=TRUE)
+M <- t(as.matrix(qrtpcr[,9:16]))
+colnames(M) <- qrtpcr[,3]
+
+eset.qrtpcr <- ExpressionSet(sqrt(impute.knn(M)$data),
+    phenoData=phenoData(esets.debulking$GSE26712_eset[, colnames(M)]))
+
+eset.qrtpcr$grade <- qrtpcr$Grade
+
+coefficients <- final.model.debulking@coefficients[featureNames(eset.qrtpcr)]
+
+model.qrtpcr <- new("linearriskscore", coefficients=sign(coefficients),
+modeltype="compoundcovariate")
+
+.plotROC(predict(model.qrtpcr,newdata=eset.qrtpcr)@lp,eset.qrtpcr$debulking)
+@
 
 <<cached_short_debulking_finalmodel_foldchanges, cache=TRUE>>=
 load("input/eset.debulking.rda")
@@ -1045,25 +1062,6 @@ strata=dfrcboth$strata_jci, strata_tcga=dfrcboth$strata_tcga)
 
 hrdiffjciemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
 hrdiffjcici <- quantile(hrdiffjciemp,c(0.025,0.975))
-@
-
-<<qrtpcr>>=
-qrtpcr <- read.xls("input/qrtpcr.xls", as.is=TRUE)
-M <- t(as.matrix(qrtpcr[,9:16]))
-colnames(M) <- qrtpcr[,3]
-
-eset.qrtpcr <- ExpressionSet(sqrt(impute.knn(M)$data),
-    phenoData=phenoData(esets.debulking$GSE26712_eset[, colnames(M)]))
-
-eset.qrtpcr$grade <- qrtpcr$Grade
-
-coefficients <- final.model.debulking@coefficients[featureNames(eset.qrtpcr)]
-
-model.qrtpcr <- new("linearriskscore", coefficients=sign(coefficients),
-modeltype="compoundcovariate")
-auc(eset.qrtpcr$debulking, predict(model.qrtpcr,newdata=eset.qrtpcr)@lp)
-
-.plotROC(predict(model.qrtpcr,newdata=eset.qrtpcr)@lp,eset.qrtpcr$debulking)
 @
 
 \clearpage
