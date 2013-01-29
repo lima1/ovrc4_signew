@@ -295,14 +295,20 @@ metaCMA.powerset <- function(n) {
         lapply(1:ncol(x), function(i)  x[,i])),recursive=FALSE)
 }
 
-metaCMA.allcombinations <- function(i, esets, coefs, eval.fun = metaCMA.eval, ...) {
+metaCMA.allcombinations <- function(i, esets, coefs, eval.fun = metaCMA.eval,
+filter.fun=function(eset) return(FALSE), ...) {
     .doPS <- function(ps) {
         idx <- c(i,(1:length(esets))[-i][ps])
-        tmp <- metaCMA.train(1, esets[idx], coefs=.getCoefsSubset(coefs,idx),filter.fun=function(eset)
-        return(FALSE),... )
+        tmp <- metaCMA.train(1, esets[idx],
+        coefs=.getCoefsSubset(coefs,idx),filter.fun=filter.fun,...)
         eval.fun(1,esets[idx],object=list(fits=list(tmp)))
      }
+
      pss <- metaCMA.powerset(length(esets[-i]))
+     # use only valid training data (passing our training criteria)
+     filtered <- which(sapply(esets[-i], filter.fun))
+     pss <- pss[!sapply(pss, function(x) sum(x %in% filtered)>0)]
+
      ret <- lapply(pss, .doPS)
      n <- lapply(pss, function(ps) sum(sapply(esets[-i][ps], ncol)))
      list(evaluation=ret, n=n)
