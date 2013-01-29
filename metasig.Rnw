@@ -658,22 +658,14 @@ subtypes, with the only exception being the proliferative subtype.}
 Xs <- esets.debulking 
 Xs.all <- metaCMA.common.gene.esets(Xs)
 for (i in 1:length(Xs.all)) Xs.all[[i]]$debulking <- as.factor(Xs.all[[i]]$debulking)
-Xs.alls34 <- Xs.all 
-@
-
-<<cached_medium_debulking_metas34, cache=TRUE, results='hide'>>=
-coefs.debulking.s34 <- metaCMA.coefs(Xs.alls34, y="debulking", family=binomial)
-res.debulking.s34  <-
-metaCMA(Xs.alls34,y="debulking",coefs=coefs.debulking.s34, n=200,
-filter.fun=.debulkingFilter)
 @
 
 <<debulkingwithbonome,results='hide'>>=
-X <- Xs.alls34$GSE26712_eset
+X <- Xs.all$GSE26712_eset
 set.seed(1234)
 s <- balancedstratification(X=cbind(1:ncol(X)),strata=paste(X$debulking,X$tumorstage),pik=rep(0.5,ncol(X)))
 idx.bonometraining <- s==1
-Xs.alls34b <- Xs.alls34
+Xs.alls34b <- Xs.all
 Xs.alls34b$GSE26712_eset <- X[, idx.bonometraining]
 Y <- X[, !idx.bonometraining]
 write.csv(data.frame(GEO=sampleNames(Y), debulking=Y$debulking,
@@ -754,10 +746,10 @@ berchuck04.coefs <- berchuck04[,2]
 names(berchuck04.coefs) <- berchuck04[,1]
 # this uses a simple weighted average of the up minus the down regulated genes to calculate patient risk scores
 model.berchuck04 <- new("linearriskscore", coefficients=berchuck04.coefs)
-preds.berchuck04 <- lapply(esets.debulking, function(X) predict(model.berchuck04, newdata=X)@lp)
- xxx <- .forestPlotDebulking(preds1=preds.berchuck04[idx.debfi],
-  labels=labels[idx.debfi],
- prior=priors[idx.debfi],titles=titles[idx.debfi])
+preds.berchuck04 <- lapply(Xs.alls34b, function(X) predict(model.berchuck04, newdata=X)@lp)
+ xxx <- .forestPlotDebulking(preds1=preds.berchuck04[idx.debfi][-7],
+  labels=labels[idx.debfi][-7],
+ prior=priors[idx.debfi][-7],titles=titles[idx.debfi][-7])
 @
 \caption{Prediction of debulking status with the Berchuck et al. signature \cite{Berchuck:2004} as in Supplemental Figure~\ref{fig:forest:debulking}.}
 \label{fig:forest:debulking:berchuck04}
@@ -765,11 +757,11 @@ preds.berchuck04 <- lapply(esets.debulking, function(X) predict(model.berchuck04
 
 % Write the final debulking model to a spreadsheet.
 <<cached_short_debulking_finalmodel,cache=TRUE>>=
-tmp <- metaCMA.opt(Xs.alls34, coefs=coefs.debulking.s34,n=200,y="debulking")
+tmp <- metaCMA.opt(Xs.alls34b, coefs=coefs.debulking.s34b,n=200,y="debulking")
 final.model.debulking <- tmp$model
 sig <- names(final.model.debulking@coefficients)
 
-probesets <- do.call(cbind, lapply(Xs.all, function(X)
+probesets <- do.call(cbind, lapply(Xs.alls34b, function(X)
  as.character(featureData(X)[sig,]$maxmean_probeset)))
 
 write.csv(data.frame(Genes=sig, probesets, 
@@ -786,21 +778,23 @@ save(final.model, final.model.debulking, file="output/models.rda")
 @
 
 <<cached_short_debulking_adjust,results='asis', cache=TRUE>>=
-dfrc.debulking <- .createClinical(Xs.alls34)
+dfrc.debulking <- .createClinical(Xs.alls34b)
 dfrc.debulking$risk <- unlist(preds.berchuck04)
+dfrc.debulking$risk[grepl("Dressman",dfrc.debulking$batch)] <- NA
+
 fit.debulking.berchuck04 <-
     glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
 
 aucs.debulking.berchuck04 <- repCV(fit.debulking.berchuck04, cost=ci.auc,R=10)
 
 dfrc.debulking$risk_berchuck04 <- dfrc.debulking$risk
-dfrc.debulking$risk <- unlist(lapply(res.debulking.s34$fits, function(X)
+dfrc.debulking$risk <- unlist(lapply(res.debulking.s34b$fits, function(X)
 X$risk@lp))
 
-dfrc.debulking$risk_os <-  unlist(lapply(names(Xs.alls34), function(id)  if
+dfrc.debulking$risk_os <-  unlist(lapply(names(Xs.alls34b), function(id)  if
     (id %in% names(ma[[10]]$fits)) predict(ma[[10]]$fits[[id]]$fit,
-        newdata=Xs.alls34[[id]])@lp else predict(final.model,
-        newdata=Xs.alls34[[id]])@lp) )
+        newdata=Xs.alls34b[[id]])@lp else predict(final.model,
+        newdata=Xs.alls34b[[id]])@lp) )
 
 
 fit.debulking <-
