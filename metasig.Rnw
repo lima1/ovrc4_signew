@@ -389,11 +389,10 @@ dfrcboth$strata_jci <-  unlist(lapply(c(res.lodo.jci,res.val.jci[-4]), function(
 
 We then compared our signature to the TCGA signature \cite{TCGA:2011}. To
 apply the TCGA signature across microarray platforms, we matched the 193 probe
-sets in the signature to unique gene symbols \cite{Seal:2011} used in
-curatedOvarianData; this approach led to 185 unique genes involved in our
-signature.  We first reproduced the reported performance of this model in the
-three TCGA test datasets \cite{Bonome:2008,Dressman:2007,Tothill:2008} to
-ensure the correctness of our model implementation (Supplemental
+sets in the signature to 185 unique gene symbols \cite{Seal:2011} used in
+curatedOvarianData. We first reproduced the reported performance of this model
+in the three TCGA test datasets \cite{Bonome:2008,Dressman:2007,Tothill:2008}
+to ensure the correctness of our model implementation (Supplemental
 Figure~\ref{fig:tcga:reproduce}). Among the 200 genes in our signature, 17
 overlapped with the TCGA signature ($P < 0.001$).  The p-value of this overlap
 between our and the TCGA signature was calculated with the hypergeometric
