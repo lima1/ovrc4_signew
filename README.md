@@ -30,7 +30,6 @@ Run the analysis with knitr in R:
     R    
     library(knitr)
     knit("metasig.Rnw")
-    knit("metasig.Rnw")
 
 
 ------------------------------------------------------

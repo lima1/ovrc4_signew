@@ -20,7 +20,7 @@ for (pkg in bioc.packages){
 }
 
 package.name <- "curatedOvarianData"   ##alternatives are NormalizerVcuratedOvarianData and FULLVcuratedOvarianData
-package.version <- "0.99.10"
+package.version <- "0.99.21"
 
 ##Do the installation:
 package.url <- paste("http://bcb.dfci.harvard.edu/ovariancancer/dfiles_old/", package.name, "_",

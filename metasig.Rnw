@@ -487,7 +487,7 @@ expression histograms are shown on the matrix diagonal.}
 
 \clearpage
 
-\section{TCGA subtypes}
+\section{Comparison with the CLOVAR multivariate model}
 
 <<accuracytcga>>=
 x <- table(esets.f$TCGA_eset$tcga_subtype_official, esets.f$TCGA_eset$tcga_subtype)
@@ -565,8 +565,6 @@ Mesenchymal.}
 \label{fig:overlap:aocstcga}
 \end{figure}
 
-\clearpage
-\section{Comparison with the CLOVAR multivariate model}
 
 Verhaak et al.  proposed a multi-variate model
 including tumor stage, debulking status, BRCA1/2 mutation status and ssGSEA
@@ -610,7 +608,7 @@ tmp <- metaCMA.opt(esets.debulking.f, coefs=coefs.debulking.s34b,n=200,y="debulk
 final.model.debulking <- tmp$model
 @
 
-\section{A novel signature predicts suboptimal debulking surgery}
+\section{Comparison with the Berchuck 2004 debulking signature}
 
 We generated a gene signature for suboptimal debulking surgery and validated
 this signature by \textit{leave-one-dataset-out} cross-validation.  The
@@ -694,9 +692,14 @@ aucdiff <- roc.test(roc(dfrc.debulking$debulking, dfrc.debulking$risk_berchuck04
 
 We compared our results to the only published model predicting debulking
 success \cite{Berchuck:2004} we were aware of, with the corresponding ROC
-curves shown in Supplemental Figure~\ref{fig:roc:debulking:berchuck04}. 
-In the Berchuck model, we subtracted the average expression of genes down-regulated in suboptimal from the average of
-up-regulated genes. 
+curves shown in Supplemental Figure~\ref{fig:roc:debulking:berchuck04}.
+Because Berchuck et al. did not provide the coefficients of their model, we
+subtracted the average expression of genes down-regulated in suboptimal from
+the average of up-regulated genes. The authors further did not specify the
+exact probe sets and for only a subset of genes in their signature Unigene or
+Genbank accession numbers. We manually tried to identify current HGNC symbols
+for the genes. We could map 21 of the 32 genes utilized in their model to
+probes used in curatedOvarianData.
 
 <<qrtpcr, fig.width=3.5,include=FALSE>>=
 qrtpcr <- read.xls("input/qrtpcr.xls", as.is=TRUE)
