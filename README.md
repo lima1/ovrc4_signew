@@ -55,6 +55,20 @@ Run the analysis with knitr in R:
 
     * **TCGA_ovsig.RData**: The TCGA model as survHD object 
 
+    * **qrtpcr.xls**: The qRT-PCR data presented in the paper
+
+    * **bonometcgaduplicates.xls**: Spreadsheet with Bonome samples included
+        in TCGA
+
+    * **JCI65833sd1.xls**: The Verhaak et al. Supplemental Table with their
+        signature    
+        
+    * **TCGA_489_UE.k4.txt**: The TCGA subtypes
+
+    * **AOCS_subtytpes.xlsx**: Spreadsheet with the AOCS subtypes
+
+    * **berchuck04.csv**: The manually extracted Berchuck 2004 signature.
+
 ------------------------------------------------------
 ------------------------------------------------------
 # Requirements #
