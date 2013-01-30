@@ -505,7 +505,8 @@ approach classified \Sexpr{x}\% of the samples correctly. Note that TCGA used
 unified expression measures obtained from multiple platforms for training, not
 the Affymetrix data we used in our meta-analysis. In Supplemental
 Figure~\ref{fig:km:subtypesos}, we show an association of subtype with overall
-survival in all datasets except TCGA. The immunoreactive subtype had in both
+survival in all datasets except TCGA consistent with the report of Verhaak et
+al. \cite{Verhaak:2013}. The immunoreactive subtype had in both
 TCGA and the remaining datasets the best prognosis. Poor survival was in
 general observed for samples classified as mesenchymal. 
 
@@ -584,17 +585,13 @@ require any biased feature selection.
 \section{Best prediction accuracy is achieved in the TCGA immunoreactive
 subtype}
 
-In this section of the main paper, we showed the patient risk stratifications
-in the 4 TCGA subtypes separately. Here we repeated the same analysis (i) in
-TCGA only, using the official classification obtained from TCGA, (ii) in all
-other datasets, which we classified in TCGA subtypes using the TCGA data for
-training as described above.
-
-First we validated a prediction model that was trained on all training datasets except
-TCGA in the 4 TCGA subtypes separately. Kaplan-Meier plots for this analysis
-are shown in Supplemental Figure~\ref{fig:km:tcgasubtypes}. 
-Supplemental Figure~\ref{fig:km:tcgasubtypesother}, in contrast, shows the
-patient stratification in inferred TCGA subtypes in all other datasets.
+In this section, we show the patient risk stratifications in the 4 TCGA
+subtypes separately.  First we validated a prediction model that was trained
+on all training datasets except TCGA in the 4 TCGA subtypes separately.
+Kaplan-Meier plots for this analysis are shown in Supplemental
+Figure~\ref{fig:km:tcgasubtypes}.  Supplemental
+Figure~\ref{fig:km:tcgasubtypesother}, in contrast, shows the patient
+stratification in inferred TCGA subtypes in all other datasets.
 
 \begin{figure}[!htb]
 <<kmsubtypes, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
@@ -624,7 +621,7 @@ esets.tcga.subtypes[[i]]$tcga_subtype <-
     esets.tcga.subtypes[[i]]$tcga_subtype_official 
 @
 \caption{Kaplan-Meier analysis of a model trained in all training datasets except TCGA and
-then validated in TCGA in the 4 subtypes separately.}
+then validated in TCGA in the 4 subtypes suggested by the TCGA project separately.}
 \label{fig:km:tcgasubtypes}
 \end{figure}
 
@@ -679,7 +676,7 @@ res.debulking.s34b  <-
 metaCMA(esets.debulking.f,y="debulking",coefs=coefs.debulking.s34b, n=200,
 filter.fun=.debulkingFilter)
 tmp <- metaCMA.opt(esets.debulking.f, coefs=coefs.debulking.s34b,n=200,y="debulking")
-final.model.debulking.bonome <- tmp$model
+final.model.debulking <- tmp$model
 @
 
 \section{A novel signature predicts suboptimal debulking surgery}
@@ -687,8 +684,7 @@ final.model.debulking.bonome <- tmp$model
 We generated a gene signature for suboptimal debulking surgery and validated
 this signature by \textit{leave-one-dataset-out} cross-validation.  The
 meta-analysis summary is shown in Supplemental
-Figure~\ref{fig:forest:debulking} in a forest plot and Supplemental
-Figure~\ref{fig:roc:debulking} are the corresponding ROC curves. In
+Figure~\ref{fig:roc:debulking} as ROC curves. In
 Supplemental Table~\ref{ tbl:reg:debulking }, we show the logistic regression
 coefficients of the gene signature risk score adjusted for FIGO stage (III vs.
 IV). 
@@ -701,32 +697,6 @@ idx.debfi <- !sapply(esets.debulking.f,.debulkingFilter)
 @
 
 \begin{figure}
-<<plotfpdebulking,fig.width=9.5,fig.height=6,out.width="0.95\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
-priors <- sapply(labels, function(l) sum(l=="suboptimal")/length(l))
-
- xxx <- .forestPlotDebulking(preds1=preds[idx.debfi],
-  labels=labels[idx.debfi],
- prior=priors[idx.debfi],titles=titles[idx.debfi])
-
-#table(unlist(xxx[[2]]), unlist(labels[idx.debfi]))
-
-@
-\caption{Predicting suboptimally debulked tumors. 
-This figure lists the odds ratios (ORs) for  the predictions of our debulking
-gene signature. The column \textit{Debulking} lists the number of patients with
-optimal and suboptimal debulking in each cohort. The OR for the gene signature
-shows the odds of surgery failure for high-risk patients compared to low-risk
-patients (see Supplemental Figure~\ref{fig:roc:debulking} for ROC curves).  The gene signature risk
-score was obtained by a leave-one-dataset-out cross-validation as in Figure 1,
-i.e., for each of the 8 datasets listed here, a prediction model was trained
-using the remaining 7 datasets. The final signature trained on all 8 datasets
-is shown in Supplemental Table 3.
-}
-\label{fig:forest:debulking}
-\end{figure}
-
-
-\begin{figure}
 <<cached_short_debulking_metaplot, cache=TRUE>>=
 aucs.db <- .plotROCpanel(preds[idx.debfi],labels[idx.debfi],titles[idx.debfi],3,3)
 @
@@ -734,67 +704,44 @@ aucs.db <- .plotROCpanel(preds[idx.debfi],labels[idx.debfi],titles[idx.debfi],3,
 cross-validation. The prediction model calculates for each sample a score. The
 higher the score, the higher the probability the tumor will be not optimally
 debulkable. For each dataset, the model is trained using only the remaining
-datasets. The model utilizes gene expression only (\textbf{Supplemental Table
-2}). ROC curves visualize the true and false positive rates as a function of
+datasets. ROC curves visualize the true and false positive rates as a function of
 the probability cutoffs.}  
 \label{fig:roc:debulking}
 \end{figure}
 
 \begin{figure}
-<<cached_short_debulking_berchuck04, cache=TRUE,fig.width=9.5,fig.height=6,out.width="0.95\\textwidth",out.height="0.6\\textwidth",results='hide'>>=
+<<cached_short_debulking_berchuck04, cache=TRUE>>=
 berchuck04 <- read.csv("input/berchuck04.csv",as.is=TRUE)
 berchuck04.coefs <- berchuck04[,2]
 names(berchuck04.coefs) <- berchuck04[,1]
 # this uses a simple weighted average of the up minus the down regulated genes to calculate patient risk scores
 model.berchuck04 <- new("linearriskscore", coefficients=berchuck04.coefs)
 preds.berchuck04 <- lapply(esets.debulking.f, function(X) predict(model.berchuck04, newdata=X)@lp)
- xxx <- .forestPlotDebulking(preds1=preds.berchuck04[idx.debfi][-7],
-  labels=labels[idx.debfi][-7],
- prior=priors[idx.debfi][-7],titles=titles[idx.debfi][-7])
+aucs.db.berchuck <-
+.plotROCpanel(preds.berchuck04[idx.debfi][-7],labels[idx.debfi][-7],titles[idx.debfi][-7],3,3)
 @
-\caption{Prediction of debulking status with the Berchuck et al. signature \cite{Berchuck:2004} as in Supplemental Figure~\ref{fig:forest:debulking}.}
-\label{fig:forest:debulking:berchuck04}
+\caption{Prediction of debulking status with the Berchuck et al. signature
+\cite{Berchuck:2004} as in Supplemental Figure~\ref{fig:roc:debulking}. The
+Dressman data was excluded because a subset of Dressman samples was used for
+training.}
+\label{fig:roc:debulking:berchuck04}
 \end{figure}
-
-% Write the final debulking model to a spreadsheet.
-<<cached_short_debulking_finalmodel,cache=TRUE>>=
-tmp <- metaCMA.opt(esets.debulking.f, coefs=coefs.debulking.s34b,n=200,y="debulking")
-final.model.debulking <- tmp$model
-sig <- names(final.model.debulking@coefficients)
-
-probesets <- do.call(cbind, lapply(esets.debulking.f, function(X)
- as.character(featureData(X)[sig,]$maxmean_probeset)))
-
-write.csv(data.frame(Genes=sig, probesets, 
-"Pooled LogIt Coefficient"=
-final.model.debulking@coefficients,
-"Mean Optimal"= apply(tmp$train$X[which(tmp$train$y=="optimal"),],2,mean),
-"Mean Suboptimal"= apply(tmp$train$X[which(tmp$train$y=="suboptimal"),],2,mean),
- P=head(sort(tmp$pvalues),length(sig)),
- FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig))),
- file="output/final_signature_debulking.csv",row.names=FALSE)
-@
 
 <<writemodelobjs>>=
 save(final.model, final.model.debulking, file="output/models.rda")
 @
 
 <<cached_short_debulking_adjust,results='asis', cache=TRUE>>=
-dfrc.debulking <- .createClinical(esets.debulking.f)
-dfrc.debulking$risk <- unlist(preds.berchuck04)
+dfrc.debulking <- .createClinical(esets.debulking.f[idx.debfi])
+dfrc.debulking$risk <- unlist(preds.berchuck04[idx.debfi])
 dfrc.debulking$risk[grepl("Dressman",dfrc.debulking$batch)] <- NA
 
 fit.debulking.berchuck04 <-
     glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
 
 dfrc.debulking$risk_berchuck04 <- dfrc.debulking$risk
-dfrc.debulking$risk <- unlist(lapply(res.debulking.s34b$fits, function(X)
+dfrc.debulking$risk <- unlist(lapply(res.debulking.s34b$fits[idx.debfi], function(X)
 X$risk@lp))
-
-dfrc.debulking$risk_os <-  unlist(lapply(names(esets.debulking.f), function(id)  if
-    (id %in% names(ma[[10]]$fits)) predict(ma[[10]]$fits[[id]]$fit,
-        newdata=esets.debulking.f[[id]])@lp else predict(final.model,
-        newdata=esets.debulking.f[[id]])@lp) )
 
 fit.debulking <-
     glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
@@ -815,22 +762,21 @@ aucdiff <- roc.test(roc(dfrc.debulking$debulking, dfrc.debulking$risk_berchuck04
 @
 
 We compared our results to the only published model predicting debulking
-success \cite{Berchuck:2004} we were aware of, with the corresponding forest
-plot shown in Supplemental Figure~\ref{fig:forest:debulking:berchuck04}. Genes
-of the signature were converted to current HGNC symbols and risk scores were
-calculated by averaging the scaled expression values: the expression average of
+success \cite{Berchuck:2004} we were aware of, with the corresponding ROC
+curves shown in Supplemental Figure~\ref{fig:roc:debulking:berchuck04}. Genes
 genes down-regulated in suboptimal was subtracted from the average of
-up-regulated genes. The AUC of the Berchuck signature was significantly smaller
-($P < \Sexpr{round(aucdiff$p.value,2)}$, \cite{DeLong:1988}) than the AUC of
-our meta-analysis signature.
+up-regulated genes. 
 
-<<qrtpcr, include=FALSE>>=
+<<qrtpcr, fig.width=3.5,include=FALSE>>=
 qrtpcr <- read.xls("input/qrtpcr.xls", as.is=TRUE)
 M <- t(as.matrix(qrtpcr[,9:16]))
 colnames(M) <- qrtpcr[,3]
 
-eset.qrtpcr <- ExpressionSet(sqrt(impute.knn(M)$data),
+eset.qrtpcr <- ExpressionSet(impute.knn(M)$data,
     phenoData=phenoData(esets.debulking$GSE26712_eset[, colnames(M)]))
+eset.qrtpcr.noimpute <- ExpressionSet(sqrt(M),
+    phenoData=phenoData(esets.debulking$GSE26712_eset[, colnames(M)]))
+
 
 eset.qrtpcr$grade <- qrtpcr$Grade
 
@@ -839,7 +785,16 @@ coefficients <- final.model.debulking@coefficients[featureNames(eset.qrtpcr)]
 model.qrtpcr <- new("linearriskscore", coefficients=sign(coefficients),
 modeltype="compoundcovariate")
 
-.plotROC(predict(model.qrtpcr,newdata=eset.qrtpcr)@lp,eset.qrtpcr$debulking)
+.plotROCpanel(list( 
+    predict(model.qrtpcr,newdata=esets.debulking$GSE26712_eset[,
+        sampleNames(eset.qrtpcr)])@lp,
+    predict(model.qrtpcr,newdata=eset.qrtpcr)@lp),
+# should be the same
+list(as.factor(esets.debulking$GSE26712_eset[,
+sampleNames(eset.qrtpcr)]$debulking),
+as.factor(eset.qrtpcr$debulking)), 
+titles=c("Affymetrix", "qRT-PCR"), nrow=2, ncol=1)
+
 @
 
 <<cached_short_debulking_finalmodel_foldchanges, cache=TRUE>>=
@@ -847,6 +802,12 @@ load("input/eset.debulking.rda")
 esets.db <- esets
 esets.db <- esets.db[!sapply(esets.db, .debulkingFilter)]
 esets.db <- .fixTCGA(esets.db)
+# use only the half of Bonome used for training
+ids <- sampleNames(esets.debulking.f$GSE26712_eset)[
+    sampleNames(esets.debulking.f$GSE26712_eset) %in%
+    sampleNames(esets.db$GSE26712_eset)]
+
+esets.db$GSE26712_eset <- esets.db$GSE26712_eset[,ids]
 
 .getFoldChanges <- function(esets.db, model) {
     res <- metaCMA.limma(lapply(esets.db, function(X)
@@ -857,20 +818,32 @@ esets.db <- .fixTCGA(esets.db)
     resM <- cbind(resM, Weighted.Mean=apply(resM,1, weighted.mean, w=sqrt(sapply(
         esets.db, ncol))))
     rownames(resM) <- names(model@coefficients)
-    resM <- cbind(resM,
-    FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig)))
-    resM <- resM[order(abs(resM[,ncol(resM)-1]),decreasing=TRUE),]
     resM[,1:9] <- 2^resM[,1:9]
     resM[,1:9] <- apply(resM[,1:9],c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
     resM    
 }
 
 resM <- .getFoldChanges(esets.db, final.model.debulking)
-resM2 <- .getFoldChanges(esets.db, final.model.debulking.bonome)
 
+@
 
-write.csv(resM, "output/final_signature_debulking_foldchanges.csv")
-write.csv(resM2, file="output/signature_debulking_without_bonome.csv")
+<<cached_short_debulking_finalmodel,cache=TRUE>>=
+# Write the final debulking model to a spreadsheet.
+sig <- names(final.model.debulking@coefficients)
+
+probesets <- do.call(cbind, lapply(esets.debulking.f, function(X)
+ as.character(featureData(X)[sig,]$maxmean_probeset)))
+
+tmp <- data.frame(Genes=sig, probesets, 
+"Pooled LogIt Coefficient"=
+final.model.debulking@coefficients,
+"Mean Optimal"= apply(tmp$train$X[which(tmp$train$y=="optimal"),],2,mean),
+"Mean Suboptimal"= apply(tmp$train$X[which(tmp$train$y=="suboptimal"),],2,mean),
+ P=head(sort(tmp$pvalues),length(sig)),
+ FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig)), resM)
+
+write.csv(tmp[order(abs(tmp$Weighted.Mean), decreasing=TRUE),],
+ file="output/final_signature_debulking.csv",row.names=FALSE)
 @
 
 \clearpage
