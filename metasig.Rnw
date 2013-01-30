@@ -59,6 +59,7 @@ library(rockchalk)
 library(GSVA)
 library(ez)
 library(sampling)
+library(impute)
 
 # only to print the version number in the Appendix. We load the data generated
 # with the createEsetsList script
@@ -193,8 +194,7 @@ random signatures (Waldron et al, submitted). It was shown in Waldron et al.
 that smaller signatures tend to be less robust than large signatures. Our
 algorithm weighs genes according their rank (see Methods).  This means
 increasing the signature size is expected to have only limited influence on
-the prediction performance at some point as the weight of the genes decreases
-consistently. 
+the prediction performance at some point as the weight of the genes decreases.
 
 In Supplemental Figure~\ref{fig:cutoff:train} we confirm that the signature
 size had only modest impact on the prediction accuracy in our algorithm, as
@@ -582,75 +582,6 @@ to the one proposed by the authors using only 2 ssGSEA scores, but did not
 require any biased feature selection.
 
 \clearpage
-\section{Best prediction accuracy is achieved in the TCGA immunoreactive
-subtype}
-
-In this section, we show the patient risk stratifications in the 4 TCGA
-subtypes separately.  First we validated a prediction model that was trained
-on all training datasets except TCGA in the 4 TCGA subtypes separately.
-Kaplan-Meier plots for this analysis are shown in Supplemental
-Figure~\ref{fig:km:tcgasubtypes}.  Supplemental
-Figure~\ref{fig:km:tcgasubtypesother}, in contrast, shows the patient
-stratification in inferred TCGA subtypes in all other datasets.
-
-\begin{figure}[!htb]
-<<kmsubtypes, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
-# fetch the unbiased risk scores from the leave-one-dataset-out
-# cross-validation for TCGA
-esets.f$TCGA_eset$risk_unbiased <- ma[[10]]$fits$TCGA_eset$risk@lp
-
-cutpoint <- median(unlist(lapply(esets.f[-match("TCGA_eset",
- names(esets.f))], function(X) predict(ma[[10]]$fits$TCGA_eset$fit,
- newdata=X)@lp))) 
-
-# now generate a forest plot for the unbiased risk scores
-esets.tcga.subtypes <- lapply(levels(esets.f$TCGA_eset$tcga_subtype_official),function(s)
-    esets.f$TCGA_eset[,!is.na(esets.f$TCGA_eset$tcga_subtype_official) &
-    esets.f$TCGA_eset$tcga_subtype_official==s])
-names(esets.tcga.subtypes) <- levels(esets.f$TCGA_eset$tcga_subtype_official)
-par(mfrow=c(2,2))
-par(mar=c(4.5, 4.1, 2.5, 1.5))
-strata.subtypes <- lapply(1:length(esets.tcga.subtypes), function(i) plot(ma[[10]]$fits$TCGA_eset$fit,
-newdata=esets.tcga.subtypes[[i]], newy=esets.tcga.subtypes[[i]]$y, 
-        censor.at = 365.25*5, cutpoints=cutpoint, cex.base = 1.4, show.n.risk
-        = FALSE, show.HR = TRUE, show.PV=FALSE, cex.HR=1.1,
-        show.legend = FALSE, main = names(esets.tcga.subtypes)[i],
-))
-for (i in 1:4) 
-esets.tcga.subtypes[[i]]$tcga_subtype <-
-    esets.tcga.subtypes[[i]]$tcga_subtype_official 
-@
-\caption{Kaplan-Meier analysis of a model trained in all training datasets except TCGA and
-then validated in TCGA in the 4 subtypes suggested by the TCGA project separately.}
-\label{fig:km:tcgasubtypes}
-\end{figure}
-
-
-\begin{figure}[!htb]
-<<subtypesother, results='hide',out.width="0.7\\textwidth",out.height="0.7\\textwidth">>=
-par(mfrow=c(2,2))
-par(mar=c(4.5, 4.1, 2.5, 1.5))
-for (i in 1:4) {
-tcga_subtype <- levels(esets.f$TCGA_eset$tcga_subtype_official)[i]
-idx <- dfrcboth$tcga_subtype== tcga_subtype
-
-plotKM(y=dfrcboth[idx,]$y,
-strata=dfrcboth[idx,]$strata,censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
-        xlab="Time (Days)",ylab="Overall Survival (%)",
-        cex.base=1.4,main=tcga_subtype)
-}        
-@
-\caption{Kaplan-Meier analysis of our overall survival signature as in Figures
-4A-D of the main paper, but excluding the TCGA data here, showing consistent
-results with the TCGA data in Supplemental Figure~\ref{fig:km:tcgasubtypes}.
-Point of this figure is to show that in our own stratification of datasets in
-TCGA subtypes, we see similar trends as we see in the official TCGA data and
-subtypes, with the only exception being the proliferative subtype.}
-\label{fig:km:tcgasubtypesother}
-\end{figure}
-
 
 % Prepare the debulking datasets (use only genes common to all platforms)
 <<debulkingmetaprepare>>=
@@ -763,8 +694,8 @@ aucdiff <- roc.test(roc(dfrc.debulking$debulking, dfrc.debulking$risk_berchuck04
 
 We compared our results to the only published model predicting debulking
 success \cite{Berchuck:2004} we were aware of, with the corresponding ROC
-curves shown in Supplemental Figure~\ref{fig:roc:debulking:berchuck04}. Genes
-genes down-regulated in suboptimal was subtracted from the average of
+curves shown in Supplemental Figure~\ref{fig:roc:debulking:berchuck04}. 
+In the Berchuck model, we subtracted the average expression of genes down-regulated in suboptimal from the average of
 up-regulated genes. 
 
 <<qrtpcr, fig.width=3.5,include=FALSE>>=
@@ -987,38 +918,6 @@ risks=list(res.strata, res.strata.tcga, res.strata.jci),
  graphwidth=unit(2.5,
  "inches"),concordance=FALSE,inverse=TRUE,x.ticks=c(0.5,1,2,4,8),clip=log(c(0.5,8)),
  cols=c("darkblue","seagreen", "red"))
-@
-
-<<tcgasubtypescombined,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide',include=FALSE>>=
-# get dichotomized risk scores, not from the early stage samples
-
-dfrc.subtypes <- .createClinical(c(esets.f[-8],esets.validation[-4],
- esets.tcga.subtypes), clinical.covars=c("days_to_death", "vital_status",
- "debulking", "tcga_subtype") )
-
-dfrc.subtypes$strata <- c(dfrcboth$strata, unlist(sapply(strata.subtypes, function(x)
-  x$strata)))
-dfrc.subtypes$strata <- as.factor( levels(dfrcboth$strata)[
-as.numeric(dfrc.subtypes$strata)
-] )
-
-par(mfrow=c(2,3))
-par(mar=c(4.5, 4.1, 2.5, 1.5))
-
-for (i in 1:4) {
-    tcga_subtype <- levels(esets.f$TCGA_eset$tcga_subtype_official)[i]
-    idx <- dfrc.subtypes$tcga_subtype== tcga_subtype
-
-    plotKM(y=dfrc.subtypes[idx,"y"],
-    strata=dfrc.subtypes$strata[idx],censor.at=365.25*5,
-            show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,
-            show.PV=FALSE, cex.HR=0.88,
-            cex.base=1.4,cex.legend=1.1,main=paste(toupper(letters[i]), ") ", tcga_subtype, sep=""))
-}        
-
-plotKM(y=dfrc.subtypes$y, strata=dfrc.subtypes$tcga_subtype,censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=TRUE,show.HR=FALSE,
-        cex.base=1.4,cex.legend=0.75,main="E) TCGA subtypes")
 @
 
 <<cached_medium_hrdiffconfint, cache=TRUE>>=
