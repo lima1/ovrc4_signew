@@ -695,11 +695,11 @@ curves shown in Supplemental Figure~\ref{fig:roc:debulking:berchuck04}.
 Because Berchuck et al. did not provide the coefficients of their model, we
 subtracted the average expression of genes down-regulated in suboptimal from
 the average of up-regulated genes. The authors further did not specify the
-exact probe sets and for only a subset of genes in their signature Unigene or
-Genbank accession numbers. We manually tried to identify current HGNC symbols
-for the genes. We could map 21 of the 32 genes utilized in their model to
-probes used in curatedOvarianData. None of these 21 genes overlapped with our
-two signatures.
+exact probe sets and provided Unigene or Genbank accession numbers for only a
+subset of genes in their signature. We manually tried to identify current HGNC
+symbols for the genes. We could map 21 of the 32 genes utilized in their model
+to probes used in curatedOvarianData. None of these 21 genes overlapped with
+our two signatures.
 
 <<qrtpcr, fig.width=3.5,include=FALSE>>=
 qrtpcr <- read.xls("input/qrtpcr.xls", as.is=TRUE)
