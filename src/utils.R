@@ -124,10 +124,12 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
     auc <- performance(pred.rocr, "auc")@y.values[[1]][[1]]
     roc.obj <- roc(labels, pred)
     auc.ci <- ci(roc.obj)
+    significant <- ifelse(ci(roc.obj, conf.level=0.9)[1] > 0.5, "*", "")
     best <- coords(roc.obj,x="best") 
     if (plot) {
         plot(perf.rocr, colorize = FALSE, cex.lab = 1.3, ...)
-        text(0, 0.9, paste("AUC =", round(auc, digits = 2)), cex = 1.5, pos = 4)
+        text(0, 0.9, paste("AUC = ", round(auc, digits = 2), significant,
+        sep=""), cex = 1.5, pos = 4)
         abline(a = 0, b = 1, lty = 2)
         text(1, 0.1, paste("n =", length(labels)), cex = 1.5, pos = 2)
         abline(a = 0, b = 1, lty = 2)

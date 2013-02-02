@@ -402,9 +402,7 @@ background.
 The TCGA project recently published an improved gene signature called CLOVAR
 \cite{Verhaak:2013}. We could map 87 of the 100 genes of the signature to
 probesets used in curatedOvarianData. 21 of these genes overlapped with our
-gene signature ($P < 0.001$). The correlation of the risk scores of our
-meta-analysis signature and both TCGA signatures are shown in Supplemental
-Figure~\ref{fig:cor:risk}. 
+gene signature ($P < 0.001$). 
 
 % Validate the TCGA model. Stolen from Levi's paper supplement.
 <<cached_short_validatetcgamodel, cache=TRUE,results='hide'>>=
@@ -465,23 +463,6 @@ plot(model.tcga,newdata=PMID17290060_eset,newy=PMID17290060_eset$y,censor.at=60,
 TCGA model is correct. Red survival curves correspond to high risk patients,
 blue curves to low risk patients.}
 \label{fig:tcga:reproduce}
-\end{figure}
-
-\clearpage
-
-\begin{figure}
-<<correlationriskscores>>=
-X <- dfrcboth[,c("risk", "risk_tcga", "risk_jci")]
-colnames(X) <- c("Meta-Analysis", "TCGA", "Verhaak et al.")
-ezCor(X, label_size=7)
-@
-\caption{Pairwise correlation of the gene signature risk scores for the
-Meta-Analysis, TCGA and Verhaak et al. signatures.  Numbers in the
-upper-right, tringular half of the matrix are the Pearson correlation
-coefficients, which were all statistically significant ($P < 0.05$). Pairwise
-scatterplots of expression values are shown in the lower-left half and the
-expression histograms are shown on the matrix diagonal.}
-\label{fig:cor:risk}
 \end{figure}
 
 \clearpage
@@ -578,7 +559,9 @@ cross-validated using all datasets combined. This model performed very similar
 to the one proposed by the authors using only 2 ssGSEA scores, but did not
 require any biased feature selection.
 
-\clearpage
+The correlation of the risk scores of our meta-analysis signature and both
+TCGA signatures (for Verhaak et al. based on the CLOVAR signature only, not
+the multivariate predictions) are shown in Supplemental Figure~\ref{fig:cor:risk}. 
 
 % Prepare the debulking datasets (use only genes common to all platforms)
 <<debulkingmetaprepare>>=
@@ -607,6 +590,23 @@ tmp <- metaCMA.opt(esets.debulking.f, coefs=coefs.debulking.s34b,n=200,y="debulk
 final.model.debulking <- tmp$model
 @
 
+\begin{figure}
+<<correlationriskscores>>=
+X <- dfrcboth[,c("risk", "risk_tcga", "risk_jci")]
+colnames(X) <- c("Meta-Analysis", "TCGA", "Verhaak et al.")
+ezCor(X, label_size=7)
+@
+\caption{Pairwise correlation of the gene signature risk scores for the
+Meta-Analysis, TCGA and Verhaak et al. signatures.  Numbers in the
+upper-right, tringular half of the matrix are the Pearson correlation
+coefficients, which were all statistically significant ($P < 0.05$). Pairwise
+scatterplots of expression values are shown in the lower-left half and the
+expression histograms are shown on the matrix diagonal.}
+\label{fig:cor:risk}
+\end{figure}
+
+\clearpage
+
 \section{Comparison with the Berchuck 2004 debulking signature}
 
 We generated a gene signature for suboptimal debulking surgery and validated
@@ -633,7 +633,8 @@ cross-validation. The prediction model calculates for each sample a score. The
 higher the score, the higher the probability the tumor will be not optimally
 debulkable. For each dataset, the model is trained using only the remaining
 datasets. ROC curves visualize the true and false positive rates as a function of
-the probability cutoffs.}  
+the probability cutoffs. AUCs significantly ($P < 0.05) larger than 0.5 are
+marked with an asterisk.}  
 \label{fig:roc:debulking}
 \end{figure}
 
@@ -927,7 +928,7 @@ res.strata.jci <- lapply(c(res.lodo.jci, res.val.jci[-4]), function(x) x$strata)
 x <- metaCMA.forest.models(metaCMA.censor(Xs.all,censor.at=365.25*5),
 risks=list(res.strata, res.strata.tcga, res.strata.jci),
  graphwidth=unit(2.5,
- "inches"),concordance=FALSE,inverse=TRUE,x.ticks=c(2.5,1,2,4,8),clip=log(c(0.5,8)),
+ "inches"),concordance=FALSE,inverse=TRUE,x.ticks=c(0.5,1,2,4,8),clip=log(c(0.5,8)),
  cols=c("darkblue","seagreen", "red"))
 @
 
