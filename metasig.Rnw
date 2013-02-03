@@ -546,18 +546,18 @@ Mesenchymal.}
 \end{figure}
 
 
-Verhaak et al.  proposed a multi-variate model
-including tumor stage, debulking status, BRCA1/2 mutation status and ssGSEA
-scores for the immunoreactive and mesenchymal subtypes.  BRCA1/2 mutation
-status was unavailable for our validation datasets. As the survival
-association of the ssGSEA scores were discovered in most of our validation
-datasets, we tested a multivariate model using the CLOVAR patient
-stratifications in high- and low-risk (based on the median of CLOVAR risk
-scores in all datasets except the validation data), tumor stage, debulking
-status and ssGSEA scores for all 4 subtypes. This model was then 5-fold
-cross-validated using all datasets combined. This model performed very similar
-to the one proposed by the authors using only 2 ssGSEA scores, but did not
-require any biased feature selection.
+Verhaak et al. proposed a multi-variate model including tumor stage,
+debulking status, BRCA1/2 mutation status and ssGSEA scores for the
+immunoreactive and mesenchymal subtypes.  BRCA1/2 mutation status was
+unavailable for our validation datasets. As the survival association of the
+ssGSEA scores were discovered in most of our validation datasets, we tested a
+multivariate model using the CLOVAR patient stratifications in high- and
+low-risk (based on the median of CLOVAR risk scores in all datasets except the
+validation data), tumor stage, debulking status and ssGSEA scores for all 4
+subtypes. This model was then 5-fold cross-validated using all datasets
+combined. This model performed very similarily to the one proposed by the
+authors using only 2 ssGSEA scores, but did not require any biased feature
+selection.
 
 The correlation of the risk scores of our meta-analysis signature and both
 TCGA signatures (for Verhaak et al. based on the CLOVAR signature only, not
@@ -590,6 +590,12 @@ tmp <- metaCMA.opt(esets.debulking.f, coefs=coefs.debulking.s34b,n=200,y="debulk
 final.model.debulking <- tmp$model
 @
 
+<<cached_medium_debulking_optimizegrid, cache=TRUE,results='hide'>>=
+ma.db <- lapply(c(5,10,seq(25,250,25)), function(i)
+    metaCMA(esets.debulking.f,coefs=coefs.debulking.s36b,n=i,y="debulking"))
+@
+
+
 \begin{figure}
 <<correlationriskscores>>=
 X <- dfrcboth[,c("risk", "risk_tcga", "risk_jci")]
@@ -619,6 +625,7 @@ IV).
 
 <<debulking_meta>>=
 preds <- lapply(res.debulking.s34b$fits,function(fit) fit$risk@lp)
+preds.postn <- lapply(esets.debulking.f, function(X) exprs(X)["POSTN",])
 labels <- lapply(esets.debulking.f, function(X) X$debulking)
 titles <- .getDatasetNames(esets.debulking.f)
 idx.debfi <- !sapply(esets.debulking.f,.debulkingFilter)
@@ -633,7 +640,7 @@ cross-validation. The prediction model calculates for each sample a score. The
 higher the score, the higher the probability the tumor will be not optimally
 debulkable. For each dataset, the model is trained using only the remaining
 datasets. ROC curves visualize the true and false positive rates as a function of
-the probability cutoffs. AUCs significantly ($P < 0.05) larger than 0.5 are
+the probability cutoffs. AUCs significantly ($P < 0.05$) larger than 0.5 are
 marked with an asterisk.}  
 \label{fig:roc:debulking}
 \end{figure}
@@ -655,6 +662,16 @@ Dressman data was excluded because a subset of Dressman samples was used for
 training.}
 \label{fig:roc:debulking:berchuck04}
 \end{figure}
+
+\begin{figure}
+<<cached_short_debulking_postn, cache=TRUE>>=
+aucs.postn <- .plotROCpanel(preds.postn[idx.debfi],labels[idx.debfi],titles[idx.debfi],3,3)
+@
+\caption{Prediction of debulking status with the POSTN expression alone
+as in Supplemental Figure~\ref{fig:roc:debulking}.}
+\label{fig:roc:debulking:postn}
+\end{figure}
+
 
 <<writemodelobjs>>=
 save(final.model, final.model.debulking, file="output/models.rda")
@@ -700,11 +717,24 @@ exact probe sets and provided Unigene or Genbank accession numbers for only a
 subset of genes in their signature. We manually tried to identify current HGNC
 symbols for the genes. We could map 21 of the 32 genes utilized in their model
 to probes used in curatedOvarianData. None of these 21 genes overlapped with
-our two signatures.
+our two signatures. 
 
-We validated 8 genes by qRT-PCR in 78 Bonome samples not used for training. In
-Figure~\ref{fig:qrtpcr:cor}, we show the correlation of the qRT-PCR expression
-values and the Affymetrix signal intensities.
+ROC curves for our top-ranked hit \textit{POSTN} are shown in Supplemental
+Figure~\ref{fig:roc:debulking:postn}. We validated 8 genes by qRT-PCR in 78
+Bonome samples not used for training. In Figure~\ref{fig:qrtpcr:cor}, we show
+the correlation of the qRT-PCR expression values and the Affymetrix signal
+intensities.
+
+<<ihcpostn,fig.width=3.5,fig.height=3.5,include=FALSE>>=
+ihc <- read.xls("input/postnihc.xls", as.is=TRUE)
+ihc$FIGO.x <- ihc$FIGO.Stage
+ihc$FIGO.x[grepl("III", ihc$FIGO.Stage)] <- 3
+ihc$FIGO.x[grepl("IV", ihc$FIGO.Stage)] <- 4
+ihc$FIGO.x[grepl("II?", ihc$FIGO.x)] <- 2
+ihc$FIGO.x[ihc$FIGO.x==""] <- NA
+.plotROC(ihc$POSTN, as.factor(ihc$Debulking))
+#summary(glm(as.factor(Debulking)~as.factor(GRADE)+as.factor(FIGO.x),ihc, family="binomial"))
+@
 
 <<qrtpcr, fig.width=3.5,include=FALSE>>=
 qrtpcr <- read.xls("input/qrtpcr.xls", as.is=TRUE)
@@ -730,6 +760,17 @@ list(as.factor(esets.debulking$GSE26712_eset[,
 sampleNames(eset.qrtpcr)]$debulking),
 as.factor(eset.qrtpcr$debulking)), 
 titles=c("Affymetrix", "qRT-PCR"), nrow=2, ncol=1)
+@
+
+<<postnkm,fig.width=4.9,fig.height=4.9, include=FALSE>>=
+idx <- sapply(esets.validation, function(X) "POSTN" %in% featureNames(X))
+
+Xs.all <- c(esets.f, esets.validation[idx])
+
+tmp1 <- unlist(lapply(Xs.all, function(X) { x<- exprs(X)["POSTN",]; ifelse(x <
+median(x),"Low Expression", "High Expression") } ))
+tmp.df <- .createClinical(Xs.all)
+#summary(coxph(y~as.factor(tmp1)+debulking+tumorstage, tmp.df))
 @
 
 \begin{figure}
