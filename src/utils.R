@@ -92,7 +92,7 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
     # Berchuck is a subset of Dressman 
     for (i in 1:1) {
         pred <- predict(model, newdata = esets.binary[[i]], type = "lp")@lp
-        paneln <- c("E)", "F)")
+        paneln <- c("G)", "H)")
         if (plot) 
             res.roc <- .plotROC(pred, esets.binary[[i]]$os_binary, main
             = paste(paneln[i],.getDatasetNames(esets.binary)[i]))
@@ -111,7 +111,7 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
 }
 
 
-.plotROC <- function(pred, labels, plot = TRUE, na.rm = TRUE, ...) {
+.plotROC <- function(pred, labels, plot = TRUE, na.rm = TRUE, colorize = FALSE, ...) {
     require(ROCR)
     require(pROC)
     if (na.rm) {
@@ -127,7 +127,7 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
     significant <- ifelse(ci(roc.obj, conf.level=0.9)[1] > 0.5, "*", "")
     best <- coords(roc.obj,x="best") 
     if (plot) {
-        plot(perf.rocr, colorize = FALSE, cex.lab = 1.3, ...)
+        plot(perf.rocr, colorize = colorize, cex.lab = 1.3, ...)
         text(0, 0.9, paste("AUC = ", round(auc, digits = 2), significant,
         sep=""), cex = 1.5, pos = 4)
         abline(a = 0, b = 1, lty = 2)

@@ -1,6 +1,6 @@
 library(grid)
 
-theme_classic <- function (base_size = 12, base_family = "") 
+theme_classic2 <- function (base_size = 12, base_family = "") 
 {
     theme_grey(base_size = base_size, base_family = base_family) %+replace% 
         theme(axis.text = element_text(size = rel(0.8)), 

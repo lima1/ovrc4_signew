@@ -1,5 +1,4 @@
 #!/bin/sh
-cp `locate createEsetList.R | grep library/curated` . 
 
 R --vanilla "--args patientselection2.config.hold  eset.scaled.rda eset.scaled.log"  < createEsetList.R
 R --vanilla "--args patientselection2binary.config.hold eset.binary.scaled.rda eset.binary.scaled.log"  < createEsetList.R

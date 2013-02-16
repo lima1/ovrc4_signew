@@ -222,7 +222,7 @@ not require a dichotomization of the prediction scores.
     ggplot(dfCV, aes(Genes, values))+geom_point()+facet_wrap(~ind) +
     xlab("Number of Genes") + 
     ylab("C-Index (Concordance)") + 
-    theme_classic(base_size=13) + 
+    theme_classic2(base_size=13) + 
     theme(axis.text.x=element_text(angle=45,hjust=1))
 }
 facetAdjust(.plotN(esets.f,ma))
@@ -592,7 +592,7 @@ final.model.debulking <- tmp$model
 
 <<cached_medium_debulking_optimizegrid, cache=TRUE,results='hide'>>=
 ma.db <- lapply(c(5,10,seq(25,250,25)), function(i)
-    metaCMA(esets.debulking.f,coefs=coefs.debulking.s36b,n=i,y="debulking"))
+    metaCMA(esets.debulking.f,coefs=coefs.debulking.s34b,n=i,y="debulking"))
 @
 
 
@@ -719,14 +719,17 @@ symbols for the genes. We could map 21 of the 32 genes utilized in their model
 to probes used in curatedOvarianData. None of these 21 genes overlapped with
 our two signatures. 
 
-ROC curves for our top-ranked hit \textit{POSTN} are shown in Supplemental
+\section{qRT-PCR and IHC validation of genes associated with surgery outcome}
+
+ROC curves for public microarray data of our top-ranked hit \textit{POSTN} are shown in Supplemental
 Figure~\ref{fig:roc:debulking:postn}. We validated 8 genes by qRT-PCR in 78
 Bonome samples not used for training. In Figure~\ref{fig:qrtpcr:cor}, we show
 the correlation of the qRT-PCR expression values and the Affymetrix signal
 intensities.
 
 <<ihcpostn,fig.width=3.5,fig.height=3.5,include=FALSE>>=
-ihc <- read.xls("input/postnihc.xls", as.is=TRUE)
+ihc <- read.xls("input/IHC.xls", as.is=TRUE,  na.strings = "missing")
+
 ihc$FIGO.x <- ihc$FIGO.Stage
 ihc$FIGO.x[grepl("III", ihc$FIGO.Stage)] <- 3
 ihc$FIGO.x[grepl("IV", ihc$FIGO.Stage)] <- 4
@@ -734,6 +737,30 @@ ihc$FIGO.x[grepl("II?", ihc$FIGO.x)] <- 2
 ihc$FIGO.x[ihc$FIGO.x==""] <- NA
 .plotROC(ihc$POSTN, as.factor(ihc$Debulking))
 #summary(glm(as.factor(Debulking)~as.factor(GRADE)+as.factor(FIGO.x),ihc, family="binomial"))
+@
+
+<<ihcpsmand,fig.width=3.5,fig.height=3.5,include=FALSE>>=
+.plotROC(ihc$pSmad2, as.factor(ihc$Debulking))
+@
+
+<<ihcmultivariate,fig.width=3.5,fig.height=3.5,include=FALSE>>=
+.plotROC(ihc$POSTN+ihc$pSmad2, as.factor(ihc$Debulking))
+@
+
+<<ihcmultivariatebar,fig.width=3.5,fig.height=3.5,include=FALSE>>=
+x <- ihc$POSTN+ihc$pSmad2
+
+ xq <- quantile(x, p=c(1/6,5/6),na.rm=TRUE)
+
+ d.f <- t(table(ihc$Debulking, as.factor(ifelse(x <= xq[1], "Low Risk",
+ ifelse(x>=xq[2], "High Risk", "Medium Risk")))))
+ d.f <- rbind(data.frame(IHC=d.f[,1],Debulking="Optimal"),
+    data.frame(IHC=d.f[,c(2)], Debulking="Suboptimal"))
+
+ d.f$Group <- factor(rep(rownames(d.f)[1:3],2),levels=c("Low Risk", 
+ "Medium Risk","High Risk"))
+ ggplot(d.f, aes(Group, IHC,
+ fill=Debulking))+geom_bar(stat="identity")+theme_classic()
 @
 
 <<qrtpcr, fig.width=3.5,include=FALSE>>=
@@ -773,6 +800,7 @@ tmp.df <- .createClinical(Xs.all)
 #summary(coxph(y~as.factor(tmp1)+debulking+tumorstage, tmp.df))
 @
 
+
 \begin{figure}
 <<debulking_corplot>>=
 data(GSE26712_eset)
@@ -781,14 +809,33 @@ data(GSE26712_eset)
  Affymetrix=exprs(GSE26712_eset)[g,sampleNames(eset.qrtpcr)],
  qRTPCR=exprs(eset.qrtpcr)[g,],Debulking=eset.qrtpcr$debulking)))
 
+c.tests <- lapply(featureNames(eset.qrtpcr), function(g) 
+ cor.test(exprs(GSE26712_eset)[g,sampleNames(eset.qrtpcr)],
+    exprs(eset.qrtpcr)[g,], method="spearman"))
+
+rhos <- data.frame(Affymetrix=8.7, qRTPCR=0.1, rho=sapply(c.tests,
+   function(x) paste("rho==",round(x$estimate, digits=2), sep="")),
+   Debulking=NA, Gene=featureNames(eset.qrtpcr))
+
 facetAdjust(ggplot(tmp, aes(Affymetrix,
   qRTPCR,colour=Debulking))+geom_point()+facet_wrap(~Gene)+scale_y_log10(breaks =
   trans_breaks("log10", function(x) 10^x),labels = trans_format("log10",
-  math_format(10^.x)))+theme_classic())
+  math_format(10^.x)))+geom_text(aes(label=rho),data=rhos, hjust=0,
+  parse=TRUE,  show_guide=FALSE)+theme_classic2())
 @
 \caption{Validation of selected genes by qRT-PCR in the Bonome validation
 dataset, a subset of 78 samples (39 optimal and 39 suboptimal tumors).}
 \label{fig:qrtpcr:cor}
+\end{figure}
+
+In the main paper, we show the grading of the tissue array staining for POSTN,
+Supplemental Figure~\ref{fig:staining} shows the grading for pSmad2/3.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.8\textwidth]{input/psmadgrading}
+\caption{Tissue array staining of pSmad2/3.}
+\label{fig:staining}
 \end{figure}
 
 <<cached_short_debulking_finalmodel_foldchanges, cache=TRUE>>=
@@ -804,17 +851,18 @@ ids <- sampleNames(esets.debulking.f$GSE26712_eset)[
 
 esets.db$GSE26712_eset <- esets.db$GSE26712_eset[,ids]
 
-.getFoldChanges <- function(esets.db, model) {
+.getFoldChanges <- function(esets.db, model, groups="debulking",
+contrasts="suboptimal-optimal") {
     res <- metaCMA.limma(lapply(esets.db, function(X)
-        X[names(model@coefficients),]), "debulking",
-        "suboptimal-optimal")
+        X[names(model@coefficients),]), groups,
+        contrasts)
     resM <- do.call(cbind, lapply(res, function(r) topTable(r,number=200,
         sort.by="none")[,2]))
     resM <- cbind(resM, Weighted.Mean=apply(resM,1, weighted.mean, w=sqrt(sapply(
         esets.db, ncol))))
     rownames(resM) <- names(model@coefficients)
-    resM[,1:9] <- 2^resM[,1:9]
-    resM[,1:9] <- apply(resM[,1:9],c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
+    resM <- 2^resM
+    resM <- apply(resM,c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
     resM    
 }
 
@@ -902,7 +950,7 @@ p <- p +theme(axis.text.x=element_text(angle=45,hjust=1))
 @
 
 <<plotdatasetshr, include=FALSE>>=
-facetAdjust(p+theme_classic(14)+theme(axis.text.x = element_text(angle = 45, hjust = 1)))
+facetAdjust(p+theme_classic2(14)+theme(axis.text.x = element_text(angle = 45, hjust = 1)))
 @
 
 <<comptcga,fig.width=5.33,fig.height=8,out.width="0.467\\textwidth",out.height="0.7\\textwidth",results='hide',include=FALSE>>=
@@ -987,6 +1035,18 @@ strata=dfrcboth$strata_jci, strata_tcga=dfrcboth$strata_tcga)
 
 hrdiffjciemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
 hrdiffjcici <- quantile(hrdiffjciemp,c(0.025,0.975))
+@
+
+<<response>>=
+data(TCGA_eset)
+  TCGA_eset$response <- gsub("NA", NA,
+  sapply(lapply(TCGA_eset$uncurated, function(x) strsplit(x,"///")[[1]]),
+  function(y) gsub("primary_therapy_outcome_success: ", "", y[[54]])))
+
+TCGA_eset$response <- as.factor(gsub(" ", "_", TCGA_eset$response))
+ X <- TCGA_eset[, !is.na(TCGA_eset$response)]
+
+
 @
 
 \clearpage
