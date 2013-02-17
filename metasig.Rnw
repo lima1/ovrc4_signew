@@ -607,7 +607,7 @@ risk stratifications, up to the maximum training sample sizes of 1,250
 a meta-analysis of microarray datasets even from different platforms is
 superior compared to single study training and (ii) our leave-one-dataset-out
 approach, in which we removed training datasets to obtain unbiased estimates
-of the final signature’s HR, is not an over-optimistic estimate, because
+of the final signature's HR, is not an over-optimistic estimate, because
 removing training datasets as expected made the signature worse.
 
 <<cached_medium_datasetshr2prepare, cache=TRUE>>=
