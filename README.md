@@ -57,6 +57,8 @@ Run the analysis with knitr in R:
 
     * **qrtpcr.xls**: The qRT-PCR data presented in the paper
 
+    * **IHC.xls**: The IHC data presented in the paper
+
     * **bonometcgaduplicates.xls**: Spreadsheet with Bonome samples included
         in TCGA
 

@@ -32,6 +32,21 @@ label="os_1yr") {
     ifelse(eset$y[,1] > l,"long", NA)))
     eset[!is.na(eset[[label]]),]
 }
+
+# Display the dependency of a parameter on the prediction accuracy yi
+.plotN <- function(esets, yi, xlab="Number of Genes",
+ylab="C-Index (Concordance)") {
+    w <- sapply(esets,ncol)
+    dfCV <- stack(as.data.frame(do.call(rbind, yi)))
+    dfCV <- cbind(dfCV, Genes=c(5,10,seq(25,250,25)))
+    dfCV$ind <- unlist(lapply(.getDatasetNames(esets), rep, 12))
+    ggplot(dfCV, aes(Genes, values))+geom_line()+facet_wrap(~ind) +
+    xlab(xlab) + 
+    ylab(ylab) + 
+    theme_classic2(base_size=13) + 
+    theme(axis.text.x=element_text(angle=45,hjust=1))
+}
+
 # show a Kaplan-Meier analysis of a leave-one-dataset-out cross-validation
 .lodocvPlot <- function(X, models, ids = 1:length(X), nrow = 2, ncol = 3,
 censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
@@ -146,7 +161,8 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
     # calculate the pooled AUC     
     sei <- sapply(aucs, function(auc) (auc[[2]][2]-auc[[2]][1])/(3.92/2))
     yi <- sapply(aucs, function(auc) (auc[[1]]))
-    list(rma=metafor::rma(yi=yi,sei=sei,method="FE"),optimal.cutpoints=sapply(aucs, function(auc) auc[[3]]))
+    list(rma=metafor::rma(yi=yi,sei=sei,method="FE"),optimal.cutpoints=sapply(aucs,
+    function(auc) auc[[3]]),yi=yi,sei=sei)
 }
 
 .forestPlotDebulking <- function(preds1, labels, prior=NULL, titles, method="FE", ...) {

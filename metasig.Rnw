@@ -185,7 +185,7 @@ ma <- lapply(c(5,10,seq(25,250,25)), function(i)
 \clearpage
 \normalsize
 
-\section{Dependency of gene signature size on prediction performance}
+\section{Dependency of survival gene signature size on prediction performance}
 
 In all our analyses, we fixed the gene signature size to 200 genes. This size
 was motivated by the fact that this size is sufficiently small to be
@@ -210,22 +210,11 @@ not require a dichotomization of the prediction scores.
 
 \begin{figure}[!htb]
 <<cached_short_validate, out.width='0.75\\textwidth', cache=TRUE>>=
-.plotN <- function(esets, ma) {
-    w <- sapply(esets,ncol)
-    cidx = lapply(ma, function(x) sapply(1:length(esets), function(i)
-        evaluate(x$fits[[i]]$risk, measure=new("UnoC"),
-        newy=esets[[i]]$y,add=list(tau=365.25*4) )))
+yi <- lapply(ma, function(x) sapply(1:length(esets.f), function(i)
+    evaluate(x$fits[[i]]$risk, measure=new("UnoC"),
+    newy=esets.f[[i]]$y,add=list(tau=365.25*4) )))
 
-    dfCV <- stack(as.data.frame(do.call(rbind,cidx)))
-    dfCV <- cbind(dfCV, Genes=c(5,10,seq(25,250,25)))
-    dfCV$ind <- unlist(lapply(.getDatasetNames(esets), rep, 12))
-    ggplot(dfCV, aes(Genes, values))+geom_point()+facet_wrap(~ind) +
-    xlab("Number of Genes") + 
-    ylab("C-Index (Concordance)") + 
-    theme_classic2(base_size=13) + 
-    theme(axis.text.x=element_text(angle=45,hjust=1))
-}
-facetAdjust(.plotN(esets.f,ma))
+facetAdjust(.plotN(esets.f, yi))
 @
 \caption{We used for all our gene signatures a fixed gene signature size of
 200 genes. Here we show the influence of this cutoff on the prediction
@@ -592,9 +581,8 @@ final.model.debulking <- tmp$model
 
 <<cached_medium_debulking_optimizegrid, cache=TRUE,results='hide'>>=
 ma.db <- lapply(c(5,10,seq(25,250,25)), function(i)
-    metaCMA(esets.debulking.f,coefs=coefs.debulking.s34b,n=i,y="debulking"))
+    metaCMA(esets.debulking.f,coefs=coefs.debulking.s34b,n=i,y="debulking",filter.fun=.debulkingFilter))
 @
-
 
 \begin{figure}
 <<correlationriskscores>>=
@@ -719,6 +707,29 @@ symbols for the genes. We could map 21 of the 32 genes utilized in their model
 to probes used in curatedOvarianData. None of these 21 genes overlapped with
 our two signatures. 
 
+\clearpage
+
+\section{Dependency of debulking gene signature size on prediction performance }
+
+\begin{figure}[!htb]
+<<cached_short_debulking_sigsize, out.width='0.75\\textwidth', cache=TRUE>>=
+res <- lapply(1:length(ma.db), function(i)
+.plotROCpanel(preds=lapply(ma.db[[i]]$fits, function(x) x$risk@lp)[idx.debfi],
+labels=lapply(esets.debulking.f[idx.debfi], function(x)
+x$debulking),nrow=3,ncol=3,titles=.getDatasetNames(esets.debulking.f)[idx.debfi],plot=FALSE))
+
+yi <- lapply(res, function(x) x$yi)
+.plotN(esets.debulking.f[idx.debfi], yi, ylab="AUC")
+@
+\caption{We used for all our gene signatures a fixed gene signature size of
+200 genes. Here we show the influence of this cutoff on the prediction
+accuracy of the debulking signature. Each point represents the AUC of a model
+with $x$ genes in the corresponding dataset that was trained using the
+remaining datasets only.}
+\label{fig:cutoff:debulking}
+\end{figure}
+
+\clearpage
 \section{qRT-PCR and IHC validation of genes associated with surgery outcome}
 
 ROC curves for public microarray data of our top-ranked hit \textit{POSTN} are shown in Supplemental
@@ -824,7 +835,10 @@ facetAdjust(ggplot(tmp, aes(Affymetrix,
   parse=TRUE,  show_guide=FALSE)+theme_classic2())
 @
 \caption{Validation of selected genes by qRT-PCR in the Bonome validation
-dataset, a subset of 78 samples (39 optimal and 39 suboptimal tumors).}
+dataset, a subset of 78 samples (39 optimal and 39 suboptimal tumors). Points
+represent patients, x-axis shows the Affymetrix fRMA normalized intensities,
+the y-axis the qRT-PCR level. The Spearman correlation measurements was highly
+significant in all genes ($\P < 0.001$).}
 \label{fig:qrtpcr:cor}
 \end{figure}
 
