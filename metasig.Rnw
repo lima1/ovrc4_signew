@@ -600,6 +600,88 @@ expression histograms are shown on the matrix diagonal.}
 \end{figure}
 
 \clearpage
+\section{Meta-analysis is superior to single study training}
+The training sample size was positively correlated with accuracy of patient
+risk stratifications, up to the maximum training sample sizes of 1,250
+(Supplemental Figure~\ref{fig:samplesize}). This finding demonstrated that (i)
+a meta-analysis of microarray datasets even from different platforms is
+superior compared to single study training and (ii) our leave-one-dataset-out
+approach, in which we removed training datasets to obtain unbiased estimates
+of the final signature’s HR, is not an over-optimistic estimate, because
+removing training datasets as expected made the signature worse.
+
+<<cached_medium_datasetshr2prepare, cache=TRUE>>=
+.allCombsEval <- function(ids, esets, object) {
+       lodo <- .lodocvPlot(esets, models=object$fits[[1]]$fit, ids=ids,
+       plot=FALSE)[[1]]
+       fit <- coxph(lodo$y~lodo$strata)
+       summary(fit)$coefficients
+}
+esets.fx <- c(esets.f, GSE32062.GPL6480_eset=esets.validation$GSE32062.GPL6480_eset)
+esets.fx <- metaCMA.common.gene.esets(esets.fx)
+coefs.fx <- metaCMA.coefs(esets.fx)
+@
+
+<<cached_long_datasetshr2, cache=TRUE>>=
+ret.hr <- lapply(1:length(esets.fx), metaCMA.allcombinations, esets=esets.fx,
+    coefs=coefs.fx, n=200,eval.fun=.allCombsEval )
+@
+
+<<plotdatasetshrprepare>>=
+# remove the Yoshihara 2012 data to get the 6 datasets we used for training
+.filterfx <- function(eset) { 
+    ncol(eset)==129 | .defaultFilter(eset)
+}
+
+df.hr <- do.call(rbind, lapply(1:length(esets.fx),
+function(i) data.frame(.getDatasetNames(esets.fx)[i], unlist(ret.hr[[i]]$n),
+  sapply(ret.hr[[i]]$evaluation, function(y) 1/y[2]))))
+ 
+colnames(df.hr) <-c("Dataset", "n", "HR")
+
+filtered <- names(esets.fx)[which(sapply(esets.fx, .filterfx))]
+.psContains <- function(i, esets) {
+
+    .doPS <- function(ps) {
+        idx <- (1:length(esets))[-i][ps]
+        ifelse(sum(filtered %in% names(esets)[idx])>0, "No", "Yes")
+     }
+     pss <- metaCMA.powerset(length(esets[-i]))
+     ret <- lapply(pss, .doPS)
+}
+
+df.hr$meta <- unlist(lapply(1:length(esets.fx), .psContains, esets.fx))
+
+#df.hr <- df.hr[df.hr$meta=="Yes",]
+
+p <-ggplot(df.hr, aes(n,HR))
+#p <- p +geom_point(aes(col=meta,shape=meta),size=1.3)
+p <- p +geom_point(size=0.75)
+p <- p +facet_wrap(~Dataset)+coord_cartesian(ylim= c(0.75, 2.9))+ylab("Hazard Ratio")+xlab("Total Training Sample Size")
+#p <- p+ scale_shape(solid=FALSE, name = "Only Training Datasets")
+#p <- p+ scale_colour_discrete( name = "Only Training Datasets")
+p <-p +geom_smooth(method="lm")
+p <- p +theme(axis.text.x=element_text(angle=45,hjust=1))
+@
+
+\begin{figure}
+<<plotdatasetshr>>=
+facetAdjust(p+theme_classic2(14)+theme(axis.text.x = element_text(angle = 45, hjust = 1)))
+@
+\caption{Prediction accuracy as a function of training sample sizes. This plot
+shows the improvement of predictions when training samples sizes were
+increased. For each of the 9 shown datasets, 255 different models were trained
+using the remaining 8 datasets only. These 255 ($2^8-1$) models correspond to
+all possible combinations of the 8 remaining datasets. Each point in the plot
+represents a training dataset combination and the combination's total sample
+size is shown on the x-axis, its Hazard Ratio (HR) in the validation data on
+the y-axis. This analysis showed that increasing the sample size via
+meta-analysis typically increased the model HRs. TCGA data was further
+identified as an extremely difficult validation dataset.}
+\label{fig:samplesize}
+\end{figure}
+
+\clearpage
 
 \section{Comparison with the Berchuck 2004 debulking signature}
 
@@ -707,6 +789,9 @@ symbols for the genes. We could map 21 of the 32 genes utilized in their model
 to probes used in curatedOvarianData. None of these 21 genes overlapped with
 our two signatures. 
 
+ROC curves for public microarray data of our top-ranked hit \textit{POSTN} are
+shown in Supplemental Figure~\ref{fig:roc:debulking:postn}. 
+
 \clearpage
 
 \section{Dependency of debulking gene signature size on prediction performance }
@@ -719,24 +804,25 @@ labels=lapply(esets.debulking.f[idx.debfi], function(x)
 x$debulking),nrow=3,ncol=3,titles=.getDatasetNames(esets.debulking.f)[idx.debfi],plot=FALSE))
 
 yi <- lapply(res, function(x) x$yi)
-.plotN(esets.debulking.f[idx.debfi], yi, ylab="AUC")
+facetAdjust(.plotN(esets.debulking.f[idx.debfi], yi, ylab="AUC"))
 @
 \caption{We used for all our gene signatures a fixed gene signature size of
 200 genes. Here we show the influence of this cutoff on the prediction
 accuracy of the debulking signature. Each point represents the AUC of a model
 with $x$ genes in the corresponding dataset that was trained using the
-remaining datasets only.}
+remaining datasets only. For the Bonome et al. dataset, this shows the
+leave-one-dataset-out cross-validated performance in the 93 samples used for
+training. See main text for the AUCs of the Bonome validation Affymetrix and
+qRT-PCR data.}
 \label{fig:cutoff:debulking}
 \end{figure}
 
 \clearpage
 \section{qRT-PCR and IHC validation of genes associated with surgery outcome}
 
-ROC curves for public microarray data of our top-ranked hit \textit{POSTN} are shown in Supplemental
-Figure~\ref{fig:roc:debulking:postn}. We validated 8 genes by qRT-PCR in 78
-Bonome samples not used for training. In Figure~\ref{fig:qrtpcr:cor}, we show
-the correlation of the qRT-PCR expression values and the Affymetrix signal
-intensities.
+We validated 8 genes by qRT-PCR in 78 Bonome samples not used for training. In
+Figure~\ref{fig:qrtpcr:cor}, we show the correlation of the qRT-PCR expression
+values and the Affymetrix signal intensities.
 
 <<ihcpostn,fig.width=3.5,fig.height=3.5,include=FALSE>>=
 ihc <- read.xls("input/IHC.xls", as.is=TRUE,  na.strings = "missing")
@@ -815,18 +901,18 @@ tmp.df <- .createClinical(Xs.all)
 \begin{figure}
 <<debulking_corplot>>=
 data(GSE26712_eset)
- tmp <- do.call(rbind, lapply(featureNames(eset.qrtpcr), function(g)
- data.frame(Gene=g,
- Affymetrix=exprs(GSE26712_eset)[g,sampleNames(eset.qrtpcr)],
- qRTPCR=exprs(eset.qrtpcr)[g,],Debulking=eset.qrtpcr$debulking)))
+tmp <- do.call(rbind, lapply(featureNames(eset.qrtpcr), function(g)
+    data.frame(Gene=g,
+        Affymetrix=exprs(GSE26712_eset)[g,sampleNames(eset.qrtpcr)],
+        qRTPCR=exprs(eset.qrtpcr)[g,],Debulking=eset.qrtpcr$debulking)))
 
 c.tests <- lapply(featureNames(eset.qrtpcr), function(g) 
- cor.test(exprs(GSE26712_eset)[g,sampleNames(eset.qrtpcr)],
-    exprs(eset.qrtpcr)[g,], method="spearman"))
+    cor.test(exprs(GSE26712_eset)[g,sampleNames(eset.qrtpcr)],
+        exprs(eset.qrtpcr)[g,], method="spearman"))
 
 rhos <- data.frame(Affymetrix=8.7, qRTPCR=0.1, rho=sapply(c.tests,
-   function(x) paste("rho==",round(x$estimate, digits=2), sep="")),
-   Debulking=NA, Gene=featureNames(eset.qrtpcr))
+    function(x) paste("rho==",round(x$estimate, digits=2), sep="")),
+        Debulking=NA, Gene=featureNames(eset.qrtpcr))
 
 facetAdjust(ggplot(tmp, aes(Affymetrix,
   qRTPCR,colour=Debulking))+geom_point()+facet_wrap(~Gene)+scale_y_log10(breaks =
@@ -838,7 +924,7 @@ facetAdjust(ggplot(tmp, aes(Affymetrix,
 dataset, a subset of 78 samples (39 optimal and 39 suboptimal tumors). Points
 represent patients, x-axis shows the Affymetrix fRMA normalized intensities,
 the y-axis the qRT-PCR level. The Spearman correlation measurements was highly
-significant in all genes ($\P < 0.001$).}
+significant in all genes ($P < 0.001$).}
 \label{fig:qrtpcr:cor}
 \end{figure}
 
@@ -909,63 +995,6 @@ write.csv(tmp[order(abs(tmp$Weighted.Mean), decreasing=TRUE),],
 \clearpage
 \appendix
 
-<<cached_medium_datasetshr2prepare, cache=TRUE>>=
-.allCombsEval <- function(ids, esets, object) {
-       lodo <- .lodocvPlot(esets, models=object$fits[[1]]$fit, ids=ids,
-       plot=FALSE)[[1]]
-       fit <- coxph(lodo$y~lodo$strata)
-       summary(fit)$coefficients
-}
-esets.fx <- c(esets.f, GSE32062.GPL6480_eset=esets.validation$GSE32062.GPL6480_eset)
-esets.fx <- metaCMA.common.gene.esets(esets.fx)
-coefs.fx <- metaCMA.coefs(esets.fx)
-@
-
-<<cached_long_datasetshr2, cache=TRUE>>=
-ret.hr <- lapply(1:length(esets.fx), metaCMA.allcombinations, esets=esets.fx,
-    coefs=coefs.fx, n=200,eval.fun=.allCombsEval )
-@
-
-<<plotdatasetshrprepare>>=
-# remove the Yoshihara 2012 data to get the 6 datasets we used for training
-.filterfx <- function(eset) { 
-    ncol(eset)==129 | .defaultFilter(eset)
-}
-
-df.hr <- do.call(rbind, lapply(1:length(esets.fx),
-function(i) data.frame(.getDatasetNames(esets.fx)[i], unlist(ret.hr[[i]]$n),
-  sapply(ret.hr[[i]]$evaluation, function(y) 1/y[2]))))
- 
-colnames(df.hr) <-c("Dataset", "n", "HR")
-
-filtered <- names(esets.fx)[which(sapply(esets.fx, .filterfx))]
-.psContains <- function(i, esets) {
-
-    .doPS <- function(ps) {
-        idx <- (1:length(esets))[-i][ps]
-        ifelse(sum(filtered %in% names(esets)[idx])>0, "No", "Yes")
-     }
-     pss <- metaCMA.powerset(length(esets[-i]))
-     ret <- lapply(pss, .doPS)
-}
-
-df.hr$meta <- unlist(lapply(1:length(esets.fx), .psContains, esets.fx))
-
-#df.hr <- df.hr[df.hr$meta=="Yes",]
-
-p <-ggplot(df.hr, aes(n,HR))
-#p <- p +geom_point(aes(col=meta,shape=meta),size=1.3)
-p <- p +geom_point(size=0.75)
-p <- p +facet_wrap(~Dataset)+coord_cartesian(ylim= c(0.75, 2.9))+ylab("Hazard Ratio")+xlab("Total Training Sample Size")
-#p <- p+ scale_shape(solid=FALSE, name = "Only Training Datasets")
-#p <- p+ scale_colour_discrete( name = "Only Training Datasets")
-p <-p +geom_smooth(method="lm")
-p <- p +theme(axis.text.x=element_text(angle=45,hjust=1))
-@
-
-<<plotdatasetshr, include=FALSE>>=
-facetAdjust(p+theme_classic2(14)+theme(axis.text.x = element_text(angle = 45, hjust = 1)))
-@
 
 <<comptcga,fig.width=5.33,fig.height=8,out.width="0.467\\textwidth",out.height="0.7\\textwidth",results='hide',include=FALSE>>=
 
@@ -1049,18 +1078,6 @@ strata=dfrcboth$strata_jci, strata_tcga=dfrcboth$strata_tcga)
 
 hrdiffjciemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
 hrdiffjcici <- quantile(hrdiffjciemp,c(0.025,0.975))
-@
-
-<<response>>=
-data(TCGA_eset)
-  TCGA_eset$response <- gsub("NA", NA,
-  sapply(lapply(TCGA_eset$uncurated, function(x) strsplit(x,"///")[[1]]),
-  function(y) gsub("primary_therapy_outcome_success: ", "", y[[54]])))
-
-TCGA_eset$response <- as.factor(gsub(" ", "_", TCGA_eset$response))
- X <- TCGA_eset[, !is.na(TCGA_eset$response)]
-
-
 @
 
 \clearpage
