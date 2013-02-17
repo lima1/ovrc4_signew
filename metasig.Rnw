@@ -918,13 +918,13 @@ facetAdjust(ggplot(tmp, aes(Affymetrix,
   qRTPCR,colour=Debulking))+geom_point()+facet_wrap(~Gene)+scale_y_log10(breaks =
   trans_breaks("log10", function(x) 10^x),labels = trans_format("log10",
   math_format(10^.x)))+geom_text(aes(label=rho),data=rhos, hjust=0,
-  parse=TRUE,  show_guide=FALSE)+theme_classic2())
+  parse=TRUE,  show_guide=FALSE)+theme_classic2()+ylab("qRT-PCR"))
 @
 \caption{Validation of selected genes by qRT-PCR in the Bonome validation
 dataset, a subset of 78 samples (39 optimal and 39 suboptimal tumors). Points
-represent patients, x-axis shows the Affymetrix fRMA normalized intensities,
-the y-axis the qRT-PCR level. The Spearman correlation measurements was highly
-significant in all genes ($P < 0.001$).}
+represent patients, the x-axis shows the Affymetrix fRMA normalized intensities,
+the y-axis the qRT-PCR level. The Spearman correlation of platforms was highly
+significant for all genes ($P < 0.001$).}
 \label{fig:qrtpcr:cor}
 \end{figure}
 
