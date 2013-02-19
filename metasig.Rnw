@@ -12,6 +12,8 @@
 \usepackage{verbatim}
 \usepackage{subfigure}
 \usepackage{booktabs}
+\usepackage{dcolumn}
+
 \usepackage[parfill]{parskip}
 \begin{document}
 
@@ -55,7 +57,7 @@ library(exactRankTests)
 library(pROC)
 library(limma)
 library(cvTools)
-library(rockchalk)
+library(texreg)
 library(GSVA)
 library(ez)
 library(sampling)
@@ -689,7 +691,7 @@ We generated a gene signature for suboptimal debulking surgery and validated
 this signature by \textit{leave-one-dataset-out} cross-validation.  The
 meta-analysis summary is shown in Supplemental
 Figure~\ref{fig:roc:debulking} as ROC curves. In
-Supplemental Table~\ref{ tbl:reg:debulking }, we show the logistic regression
+Supplemental Table~\ref{tbl:reg:debulking}, we show the logistic regression
 coefficients of the gene signature risk score adjusted for FIGO stage (III vs.
 IV). 
 
@@ -764,13 +766,14 @@ fit.debulking <-
 fit.debulking <-
     glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
 
-outreg(list(fit.debulking,fit.debulking.berchuck04), modelLabels=c("Meta-Analysis", "Berchuck et al. 2004"),
-title="Prediction of debulking status. The table lists the
+texreg(list(fit.debulking,fit.debulking.berchuck04), model.names=c("Meta-Analysis", "Berchuck et al. 2004"),
+caption="Prediction of debulking status. The table lists the
 regression of our leave-one-dataset-out cross-validated meta-analysis
 debulking gene signature
-signature and the signature published by Berchuck et al. \\cite{Berchuck:2004}. The predictions were adjusted for tumor stage.",
-label="tbl:reg:debulking", tight=FALSE,
-varLabels=list(risk="Gene Signature",risk_berchuck04="Gene Signature",tumorstage="Stage (III vs IV)"))
+signature and the signature published by Berchuck et al. \\cite{Berchuck:2004}. The predictions were adjusted for tumor stage.
+Numbers in brackets are standard errors.",
+label="tbl:reg:debulking", tight=FALSE, use.packages=FALSE, float.pos="!htb",
+custom.names=c("Intercept", "Gene Signature","Stage (III vs IV)"))
 @
 
 <<cached_short_debulking_berchuck04_aucdiff,cache=TRUE>>=
@@ -818,20 +821,26 @@ qRT-PCR data.}
 \end{figure}
 
 \clearpage
-\section{qRT-PCR and IHC validation of genes associated with surgery outcome}
+\section{IHC and qRT-PCR validation of genes associated with surgery outcome}
 
-We validated 8 genes by qRT-PCR in 78 Bonome samples not used for training. In
+In Supplemental Table~\ref{tbl:coefficients:ihc}, we show that POSTN, pSmad2/3
+and CXCL14 are predictors debulking surgery outcome independent of tumor grade
+and stage. We further validated 8 genes by qRT-PCR in 78 Bonome samples not used for training. In
 Figure~\ref{fig:qrtpcr:cor}, we show the correlation of the qRT-PCR expression
 values and the Affymetrix signal intensities.
 
 <<ihcpostn,fig.width=3.5,fig.height=3.5,include=FALSE>>=
 ihc <- read.xls("input/IHC.xls", as.is=TRUE,  na.strings = "missing")
 
-ihc$FIGO.x <- ihc$FIGO.Stage
-ihc$FIGO.x[grepl("III", ihc$FIGO.Stage)] <- 3
-ihc$FIGO.x[grepl("IV", ihc$FIGO.Stage)] <- 4
-ihc$FIGO.x[grepl("II?", ihc$FIGO.x)] <- 2
-ihc$FIGO.x[ihc$FIGO.x==""] <- NA
+ihc$Stage <- ihc$FIGO.Stage
+ihc$Stage[grepl("III", ihc$FIGO.Stage)] <- 3
+ihc$Stage[grepl("IV", ihc$FIGO.Stage)] <- 4
+ihc$Stage[grepl("II?", ihc$Stage)] <- 2
+ihc$Stage[ihc$Stage==""] <- NA
+ihc$Stage <- as.numeric(ihc$Stage)
+colnames(ihc)[4:6] <- c("pSmad23", "POSTN", "CXCL14")
+ihc$Grade <- ihc$GRADE
+
 .plotROC(ihc$POSTN, as.factor(ihc$Debulking))
 #summary(glm(as.factor(Debulking)~as.factor(GRADE)+as.factor(FIGO.x),ihc, family="binomial"))
 @
@@ -840,8 +849,40 @@ ihc$FIGO.x[ihc$FIGO.x==""] <- NA
 .plotROC(ihc$pSmad2, as.factor(ihc$Debulking))
 @
 
+<<ihccxcl14,fig.width=3.5,fig.height=3.5,include=FALSE>>=
+.plotROC(ihc$CXCL14, as.factor(ihc$Debulking))
+@
+
 <<ihcmultivariate,fig.width=3.5,fig.height=3.5,include=FALSE>>=
-.plotROC(ihc$POSTN+ihc$pSmad2, as.factor(ihc$Debulking))
+.plotROC(ihc$POSTN+ihc$pSmad2+ihc$CXCL14, as.factor(ihc$Debulking))
+@
+
+<<models,results='asis'>>=
+
+fit.adj <- glm(as.factor(Debulking)~POSTN+pSmad23+CXCL14+Grade+Stage,
+    data=ihc, family="binomial")
+
+fit <- glm(as.factor(Debulking)~POSTN+pSmad23+CXCL14,
+    data=ihc, family="binomial")
+
+fit.POSTN <- glm(as.factor(Debulking)~POSTN+Grade+Stage,
+    data=ihc, family="binomial")
+
+fit.pSmad23 <- glm(as.factor(Debulking)~pSmad23+Grade+Stage,
+    data=ihc, family="binomial")
+
+fit.CXCL14 <- glm(as.factor(Debulking)~CXCL14+Grade+Stage,
+    data=ihc, family="binomial")
+
+texreg(list(fit, fit.adj, fit.POSTN, fit.pSmad23,
+    fit.CXCL14),model.names=c("IHC", "IHC adj.", "POSTN adj.", 
+    "pSmad2/3 adj.", "CXCL14 adj."), 
+    caption=paste("Multivariate prediction of debulking status.", 
+    "Shown are multivariate models based on IHC staining only and",
+    "models adjusted (adj.) for tumor stage (III vs. IV) and grade (2 vs. 3).",
+    "Numbers in brackets are standard errors."),
+    label="tbl:coefficients:ihc", use.packages=FALSE, float.pos="!htb")
+
 @
 
 <<ihcmultivariatebar,fig.width=3.5,fig.height=3.5,include=FALSE>>=
