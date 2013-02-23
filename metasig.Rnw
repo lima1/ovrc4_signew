@@ -28,11 +28,11 @@ options(replace.assign=TRUE,width=90)
 \renewcommand{\thetable}{S\arabic{table}}
 \setcounter{table}{1}
 
-\title{Risk Prediction for Late-stage Ovarian Cancer Using the Corpus of
-Published Expression Data - Supplemental Figures}
+\title{Risk Prediction for late-stage ovarian cancer by meta-analysis of 1,622
+patient samples: Biologic and Clinical Correlations - Supplemental Figures}
 
-\author{Markus Riester, Levi Waldron, Aedin Culhane, Lorenzo Trippa, \\
-Curtis Huttenhower, Franziska Michor, Giovanni Parmigiani, Michael Birrer}
+\author{Markus Riester, Wei Wei, Levi Waldron, Aedin Culhane, Lorenzo Trippa, \\
+Franziska Michor, Curtis Huttenhower, Giovanni Parmigiani, Michael Birrer}
 \maketitle
 
 Code to reproduce all results presented in this paper is
@@ -690,10 +690,7 @@ identified as an extremely difficult validation dataset.}
 We generated a gene signature for suboptimal debulking surgery and validated
 this signature by \textit{leave-one-dataset-out} cross-validation.  The
 meta-analysis summary is shown in Supplemental
-Figure~\ref{fig:roc:debulking} as ROC curves. In
-Supplemental Table~\ref{tbl:reg:debulking}, we show the logistic regression
-coefficients of the gene signature risk score adjusted for FIGO stage (III vs.
-IV). 
+Figure~\ref{fig:roc:debulking} as ROC curves.
 
 <<debulking_meta>>=
 preds <- lapply(res.debulking.s34b$fits,function(fit) fit$risk@lp)
@@ -749,6 +746,22 @@ as in Supplemental Figure~\ref{fig:roc:debulking}.}
 save(final.model, final.model.debulking, file="output/models.rda")
 @
 
+We compared our results to the only published model predicting debulking
+success \cite{Berchuck:2004} we were aware of, with the corresponding ROC
+curves shown in Supplemental Figure~\ref{fig:roc:debulking:berchuck04}.
+Because Berchuck et al. did not provide the coefficients of their model, we
+subtracted the average expression of genes down-regulated in suboptimal from
+the average of up-regulated genes. The authors further did not specify the
+exact probe sets and provided Unigene or Genbank accession numbers for only a
+subset of genes in their signature. We manually tried to identify current HGNC
+symbols for the genes. We could map 21 of the 32 genes utilized in their model
+to probes used in curatedOvarianData. None of these 21 genes overlapped with
+our two signatures. 
+
+In Supplemental Table~\ref{tbl:reg:debulking}, we show the logistic regression
+coefficients of the gene signature risk scores adjusted for FIGO stage (III
+vs. IV). 
+
 <<cached_short_debulking_adjust,results='asis', cache=TRUE>>=
 dfrc.debulking <- .createClinical(esets.debulking.f[idx.debfi])
 dfrc.debulking$risk <- unlist(preds.berchuck04[idx.debfi])
@@ -780,17 +793,6 @@ custom.names=c("Intercept", "Gene Signature","Stage (III vs IV)"))
 aucdiff <- roc.test(roc(dfrc.debulking$debulking, dfrc.debulking$risk_berchuck04), roc(dfrc.debulking$debulking, dfrc.debulking$risk),alternative="less")
 @
 
-We compared our results to the only published model predicting debulking
-success \cite{Berchuck:2004} we were aware of, with the corresponding ROC
-curves shown in Supplemental Figure~\ref{fig:roc:debulking:berchuck04}.
-Because Berchuck et al. did not provide the coefficients of their model, we
-subtracted the average expression of genes down-regulated in suboptimal from
-the average of up-regulated genes. The authors further did not specify the
-exact probe sets and provided Unigene or Genbank accession numbers for only a
-subset of genes in their signature. We manually tried to identify current HGNC
-symbols for the genes. We could map 21 of the 32 genes utilized in their model
-to probes used in curatedOvarianData. None of these 21 genes overlapped with
-our two signatures. 
 
 ROC curves for public microarray data of our top-ranked hit \textit{POSTN} are
 shown in Supplemental Figure~\ref{fig:roc:debulking:postn}. 
@@ -825,8 +827,13 @@ qRT-PCR data.}
 
 In Supplemental Table~\ref{tbl:coefficients:ihc}, we show that POSTN, pSmad2/3
 and CXCL14 are predictors debulking surgery outcome independent of tumor grade
-and stage. We further validated 8 genes by qRT-PCR in 78 Bonome samples not used for training. In
-Figure~\ref{fig:qrtpcr:cor}, we show the correlation of the qRT-PCR expression
+and stage. We further validated 8 genes by qRT-PCR in 78 Bonome samples not used for training.
+The selection criteria were (i) high rank by fold-change and FDR and (ii)
+the results of our pathway analyses.  For example, PTCH1 was selected because
+a validation would demonstrate another layour of evidence of the
+hyperactivation of the Hedgehog/GLI pathway in suboptimal tumors.
+
+In Figure~\ref{fig:qrtpcr:cor}, we show the correlation of the qRT-PCR expression
 values and the Affymetrix signal intensities.
 
 <<ihcpostn,fig.width=3.5,fig.height=3.5,include=FALSE>>=
@@ -840,21 +847,31 @@ ihc$Stage[ihc$Stage==""] <- NA
 ihc$Stage <- as.numeric(ihc$Stage)
 colnames(ihc)[4:6] <- c("pSmad23", "POSTN", "CXCL14")
 ihc$Grade <- ihc$GRADE
+ihc$Debulking <- as.factor(ihc$Debulking)
 
-.plotROC(ihc$POSTN, as.factor(ihc$Debulking))
+.plotROC(ihc$POSTN, ihc$Debulking)
 #summary(glm(as.factor(Debulking)~as.factor(GRADE)+as.factor(FIGO.x),ihc, family="binomial"))
 @
 
 <<ihcpsmand,fig.width=3.5,fig.height=3.5,include=FALSE>>=
-.plotROC(ihc$pSmad2, as.factor(ihc$Debulking))
+.plotROC(ihc$pSmad2, ihc$Debulking)
 @
 
 <<ihccxcl14,fig.width=3.5,fig.height=3.5,include=FALSE>>=
-.plotROC(ihc$CXCL14, as.factor(ihc$Debulking))
+.plotROC(ihc$CXCL14, ihc$Debulking)
 @
 
 <<ihcmultivariate,fig.width=3.5,fig.height=3.5,include=FALSE>>=
-.plotROC(ihc$POSTN+ihc$pSmad2+ihc$CXCL14, as.factor(ihc$Debulking))
+.plotROC(ihc$POSTN+ihc$pSmad2+ihc$CXCL14, ihc$Debulking)
+@
+
+<<stratification>>=
+# Calculate accuray of risk stratification
+x <- ihc$pSmad23 + ihc$POSTN + ihc$CXCL14
+idx <- !is.na(x)
+p <- c(counts[1]*2/3, counts[1]+counts[2]*1/3)
+table(as.factor(sapply(x[idx], function(y) ifelse(y <= cutoff[1], "low",
+ifelse(y <= cutoff[2], "mid", "high")))), ihc$Debulking[idx])
 @
 
 <<models,results='asis'>>=
@@ -883,22 +900,6 @@ texreg(list(fit, fit.adj, fit.POSTN, fit.pSmad23,
     "Numbers in brackets are standard errors."),
     label="tbl:coefficients:ihc", use.packages=FALSE, float.pos="!htb")
 
-@
-
-<<ihcmultivariatebar,fig.width=3.5,fig.height=3.5,include=FALSE>>=
-x <- ihc$POSTN+ihc$pSmad2
-
- xq <- quantile(x, p=c(1/6,5/6),na.rm=TRUE)
-
- d.f <- t(table(ihc$Debulking, as.factor(ifelse(x <= xq[1], "Low Risk",
- ifelse(x>=xq[2], "High Risk", "Medium Risk")))))
- d.f <- rbind(data.frame(IHC=d.f[,1],Debulking="Optimal"),
-    data.frame(IHC=d.f[,c(2)], Debulking="Suboptimal"))
-
- d.f$Group <- factor(rep(rownames(d.f)[1:3],2),levels=c("Low Risk", 
- "Medium Risk","High Risk"))
- ggplot(d.f, aes(Group, IHC,
- fill=Debulking))+geom_bar(stat="identity")+theme_classic()
 @
 
 <<qrtpcr, fig.width=3.5,include=FALSE>>=
@@ -969,15 +970,6 @@ significant for all genes ($P < 0.001$).}
 \label{fig:qrtpcr:cor}
 \end{figure}
 
-In the main paper, we show the grading of the tissue array staining for POSTN,
-Supplemental Figure~\ref{fig:staining} shows the grading for pSmad2/3.
-
-\begin{figure}
-\centering
-\includegraphics[width=0.8\textwidth]{input/psmadgrading}
-\caption{Tissue array staining of pSmad2/3.}
-\label{fig:staining}
-\end{figure}
 
 <<cached_short_debulking_finalmodel_foldchanges, cache=TRUE>>=
 # Use the unscaled data to calculate fold-changes. 
