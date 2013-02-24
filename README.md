@@ -1,4 +1,4 @@
-# Risk prediction by meta-analysis for late stage ovarian cancer
+# Risk Prediction for late-stage ovarian cancer by meta-analysis of 1,622 patient samples: Biologic and Clinical Correlations
 
 To reproduce the results of the
 paper, simply fetch the entire repository using Mercurial with the
@@ -10,7 +10,7 @@ command below (or download from the "download" link at the url
 
 Enter the newly created directory: 
 
-     cd ovrc4_sigvalidation
+     cd ovrc4_signew
 
 Install dependencies in R:
 
@@ -76,7 +76,7 @@ Run the analysis with knitr in R:
 # Requirements #
 
 R/Bioconductor: Tested on R 2.15.1 and Bioconductor 2.11, but the
-pipeline should work on any relatively recent versions.
+code should work with any relatively recent versions.
 
 All other needed packages will be installed automatically when running
 the install scripts shown above.
