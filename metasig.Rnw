@@ -78,42 +78,7 @@ source("src/forestplot.surv.R")
 % directory
 <<cached_short_createesets, cache=TRUE>>=
 load("input/eset.scaled.rda")
-esets    <- esets[-match("GSE19829.GPL8300_eset",names(esets))]
-@
-
-<<removeduplicates>>=
-# 10 Bonome samples were included in TCGA late-stage, high grade serous
-btdups <- read.xls("input/bonometcgaduplicates.xls", as.is=TRUE)
-btdups <- btdups[btdups[,1] %in%
-            make.names(esets$TCGA_eset$unique_patient_ID),]
-
-@
-
-<<changedebulkingtcga>>=
-# remove Bonome samples, change debulking definition
-.fixTCGA <- function(esets) {
-    esets$TCGA_eset <- esets$TCGA_eset[,-na.omit(match(btdups[,1],
-        make.names(esets$TCGA_eset$unique_patient_ID)))]
-
-    .debulkingTCGA <- function(eset) {
-        debulking <- sapply(sapply(strsplit(eset$uncurated,
-        "///"), function(x) x[grep("tumor_residual_disease: ",x)]),function(y)
-        y[[1]])
-        tmp <- debulking
-        idx <- debulking == "tumor_residual_disease: No Macroscopic disease"
-        debulking[idx] <- "optimal"
-        debulking[!idx] <- "suboptimal"
-        debulking[tmp == "tumor_residual_disease: NA"] <- NA
-        as.factor(debulking)
-    }
-
-    esets$TCGA_eset$debulkingold <-  esets$TCGA_eset$debulking
-
-    # change TCGA debulking definition to no macroscopic disease
-    esets$TCGA_eset$debulking <-  as.vector(.debulkingTCGA(esets$TCGA_eset))
-    esets
-}
-
+esets <- esets[-match("GSE19829.GPL8300_eset",names(esets))]
 esets <- .fixTCGA(esets)
 @
 
@@ -129,7 +94,6 @@ esets.uf <- esets
 japan.idx <- match("GSE32062.GPL6480_eset",names(esets.f))
 esets.f <- esets.f[-japan.idx]
 @
-
 
 <<cached_short_loadvaldata,cache=TRUE>>=
 # Now load all the other data.
@@ -148,11 +112,24 @@ esets.debulking <- .fixTCGA(esets.debulking)
 esets.allos <- .fixTCGA(esets.allos)
 @
 
+
 <<addearlystage>>=
 # add the TCGA early stage samples to the validation data
 ids <- esets.allos$TCGA_eset$summarystage=="early" &
     esets.allos$TCGA_eset$summarygrade!="low"
 esets.validation <- c( esets.validation_orig, TCGA_eset=esets.allos$TCGA_eset[, ids] )
+@
+
+<<removeyoshihara2>>=
+# there is some overlap in samples
+X <- esets.f$GSE17260_eset 
+Y <- esets.validation$GSE32062.GPL6480_eset
+isc <- intersect(gsub("s","", X$alt_sample_name), gsub("d.*","", Y$alt_sample_name))
+iscx <- sapply(isc, function(x) grep(paste("^",x,"d",sep=""),
+ Y$alt_sample_name))
+
+esets.validation$GSE32062.GPL6480_eset <- esets.validation$GSE32062.GPL6480_eset[,-iscx]
+esets.uf$GSE32062.GPL6480_eset <- esets.uf$GSE32062.GPL6480_eset[,-iscx]
 @
 
 <<loadtcga>>=
@@ -232,6 +209,10 @@ tmp <- metaCMA.opt(esets.f,coef=coefs,n=200)
 final.model <- tmp$model
 @
 
+<<cached_short_finalmodelall, cache=TRUE>>=
+tmpall <- metaCMA.opt(esets.f,coef=coefs,n=nrow(esets.f[[1]]))
+@
+
 <<tablemodel>>=
 # Print the model for the supplement
 sig <- names(final.model@coefficients)
@@ -260,7 +241,7 @@ esets.f$TCGA_eset$tcga_subtype_official <-
     subtypes[,1]),2]
 @
 
-<<learnsubtypegenesets, cache=TRUE>>=
+<<cached_medium_learnsubtypegenesets, cache=TRUE>>=
 # here we use Limma to find gene sets for the TCGA subtype 
 # we use again a default signature size of 200 (100 up and 100 down-regulated
 # genes. The fold-change was chosen so that ~100 genes passed this filter with
@@ -270,7 +251,7 @@ genesets <- .getFingerprintGeneSets(X, as.factor(X$tcga_subtype_official), p.val
 lfc=log2(1.45), number=100)
 @
 
-<<classifyesets,cache=TRUE,results='hide'>>=
+<<cached_short_subtypes_classifyesets,cache=TRUE,results='hide'>>=
 gsva.res <- lapply(esets.f, function(X) .classifyGSVA(eset=X, genesets=genesets))
 gsva.res.val <- lapply(esets.validation, function(X) .classifyGSVA(eset=X, genesets=genesets))
 @
@@ -577,7 +558,8 @@ coefs.debulking.s34b <- metaCMA.coefs(esets.debulking.f, y="debulking", family=b
 res.debulking.s34b  <-
 metaCMA(esets.debulking.f,y="debulking",coefs=coefs.debulking.s34b, n=200,
 filter.fun=.debulkingFilter)
-tmp <- metaCMA.opt(esets.debulking.f, coefs=coefs.debulking.s34b,n=200,y="debulking")
+tmp <- metaCMA.opt(esets.debulking.f,
+coefs=coefs.debulking.s34b,n=200,y="debulking", filter.fun=.debulkingFilter)
 final.model.debulking <- tmp$model
 @
 
@@ -700,6 +682,14 @@ titles <- .getDatasetNames(esets.debulking.f)
 idx.debfi <- !sapply(esets.debulking.f,.debulkingFilter)
 @
 
+<<cached_medium_debulking_rankprod, cache=TRUE, results='hide'>>=
+res.debulking.rp <- metaCMA.rankproduct(esets.debulking.f[idx.debfi], y="debulking",
+treatment.label="suboptimal", huge=TRUE)
+@
+
+%tmp.all <- metaCMA.opt(esets.debulking.f,
+%coefs=coefs.debulking.s34b,n=nrow(esets.debulking.f[[1]]),y="debulking", filter.fun=.debulkingFilter)
+
 \begin{figure}
 <<cached_short_debulking_metaplot, cache=TRUE>>=
 aucs.db <- .plotROCpanel(preds[idx.debfi],labels[idx.debfi],titles[idx.debfi],3,3)
@@ -779,7 +769,7 @@ fit.debulking <-
 fit.debulking <-
     glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
 
-texreg(list(fit.debulking,fit.debulking.berchuck04), model.names=c("Meta-Analysis", "Berchuck et al. 2004"),
+texreg(list(fit.debulking,fit.debulking.berchuck04), custom.model.names=c("Meta-Analysis", "Berchuck et al. 2004"),
 caption="Prediction of debulking status. The table lists the
 regression of our leave-one-dataset-out cross-validated meta-analysis
 debulking gene signature
@@ -865,13 +855,16 @@ ihc$Debulking <- as.factor(ihc$Debulking)
 .plotROC(ihc$POSTN+ihc$pSmad2+ihc$CXCL14, ihc$Debulking)
 @
 
-<<stratification>>=
-# Calculate accuray of risk stratification
+<<stratification, results='hide'>>=
+# Calculate accuracy of risk stratification
 x <- ihc$pSmad23 + ihc$POSTN + ihc$CXCL14
 idx <- !is.na(x)
-p <- c(counts[1]*2/3, counts[1]+counts[2]*1/3)
-table(as.factor(sapply(x[idx], function(y) ifelse(y <= cutoff[1], "low",
-ifelse(y <= cutoff[2], "mid", "high")))), ihc$Debulking[idx])
+counts <-sapply(levels(ihc$Debulking), function(i) sum(ihc$Debulking==i))
+counts <- counts/sum(counts)
+cutoff <- c(counts[1]*2/3, counts[1]+counts[2]*1/3)
+p <- quantile(x, cutoff, na.rm=TRUE)
+table(as.factor(sapply(x[idx], function(y) ifelse(y <= p[1], "low",
+ifelse(y <= p[2], "mid", "high")))), ihc$Debulking[idx])
 @
 
 <<models,results='asis'>>=
@@ -892,7 +885,7 @@ fit.CXCL14 <- glm(as.factor(Debulking)~CXCL14+Grade+Stage,
     data=ihc, family="binomial")
 
 texreg(list(fit, fit.adj, fit.POSTN, fit.pSmad23,
-    fit.CXCL14),model.names=c("IHC", "IHC adj.", "POSTN adj.", 
+    fit.CXCL14),custom.model.names=c("IHC", "IHC adj.", "POSTN adj.", 
     "pSmad2/3 adj.", "CXCL14 adj."), 
     caption=paste("Multivariate prediction of debulking status.", 
     "Shown are multivariate models based on IHC staining only and",
@@ -942,7 +935,7 @@ tmp.df <- .createClinical(Xs.all)
 
 \begin{figure}
 <<debulking_corplot>>=
-data(GSE26712_eset)
+data(GSE26712_eset, package="curatedOvarianData")
 tmp <- do.call(rbind, lapply(featureNames(eset.qrtpcr), function(g)
     data.frame(Gene=g,
         Affymetrix=exprs(GSE26712_eset)[g,sampleNames(eset.qrtpcr)],

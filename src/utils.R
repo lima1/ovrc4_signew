@@ -77,7 +77,7 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
     # use the median of the training risk scores for the Japanese and TCGA data,
     # for the other the median of the test data because their platforms have not
     # all genes of the signature
-    risk.fmtrain <- lapply(esets.f, function(X) predict(final.model, newdata = X)@lp)
+    risk.fmtrain <- lapply(esets.f, function(X) predict(model, newdata = X)@lp)
     cutoff <- median(unlist(risk.fmtrain))
     esets.f.too.small <- esets.f[sapply(esets.f, .defaultFilter)]
     
@@ -334,5 +334,60 @@ cvRisk <- function(fit, data, y=data$y, linear=TRUE,...) {
     yhat$cv[sort(folds$which)==i]),
          y   =  lapply(1:max(folds$which), function(i)
          y[folds$subset[folds$which==i] ]))
+}
+
+# remove Bonome samples, change debulking definition
+.fixTCGA <- function(esets, filename="input/bonometcgaduplicates.xls") {
+    # 10 Bonome samples were included in TCGA late-stage, high grade serous
+    btdups <- read.xls(filename, as.is=TRUE)
+    btdups <- btdups[btdups[,1] %in%
+                make.names(esets$TCGA_eset$unique_patient_ID),]
+    esets$TCGA_eset <- esets$TCGA_eset[,-na.omit(match(btdups[,1],
+        make.names(esets$TCGA_eset$unique_patient_ID)))]
+
+    .debulkingTCGA <- function(eset) {
+        debulking <- sapply(sapply(strsplit(eset$uncurated,
+        "///"), function(x) x[grep("tumor_residual_disease: ",x)]),function(y)
+        y[[1]])
+        tmp <- debulking
+        idx <- debulking == "tumor_residual_disease: No Macroscopic disease"
+        debulking[idx] <- "optimal"
+        debulking[!idx] <- "suboptimal"
+        debulking[tmp == "tumor_residual_disease: NA"] <- NA
+        as.factor(debulking)
+    }
+
+    esets$TCGA_eset$debulkingold <-  esets$TCGA_eset$debulking
+
+    # change TCGA debulking definition to no macroscopic disease
+    esets$TCGA_eset$debulking <-  as.vector(.debulkingTCGA(esets$TCGA_eset))
+    esets
+}
+
+.getFoldChanges <- function(esets.db, model, groups="debulking",
+contrasts="suboptimal-optimal", log2=FALSE, limma.only=FALSE) {
+    
+    probesets <- NULL
+    if (is.null(model)) {
+        probesets <- featureNames(esets.db[[1]])
+    } else {
+        probesets <- names(model@coefficients)
+    }
+
+    res <- metaCMA.limma(lapply(esets.db, function(X)
+        X[probesets,]), groups,
+        contrasts)
+    if (limma.only) return(res)    
+    resM <- do.call(cbind, lapply(res, function(r)
+    topTable(r,number=length(probesets),
+        sort.by="none")[,2]))
+    resM <- cbind(resM, Weighted.Mean=apply(resM,1, weighted.mean, w=sqrt(sapply(
+        esets.db, ncol))))
+    rownames(resM) <- probesets
+    if (!log2) {
+        resM <- 2^resM
+        resM <- apply(resM,c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
+    }
+    resM    
 }
 

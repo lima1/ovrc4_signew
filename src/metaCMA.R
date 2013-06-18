@@ -283,10 +283,10 @@ metaCMA.limma <- function(esets, groups, contrasts) {
     lapply(esets, .doLimma)
 }
 
-.getCoefsSubset <- function(coefs, idx) {
+.getCoefsSubset <- function(coefs, idx, probesets=1:nrow(coefs)[[1]]) {
     ret <- coefs
-    ret[[1]] <- ret[[1]][,idx]
-    ret[[2]] <- ret[[2]][,idx]
+    ret[[1]] <- ret[[1]][probesets,idx]
+    ret[[2]] <- ret[[2]][probesets,idx]
     ret
 }
 
@@ -312,5 +312,17 @@ filter.fun=function(eset) return(FALSE), ...) {
      ret <- lapply(pss, .doPS)
      n <- lapply(pss, function(ps) sum(sapply(esets[-i][ps], ncol)))
      list(evaluation=ret, n=n)
+}
+
+metaCMA.rankproduct <- function(esets, y,
+treatment.label=levels(as.factor(esets[[1]][[y]]))[1],
+...) {
+    require(RankProd)
+    esets.c <- .combineEsets(esets, y=y)
+    cl <- ifelse(esets.c$y==treatment.label,1,0)
+    
+    if (sum(cl) == 0 || sum(cl) == length(cl)) stop("Invalid treatment.label.")
+
+    RP.adv.out <- RPadvance(t(esets.c$X),cl,as.numeric(esets.c$batch),...)
 }
 
