@@ -173,14 +173,49 @@ reml.opt <- metaCMA.opt(esets.f,coefs=coefs,n=200, rma.method="REML")
 \clearpage
 \normalsize
 
-\section{Dependency of survival gene signature size on prediction performance}
+\section{Leave-one-dataset-out cross-validation}
+
+Instead of arbitrarily setting aside some large and informative datasets for
+validation, we tested our models in a leave-one-dataset-out cross-validation
+procedure (Supplemental Figure~\ref{fig:flowchart}). The goal of this
+procedure is to build the best possible model by using all major datasets for
+training, and to still obtain an accurate (in particular not over-optimistic)
+estimate of how well this model will perform applied to independent data. 
+
+For the overall survival signature, we first selected the 6 largest datasets
+as training datasets. More exactly, we excluded the small datasets mostly
+because small datasets often display unusual patient characteristics. Then we
+trained 6 different models and always excluded one dataset from training.
+These 6 models were then always validated on the corresponding excluded
+datasets. This procedure thus results in one risk prediction per patient,
+which can then be used for model evaluation by comparing the risk prediction
+with the overserved outcome. This is not an over-optimistic evaluation,
+because to calculate a particular patient's risk score, only information from
+different patient cohorts was utilized. 
+
+\begin{figure}[!htb]
+{\centering \includegraphics[width=0.5\textwidth]{input/figures/flowchartLODO} 
+
+}
+\caption{Flowchart leave-one-dataset-out cross-validation.}
+\label{fig:flowchart}
+\end{figure}
+
+\section{Survival gene signature size}
 
 In all our analyses, we fixed the gene signature size to 200 genes. This size
 was motivated by the fact that this size is sufficiently small to be
 practically useful in a clinical test and by the performance of validated and
 random signatures (Waldron et al, submitted). It was shown in Waldron et al.
-that smaller signatures tend to be less robust than large signatures. Our
-algorithm weighs genes according their rank (see Methods).  This means
+that smaller signatures tend to be less robust than large signatures.
+Furthermore, larger signatures allow the use of pathway enrichment tools,
+which is often useful to prioritize genes for further experimental validation.
+Finally, because we plan to apply the models to a large cohort of FFPE
+specimens, we decided for a larger signature to provide some redundancy.  This
+is important because we expect that some genes in the signatures will not be
+available after quality controlling.
+
+Our algorithm weighs genes according their rank (see Methods).  This means
 increasing the signature size is expected to have only limited influence on
 the prediction performance at some point as the weights of the genes decrease.
 Note that increasing the number of features in an ensemble classifier such as
@@ -238,12 +273,14 @@ esets.f.all$GSE32062.GPL6480_eset <- esets.validation$GSE32062.GPL6480_eset
 probesets <- do.call(cbind, lapply(esets.f.all, function(X)
  as.character(featureData(X)[sig,]$maxmean_probeset)))
 
-write.csv(data.frame(Genes=sig, probesets, "Pooled Cox Coefficient"=
+tmp.df <- data.frame(Genes=sig, probesets, "Pooled Cox Coefficient"=
  final.model@coefficients,
  P=head(sort(tmp$pvalues),length(sig)),
  FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig))
-), file="output/final_signature.csv",
-row.names=FALSE)
+)
+write.csv(tmp.df, file="output/final_signature.csv", row.names=FALSE)
+write.table(tmp.df, file="output/final_signature.tsv", row.names=FALSE,
+sep="\t", quote=FALSE)
 @
 
 <<tcgasubtypes>>=
@@ -566,12 +603,14 @@ combined. This model performed very similarily to the one proposed by the
 authors using only 2 ssGSEA scores, but did not require any biased feature
 selection.
 
-The correlation of the risk scores of our meta-analysis signature and both
+The Pearson correlation of the risk scores of our meta-analysis signature and both
 TCGA signatures (for Verhaak et al. based on the CLOVAR signature only, not
 the multivariate predictions) are shown in Supplemental Figure~\ref{fig:cor:risk}. 
 In this figure, we further compare the models with a random-effects variant of
 our model, in which the univariate Cox regression coefficients were pooled
-with a random effects model as implemented in the \texttt{metafor} package. 
+with a random-effects model as implemented in the \texttt{metafor} package.
+The predictions from the random-effects model were very similar compared to
+the default fixed-effects model (Pearson correlation > 0.99).
 
 % Prepare the debulking datasets (use only genes common to all platforms)
 <<debulkingmetaprepare>>=
@@ -612,7 +651,7 @@ X <- dfrcboth[,c("risk", "risk_reml", "risk_tcga", "risk_jci")]
 colnames(X) <- c("Meta-Analysis\n(FE)", "Meta-Analysis\n(RE)","TCGA", "Verhaak")
 ezCor(X, label_size=6)
 @
-\caption{Pairwise correlation of the gene signature risk scores for the
+\caption{Pairwise Pearson correlation of the gene signature risk scores for the
 Meta-Analysis, TCGA and Verhaak et al. signatures. For the Meta-Analysis
 signature, we show risk scores correlation obtained with our default fixed-effects (FE)
 meta-analysis and with a random-effects model (RE). Numbers in the
@@ -828,7 +867,7 @@ shown in Supplemental Figure~\ref{fig:roc:debulking:postn}.
 
 \clearpage
 
-\section{Dependency of debulking gene signature size on prediction performance }
+\section{Debulking gene signature size}
 
 \begin{figure}[!htb]
 <<cached_short_debulking_sigsize, out.width='0.75\\textwidth', cache=TRUE>>=
@@ -857,7 +896,7 @@ qRT-PCR data.}
 In Supplemental Table~\ref{tbl:coefficients:ihc}, we show that POSTN, pSmad2/3
 and CXCL14 are predictors debulking surgery outcome independent of tumor grade
 and stage. In the multivariate models with all three proteins, both adjusted
-and unadjusted for stage and grade (shown columns 1 and 2 in Supplemental
+and unadjusted for stage and grade (shown in columns 1 and 2 of Supplemental
 Table~\ref{tbl:coefficients:ihc}), inclusion of CXCL4 could not further
 improve the model.
 
@@ -867,8 +906,8 @@ and (ii) the results of our pathway analyses.  For example, PTCH1 was selected
 because a validation would demonstrate another layour of evidence of the
 hyperactivation of the Hedgehog/GLI pathway in suboptimal tumors.
 
-In Figure~\ref{fig:qrtpcr:cor}, we show the correlation of the qRT-PCR expression
-values and the Affymetrix signal intensities.
+In Figure~\ref{fig:qrtpcr:cor}, we show the Spearman correlation of the
+qRT-PCR expression values and the Affymetrix signal intensities.
 
 <<ihcpostn,fig.width=3.5,fig.height=3.5,include=FALSE>>=
 ihc <- read.xls("input/IHC.xls", as.is=TRUE,  na.strings = "missing")
@@ -1058,6 +1097,8 @@ final.model.debulking@coefficients,
 
 write.csv(tmp[order(abs(tmp$Weighted.Mean), decreasing=TRUE),],
  file="output/final_signature_debulking.csv",row.names=FALSE)
+write.table(tmp[order(abs(tmp$Weighted.Mean), decreasing=TRUE),],
+ file="output/final_signature_debulking.tsv",row.names=FALSE,sep="\t")
 @
 
 \clearpage
