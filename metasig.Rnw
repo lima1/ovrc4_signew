@@ -29,14 +29,14 @@ options(replace.assign=TRUE,width=90)
 \setcounter{table}{1}
 
 \title{Risk Prediction for late-stage ovarian cancer by meta-analysis of 1,622
-patient samples: Biologic and Clinical Correlations - Supplemental Figures}
+patient samples: Biologic and Clinical Correlations - Supplemental Information}
 
 \author{Markus Riester, Wei Wei, Levi Waldron, Aedin Culhane, Lorenzo Trippa, \\
 Franziska Michor, Curtis Huttenhower, Giovanni Parmigiani, Michael Birrer}
 \maketitle
 
-Code to reproduce all results presented in this paper is
-available at \url{https://bitbucket.org/lima1/ovrc4_signew}.
+Code and instructions to reproduce all results presented in this paper is
+available at \url{https://bitbucket.org/lima1/ovrc4_signew}. 
 
 \tableofcontents 
 
@@ -130,6 +130,9 @@ iscx <- sapply(isc, function(x) grep(paste("^",x,"d",sep=""),
 
 esets.validation$GSE32062.GPL6480_eset <- esets.validation$GSE32062.GPL6480_eset[,-iscx]
 esets.uf$GSE32062.GPL6480_eset <- esets.uf$GSE32062.GPL6480_eset[,-iscx]
+esets.debulking$GSE32062.GPL6480_eset <- esets.debulking$GSE32062.GPL6480_eset[,-iscx]
+
+tcga_id <- match("TCGA_eset", names(esets.f))
 @
 
 <<loadtcga>>=
@@ -149,16 +152,22 @@ model.jci <- new("linearriskscore", coefficients=jci.coefs, modeltype="tscore")
 
 % calculate univariate Cox regression coefficients for each dataset and each
 % gene
-<<optimizecoefs, cache=TRUE>>=
+<<cached_medium_optimizecoefs, cache=TRUE>>=
 coefs <- metaCMA.coefs(esets.f)
 @
 
 % Do our leave-one-dataset-out cross-validation for different gene-signature
 % sizes. 
-<<optimizegrid, cache=TRUE,results='hide'>>=
+<<cached_medium_optimizegrid, cache=TRUE,results='hide'>>=
 ma <- lapply(c(5,10,seq(25,250,25)), function(i)
     #metaCMA(esets.f,coefs=coefs,n=i,method="penalizedSurv",fold=5))
     metaCMA(esets.f,coefs=coefs,n=i))
+@
+
+<<cached_medium_reml, cache=TRUE,results='hide'>>=
+# random-effects model
+reml <- metaCMA(esets.f,coefs=coefs,n=200, rma.method="REML")
+reml.opt <- metaCMA.opt(esets.f,coefs=coefs,n=200, rma.method="REML")
 @
 
 \clearpage
@@ -173,7 +182,14 @@ random signatures (Waldron et al, submitted). It was shown in Waldron et al.
 that smaller signatures tend to be less robust than large signatures. Our
 algorithm weighs genes according their rank (see Methods).  This means
 increasing the signature size is expected to have only limited influence on
-the prediction performance at some point as the weight of the genes decreases.
+the prediction performance at some point as the weights of the genes decrease.
+Note that increasing the number of features in an ensemble classifier such as
+the compound covariate score is not the same as overfitting in multivariate
+regression, which refers to tuning a model until it perfectly explains the
+data. All tuning parameters - algorithmic details, training datasets and gene
+signature size - were determined beforehand to allow an unbiased use of the
+training data for testing purposes in our leave-one-dataset-out testing
+procedure.
 
 In Supplemental Figure~\ref{fig:cutoff:train} we confirm that the signature
 size had only modest impact on the prediction accuracy in our algorithm, as
@@ -259,7 +275,7 @@ gsva.res.val <- lapply(esets.validation, function(X) .classifyGSVA(eset=X, genes
 <<addsubtyping>>=
 # get the subtype labels out of the GSVA results 
 .fetchSubtypeGSVA <- function(i, esets, gsva, na.cutoff=0.1,
-labels=levels(esets.f[[8]]$tcga_subtype_official) ) {
+labels=levels(esets.f$TCGA_eset$tcga_subtype_official) ) {
     tcga_subtype <- apply(gsva[[i]],2,which.max)
     # perfect enrichment score would be 2.0 and here we filter a few samples which
     # we really can't classify. This is still not very conservative, but does not
@@ -287,12 +303,15 @@ for (i in 1:length(X)) {
     X[[i]]$risk_tcga <- risk_tcga[[i]]
     X[[i]]$risk_jci  <- risk_jci[[i]]
     X[[i]]$risk <- ma[[10]]$fits[[i]]$risk@lp
+    X[[i]]$risk_reml <- reml$fits[[i]]$risk@lp
 }    
 X <- X[-grep("TCGA",names(X))]
 dfrc <- .createClinical(X)
 dfrc$risk_tcga <- unlist(sapply(X, function(x) x$risk_tcga))
 dfrc$risk_jci <- unlist(sapply(X, function(x) x$risk_jci))
 dfrc$risk <- unlist(sapply(X, function(x) x$risk))  
+dfrc$risk_reml <- unlist(sapply(X, function(x) x$risk_reml))
+
 idx.stagedeb <- !is.na(dfrc$age) & !is.na(dfrc$debulking)
 idx.stagedeb <- !is.na(dfrc$tumorstage) & !is.na(dfrc$debulking)
 dfrc$debulking_orig <- dfrc$debulking
@@ -310,6 +329,8 @@ for (i in 1:length(X)) X[[i]]$risk <- predict(model.jci, newdata=X[[i]], type="l
 dfrcval$risk_jci <- unlist(sapply(X, function(x) x$risk))
 for (i in 1:length(X)) X[[i]]$risk <- predict(final.model, newdata=X[[i]], type="lp")@lp
 dfrcval$risk <- unlist(sapply(X, function(x) x$risk))
+for (i in 1:length(X)) X[[i]]$risk <- predict(reml.opt$model, newdata=X[[i]], type="lp")@lp
+dfrcval$risk_reml <- unlist(sapply(X, function(x) x$risk))
 
 dfrcval$debulking_orig <- dfrcval$debulking
 @
@@ -325,16 +346,18 @@ dfrcboth$y <- Surv(dfrcboth$y[,1], dfrcboth$y[,2])
 
 # add the ssGSEA subtype scores as covariates to the data.frame
 g <- do.call(cbind, lapply(1:4, function(st)
- unlist(lapply(c(gsva.res[-8],gsva.res.val[-4]), function(x) x[st,]))))
+ unlist(lapply(c(gsva.res[-tcga_id],gsva.res.val[-4]), function(x) x[st,]))))
 colnames(g) <-  rownames(gsva.res[[1]])
 dfrcboth <- data.frame(dfrcboth, g)
 @
 
 <<cached_short_figure1,cache=TRUE,fig.width=7,fig.height=4.7,out.width="0.9\\textwidth",out.height="0.6\\textwidth",results='hide',include=FALSE>>=
 res.lodo <- .lodocvPlot(esets.f, models=lapply(ma[[10]]$fits, function(x)
-    x$fit),ids=1:8)[-8]
-res.lodo.tcga <- .lodocvPlot(esets.f, plot=FALSE,models=model.tcga,ids=1:7)
-res.lodo.jci <- .lodocvPlot(esets.f, plot=FALSE,models=model.jci,ids=1:7)
+    x$fit),ids=1:tcga_id)[-tcga_id]
+res.lodo.tcga <- .lodocvPlot(esets.f,
+plot=FALSE,models=model.tcga,ids=1:(tcga_id-1))
+res.lodo.jci <- .lodocvPlot(esets.f,
+plot=FALSE,models=model.jci,ids=1:(tcga_id-1))
 @
 
 <<cached_short_validationexternal,cache=TRUE,results='hide', include=FALSE>>=
@@ -369,7 +392,19 @@ Figure~\ref{fig:tcga:reproduce}). Among the 200 genes in our signature, 17
 overlapped with the TCGA signature ($P < 0.001$).  The p-value of this overlap
 between our and the TCGA signature was calculated with the hypergeometric
 distribution, using the number of genes common to all training datasets as
-background.  
+background. 
+
+We used standard bootstrap to estimate the statistical significance of the
+observed HR differences of our signature compared to TCGA. We considered all
+cohorts excluding TCGA (\Sexpr{nrow(dfrcboth)} patients where direct
+comparison to the TCGA signature could be made) in this procedure. We
+generated 10,000 bootstrap replicates in which \Sexpr{nrow(dfrcboth)} patients
+were sampled with replacement from this pool of \Sexpr{nrow(dfrcboth)}
+patients. Confidence intervals were then estimated from this empirical
+distribution of Hazard Ratio differences. The reported p-value corresponds to
+the fraction of bootstrap samples with higher HR in TCGA. Note that the HR
+confidence intervals of the two signatures do not need to be non-overlapping
+for a statistically significant difference.
 
 The TCGA project recently published an improved gene signature called CLOVAR
 \cite{Verhaak:2013}. We could map 87 of the 100 genes of the signature to
@@ -458,9 +493,9 @@ unified expression measures obtained from multiple platforms for training, not
 the Affymetrix data we used in our meta-analysis. In Supplemental
 Figure~\ref{fig:km:subtypesos}, we show an association of subtype with overall
 survival in all datasets except TCGA consistent with the report of Verhaak et
-al. \cite{Verhaak:2013}. The immunoreactive subtype had in both
-TCGA and the remaining datasets the best prognosis. Poor survival was in
-general observed for samples classified as mesenchymal. 
+al. \cite{Verhaak:2013}. The immunoreactive subtype had in both TCGA and the
+remaining datasets the best prognosis. Poor survival was in general observed
+for samples classified as mesenchymal. 
 
 <<aocscomparison>>=
 clinical.aocs <- read.xls("input/AOCS_subtytpes.xlsx", as.is=TRUE)
@@ -488,8 +523,8 @@ censor.at=365.25*5,main="C)  AOCS Subtypes in Tothill et al.")
 validation datasets excluding TCGA. (B) Stratification of TCGA samples by
 subtype. (C) Kaplan-Meier curves of the subtypes proposed by the Australian
 Ovarian Cancer Study Group (AOCS) in Tothill et al \cite{Tothill:2008}. This
-analysis corresponds to Figure 5B of the Tothill study, with the difference that here
-we show only the late-stage, high-grade, serous tumors used in our
+analysis corresponds to Figure 5B of the Tothill study, with the difference
+that here we show only the late-stage, high-grade, serous tumors used in our
 meta-analysis.}
 \label{fig:km:subtypesos}
 \end{figure}
@@ -534,6 +569,9 @@ selection.
 The correlation of the risk scores of our meta-analysis signature and both
 TCGA signatures (for Verhaak et al. based on the CLOVAR signature only, not
 the multivariate predictions) are shown in Supplemental Figure~\ref{fig:cor:risk}. 
+In this figure, we further compare the models with a random-effects variant of
+our model, in which the univariate Cox regression coefficients were pooled
+with a random effects model as implemented in the \texttt{metafor} package. 
 
 % Prepare the debulking datasets (use only genes common to all platforms)
 <<debulkingmetaprepare>>=
@@ -570,16 +608,18 @@ ma.db <- lapply(c(5,10,seq(25,250,25)), function(i)
 
 \begin{figure}
 <<correlationriskscores>>=
-X <- dfrcboth[,c("risk", "risk_tcga", "risk_jci")]
-colnames(X) <- c("Meta-Analysis", "TCGA", "Verhaak et al.")
-ezCor(X, label_size=7)
+X <- dfrcboth[,c("risk", "risk_reml", "risk_tcga", "risk_jci")]
+colnames(X) <- c("Meta-Analysis\n(FE)", "Meta-Analysis\n(RE)","TCGA", "Verhaak")
+ezCor(X, label_size=6)
 @
 \caption{Pairwise correlation of the gene signature risk scores for the
-Meta-Analysis, TCGA and Verhaak et al. signatures.  Numbers in the
+Meta-Analysis, TCGA and Verhaak et al. signatures. For the Meta-Analysis
+signature, we show risk scores correlation obtained with our default fixed-effects (FE)
+meta-analysis and with a random-effects model (RE). Numbers in the
 upper-right, tringular half of the matrix are the Pearson correlation
 coefficients, which were all statistically significant ($P < 0.05$). Pairwise
-scatterplots of expression values are shown in the lower-left half and the
-expression histograms are shown on the matrix diagonal.}
+scatterplots of the risk scores are shown in the lower-left half and the
+risk score histograms are shown on the matrix diagonal.}
 \label{fig:cor:risk}
 \end{figure}
 
@@ -682,10 +722,10 @@ titles <- .getDatasetNames(esets.debulking.f)
 idx.debfi <- !sapply(esets.debulking.f,.debulkingFilter)
 @
 
-<<cached_medium_debulking_rankprod, cache=TRUE, results='hide'>>=
-res.debulking.rp <- metaCMA.rankproduct(esets.debulking.f[idx.debfi], y="debulking",
-treatment.label="suboptimal", huge=TRUE)
-@
+%<<cached_medium_debulking_rankprod, cache=TRUE, results='hide'>>=
+%res.debulking.rp <- metaCMA.rankproduct(esets.debulking.f[idx.debfi], y="debulking",
+%treatment.label="suboptimal", huge=TRUE)
+%@
 
 %tmp.all <- metaCMA.opt(esets.debulking.f,
 %coefs=coefs.debulking.s34b,n=nrow(esets.debulking.f[[1]]),y="debulking", filter.fun=.debulkingFilter)
@@ -766,8 +806,6 @@ X$risk@lp))
 
 fit.debulking <-
     glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
-fit.debulking <-
-    glm(debulking~risk+tumorstage,dfrc.debulking,family="binomial")
 
 texreg(list(fit.debulking,fit.debulking.berchuck04), custom.model.names=c("Meta-Analysis", "Berchuck et al. 2004"),
 caption="Prediction of debulking status. The table lists the
@@ -776,7 +814,8 @@ debulking gene signature
 signature and the signature published by Berchuck et al. \\cite{Berchuck:2004}. The predictions were adjusted for tumor stage.
 Numbers in brackets are standard errors.",
 label="tbl:reg:debulking", tight=FALSE, use.packages=FALSE, float.pos="!htb",
-custom.names=c("Intercept", "Gene Signature","Stage (III vs IV)"))
+custom.coefs.names=c("Intercept", "Gene Signature","Stage (III vs IV)"), 
+include.aic = FALSE, include.bic = FALSE, include.deviance = FALSE, include.loglik = FALSE)
 @
 
 <<cached_short_debulking_berchuck04_aucdiff,cache=TRUE>>=
@@ -817,10 +856,15 @@ qRT-PCR data.}
 
 In Supplemental Table~\ref{tbl:coefficients:ihc}, we show that POSTN, pSmad2/3
 and CXCL14 are predictors debulking surgery outcome independent of tumor grade
-and stage. We further validated 8 genes by qRT-PCR in 78 Bonome samples not used for training.
-The selection criteria were (i) high rank by fold-change and FDR and (ii)
-the results of our pathway analyses.  For example, PTCH1 was selected because
-a validation would demonstrate another layour of evidence of the
+and stage. In the multivariate models with all three proteins, both adjusted
+and unadjusted for stage and grade (shown columns 1 and 2 in Supplemental
+Table~\ref{tbl:coefficients:ihc}), inclusion of CXCL4 could not further
+improve the model.
+
+We further validated 8 genes by qRT-PCR in 78 Bonome samples not used for
+training.  The selection criteria were (i) high rank by fold-change and FDR
+and (ii) the results of our pathway analyses.  For example, PTCH1 was selected
+because a validation would demonstrate another layour of evidence of the
 hyperactivation of the Hedgehog/GLI pathway in suboptimal tumors.
 
 In Figure~\ref{fig:qrtpcr:cor}, we show the correlation of the qRT-PCR expression
@@ -891,7 +935,9 @@ texreg(list(fit, fit.adj, fit.POSTN, fit.pSmad23,
     "Shown are multivariate models based on IHC staining only and",
     "models adjusted (adj.) for tumor stage (III vs. IV) and grade (2 vs. 3).",
     "Numbers in brackets are standard errors."),
-    label="tbl:coefficients:ihc", use.packages=FALSE, float.pos="!htb")
+    label="tbl:coefficients:ihc", use.packages=FALSE, float.pos="!htb",
+include.aic = FALSE, include.bic = FALSE, include.deviance = FALSE,
+include.loglik = FALSE)
 
 @
 
@@ -936,7 +982,7 @@ tmp.df <- .createClinical(Xs.all)
 \begin{figure}
 <<debulking_corplot>>=
 data(GSE26712_eset, package="curatedOvarianData")
-tmp <- do.call(rbind, lapply(featureNames(eset.qrtpcr), function(g)
+tmp.df <- do.call(rbind, lapply(featureNames(eset.qrtpcr), function(g)
     data.frame(Gene=g,
         Affymetrix=exprs(GSE26712_eset)[g,sampleNames(eset.qrtpcr)],
         qRTPCR=exprs(eset.qrtpcr)[g,],Debulking=eset.qrtpcr$debulking)))
@@ -949,7 +995,7 @@ rhos <- data.frame(Affymetrix=8.7, qRTPCR=0.1, rho=sapply(c.tests,
     function(x) paste("rho==",round(x$estimate, digits=2), sep="")),
         Debulking=NA, Gene=featureNames(eset.qrtpcr))
 
-facetAdjust(ggplot(tmp, aes(Affymetrix,
+facetAdjust(ggplot(tmp.df, aes(Affymetrix,
   qRTPCR,colour=Debulking))+geom_point()+facet_wrap(~Gene)+scale_y_log10(breaks =
   trans_breaks("log10", function(x) 10^x),labels = trans_format("log10",
   math_format(10^.x)))+geom_text(aes(label=rho),data=rhos, hjust=0,
@@ -1038,45 +1084,45 @@ par(mfrow=c(3,2))
 par(mar=c(4.5, 4.1, 2.5, 1.5))
 plotKM(y=dfrcboth$y, strata=dfrcboth$strata,
         censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="A)   Meta-Analysis Signature")
 plotKMStratifyBy("median",y=dfrcboth$y,linearriskscore=yhat,
         censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="B)  Signature + Stage + Debulking")
 plotKMStratifyBy("median",y=dfrcboth$y,linearriskscore=yhat.clinical,
         censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="C)  Stage and Debulking only")
 plotKM(y=dfrcboth$y, strata=dfrcboth$strata_tcga,
         censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="D)   TCGA Signature")
 plotKM(y=dfrcboth$y, strata=dfrcboth$strata_jci,
         censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="E)   Verhaak et al. Signature")
 plotKMStratifyBy("median", y=dfrcboth$y, linearriskscore=yhat.jci,
         censor.at=365.25*5,
-        show.n.risk=FALSE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
-        show.PV=FALSE,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="F)   Verhaak et al. Multivariate")
 
 @
 
 <<fpcomptcga,fig.width=7.75,fig.height=11.5,out.width="0.4\\textwidth",out.height="0.7\\textwidth",results='hide',include=FALSE>>=
-Xs.all <- c(esets.f[-8], esets.validation[-4])
+Xs.all <- c(esets.f[-tcga_id], esets.validation[-4])
 names(Xs.all) <- .getDatasetNames(Xs.all)
 
 res.strata <- lapply(c(res.lodo, res.val[-4]), function(x) x$strata)

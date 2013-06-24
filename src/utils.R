@@ -66,8 +66,9 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
         if (.defaultFilter(X[[i]])) local.plot=FALSE
         plotKMStratifyBy(cutpoints = cutpoint,
         linearriskscore = predict(model,newdata=X[[i]])@lp, y = X[[i]]$y, 
-        censor.at = censor.at, cex.base = 1.4, show.n.risk = FALSE, show.HR = FALSE, 
-        show.legend = FALSE, main = names(X)[i], plot = local.plot, ...)
+        censor.at = censor.at, cex.base = 1.4, show.n.risk = TRUE, show.HR = FALSE, 
+        show.legend = FALSE, main = names(X)[i], plot = local.plot,
+        cex.n.risk=0.6, cex.lab=0.9,...)
     })
     for (i in 1:length(res)) res[[i]]$y <- X[ids][[i]]$y
     res
@@ -94,14 +95,14 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
     par(mfrow = c(3, 3))
     par(mar=c(4.5, 4.1, 2.5, 1.5))
     res <- lapply(1:length(esets.f.too.small), function(i) plot(model, newdata = esets.f.too.small[[i]], 
-        newy = esets.f.too.small[[i]]$y, show.n.risk = FALSE, show.legend = FALSE, 
+        newy = esets.f.too.small[[i]]$y, show.n.risk = TRUE, show.legend = FALSE, 
         show.HR = FALSE, cex.base = 1.4, main = titles[i], cutpoints = cutpoints[[i]], 
-        plot = plot, censor.at = 365.25 * 5))
+        plot = plot, censor.at = 365.25 * 5, cex.n.risk=0.6, cex.lab=0.9))
     res <- lapply(1:length(esets.validation), function(i) plot(model, newdata = esets.validation[[i]], 
-        newy = esets.validation[[i]]$y, show.n.risk = FALSE, show.legend = FALSE, 
+        newy = esets.validation[[i]]$y, show.n.risk = TRUE, show.legend = FALSE, 
         show.HR = FALSE, cex.base = 1.4, main = titles[i+2], cutpoints =
         cutpoints[[i+2]], 
-        plot = plot, censor.at = 365.25 * 5))
+        plot = plot, censor.at = 365.25 * 5, cex.n.risk=0.6, cex.lab=0.9))
     for (i in 1:length(esets.validation)) res[[i]]$y <- esets.validation[[i]]$y
     
     # Berchuck is a subset of Dressman 
@@ -342,7 +343,17 @@ cvRisk <- function(fit, data, y=data$y, linear=TRUE,...) {
     btdups <- read.xls(filename, as.is=TRUE)
     btdups <- btdups[btdups[,1] %in%
                 make.names(esets$TCGA_eset$unique_patient_ID),]
-    esets$TCGA_eset <- esets$TCGA_eset[,-na.omit(match(btdups[,1],
+    tcgadups <-
+        read.csv("~/Dropbox/ovrc4/RC4_levi_misc/TCGA_dups/affy_goodbad.csv",
+    as.is=TRUE) 
+    tcgadups <- tcgadups[!tcgadups$isgood,]
+    tcgadups$patientID <- make.names(substr(gsub("AFFY: ","", tcgadups$patientID),1,12))
+    tcgadups <- tcgadups$patientID[
+    tcgadups$patientID %in% sampleNames(esets$TCGA_eset)]
+    
+    btdups <- c(btdups[,1], tcgadups)
+
+    esets$TCGA_eset <- esets$TCGA_eset[,-na.omit(match(btdups,
         make.names(esets$TCGA_eset$unique_patient_ID)))]
 
     .debulkingTCGA <- function(eset) {

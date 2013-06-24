@@ -1,0 +1,39 @@
+##-----------------------------
+##settings for createEsetList.R
+##-----------------------------
+
+#rescale each gene to z-score?
+rescale <- FALSE
+
+#Keep only genes common to all platforms?
+keep.common.only <- FALSE
+
+#only keep studies with at least this many samples
+min.sample.size <- 40   
+
+#only keep studies with at least this many events (deaths)
+min.number.of.events <- 0
+
+#only keep microarray studies 
+min.number.of.genes <- 1000
+
+#quantile of variance ranks above which to keep high-variance genes (ie 0.8 filters 80% of genes).
+#0 means no filtering of genes
+quantile.cutoff <- 0
+
+#patient metadata which must not be missing
+meta.required <- c("debulking")
+
+#Regexes for filtering of patients
+rule.1 <- c("sample_type","^tumor$")
+rule.2 <- c("histological_type","^ser$")
+rule.3 <- c("summarystage","^late$")
+rule.4 <- c("summarygrade","^high$")
+
+#if strict.checking is TRUE, patients missing any of the above
+#metadata will be remove.  If FALSE, these patients are kept.
+strict.checking <- FALSE
+
+#if data contains missing data, should we use the impute Bioconductor package
+#to impute?
+impute.missing <- TRUE

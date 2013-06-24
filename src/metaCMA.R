@@ -22,8 +22,13 @@ library(rmeta)
 }
 
 .calcRMA <- function(idx, coefs, rma.method="FE") {
-    lapply(1:nrow(coefs$c),function(i) try(metafor::rma(yi = coefs$c[i,idx], sei =
+    res <- lapply(1:nrow(coefs$c),function(i) try(metafor::rma(yi = coefs$c[i,idx], sei =
         coefs$se[i,idx], method=rma.method)))
+    # in case something went wrong, exclude the gene    
+     res[which(sapply(res, function(x) class(x)[1]) != "rma.uni")] <-
+     list(list(pval=1, b=0))
+
+    res    
 }
 
 .createXy <-function(idx, esets, y="y", coefs, n,
