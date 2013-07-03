@@ -2,6 +2,8 @@
 ##settings for createEsetList.R
 ##-----------------------------
 
+package.name <- "curatedOvarianData"
+
 #rescale each gene to z-score?
 rescale <- TRUE
 
@@ -28,3 +30,4 @@ rule.1 <- c("sample_type","^tumor$")
 #metadata will be remove.  If FALSE, these patients are kept.
 strict.checking <- FALSE
 
+source("exclude.R")

@@ -84,6 +84,7 @@ esets <- esets[-match("GSE19829.GPL8300_eset",names(esets))]
 esets <- .fixTCGA(esets)
 @
 
+
 <<cached_short_filtergenes, cache=TRUE>>=
 # use only genes common to all platforms
 esets.f  <- metaCMA.common.gene.esets(esets)
@@ -95,6 +96,7 @@ esets.f  <- metaCMA.common.gene.esets(esets)
 esets.uf <- esets
 japan.idx <- match("GSE32062.GPL6480_eset",names(esets.f))
 esets.f <- esets.f[-japan.idx]
+tcga_id <- match("TCGA_eset", names(esets.f))
 @
 
 <<cached_short_loadvaldata,cache=TRUE>>=
@@ -114,27 +116,11 @@ esets.debulking <- .fixTCGA(esets.debulking)
 esets.allos <- .fixTCGA(esets.allos)
 @
 
-
 <<addearlystage>>=
 # add the TCGA early stage samples to the validation data
 ids <- esets.allos$TCGA_eset$summarystage=="early" &
     esets.allos$TCGA_eset$summarygrade!="low"
 esets.validation <- c( esets.validation_orig, TCGA_eset=esets.allos$TCGA_eset[, ids] )
-@
-
-<<removeyoshihara2>>=
-# there is some overlap in samples
-X <- esets.f$GSE17260_eset 
-Y <- esets.validation$GSE32062.GPL6480_eset
-isc <- intersect(gsub("s","", X$alt_sample_name), gsub("d.*","", Y$alt_sample_name))
-iscx <- sapply(isc, function(x) grep(paste("^",x,"d",sep=""),
- Y$alt_sample_name))
-
-esets.validation$GSE32062.GPL6480_eset <- esets.validation$GSE32062.GPL6480_eset[,-iscx]
-esets.uf$GSE32062.GPL6480_eset <- esets.uf$GSE32062.GPL6480_eset[,-iscx]
-esets.debulking$GSE32062.GPL6480_eset <- esets.debulking$GSE32062.GPL6480_eset[,-iscx]
-
-tcga_id <- match("TCGA_eset", names(esets.f))
 @
 
 <<loadtcga>>=
@@ -296,7 +282,7 @@ esets.f$TCGA_eset$tcga_subtype_official <-
     subtypes[,1]),2]
 @
 
-<<cached_medium_learnsubtypegenesets, cache=TRUE>>=
+<<cached_short_learnsubtypegenesets, cache=TRUE>>=
 # here we use Limma to find gene sets for the TCGA subtype 
 # we use again a default signature size of 200 (100 up and 100 down-regulated
 # genes. The fold-change was chosen so that ~100 genes passed this filter with
@@ -647,6 +633,11 @@ ma.db <- lapply(c(5,10,seq(25,250,25)), function(i)
     metaCMA(esets.debulking.f,coefs=coefs.debulking.s34b,n=i,y="debulking",filter.fun=.debulkingFilter))
 @
 
+<<cached_short_debulking_finalmodelall, cache=TRUE>>=
+tmpall.db <- metaCMA.opt(esets.debulking.f,
+coefs=coefs.debulking.s34b,n=nrow(esets.debulking.f[[1]]),y="debulking", filter.fun=.debulkingFilter)
+@
+
 \begin{figure}
 <<correlationriskscores>>=
 X <- dfrcboth[,c("risk", "risk_reml", "risk_tcga", "risk_jci")]
@@ -709,9 +700,11 @@ custom.coef.names=c(risk="Gene Signature (Low- vs high-risk)",
 caption="Cox regression coefficients for multivariate models utilizing the
 gene signature risk stratifications and the available
 characteristics with known overall survival association when provided by the
-authors. Numbers in brackets are standard errors.",
+authors. Numbers in brackets are standard errors. The row \\textit{PH Test} reports the p-value indicating
+whether the proportional hazards assumption of the model is
+violated.",
 include.aic = FALSE, include.rsquared = FALSE, include.maxrs = FALSE,
-include.zph = FALSE)
+include.zph = TRUE)
 @
 
 \section{Meta-analysis is superior to single study training}
@@ -744,7 +737,7 @@ ret.hr <- lapply(1:length(esets.fx), metaCMA.allcombinations, esets=esets.fx,
 <<plotdatasetshrprepare>>=
 # remove the Yoshihara 2012 data to get the 6 datasets we used for training
 .filterfx <- function(eset) { 
-    ncol(eset)==129 | .defaultFilter(eset)
+    pubMedIds(eset)=="22241791" | .defaultFilter(eset)
 }
 
 df.hr <- do.call(rbind, lapply(1:length(esets.fx),
@@ -945,6 +938,25 @@ qRT-PCR data.}
 \clearpage
 \section{IHC and qRT-PCR validation of genes associated with surgery outcome}
 
+\subsection{Method Details}
+
+Scoring of the intensity (protein level) of each antigen was conducted by
+determining the percentage and intensity of positive cells in three different
+areas at 100x magnification for each tissue core. First, the percentage of
+positive cells in each section was scored with a 5-point scale: 0 for <5\%, 1
+for 5-25\%, 2 for 26- 50\%, 3 for 50-75\%, and 4 for over 75\%.  Second, the
+intensity of positive signal was scored with a 3-point scale: 1 for weak
+staining, 2 for moderate staining, and 3 for intense staining. The weighed
+score of staining intensity of each section was obtained by multiplying the
+percentage score by the intensity score (the maximum weighed score is
+12).Considering that each sample was represented by duplicate cores, the
+average score was calculated for the IHC intensity of each sample (listed in
+Table S1). A categorical system was then applied as follows: Grade 0 (-) score
+0-3; Grade 1 (+) score 4-6; Grade 2 (++) score 7-9; Grade 4 (+++) score 9-12.
+The IHC was performed by two individuals including one pathologist for
+independent IHC scoring. The scoring was done blinded to the clinical data.
+
+\subsection{Multivariate Models}
 In Supplemental Table~\ref{tbl:coefficients:ihc}, we show that POSTN, pSmad2/3
 and CXCL14 are predictors debulking surgery outcome independent of tumor grade
 and stage. In the multivariate models with all three proteins, both adjusted
@@ -1152,6 +1164,43 @@ write.csv(tmp[order(abs(tmp$Weighted.Mean), decreasing=TRUE),],
 write.table(tmp[order(abs(tmp$Weighted.Mean), decreasing=TRUE),],
  file="output/final_signature_debulking.tsv",row.names=FALSE,sep="\t")
 @
+\clearpage
+\section{Role of POSTN in ovarian cancer}
+
+The biological rationale underlying the debulking signature is that the
+metastatic potential of the tumor contributes to the difficulty of the
+cytoreduction. POSTN positively drives each step of tumor metastasis
+(migration, invasion, angiogenesis, formation of the metastatic niche, and the
+growth of the micrometastases). 
+
+Even with an extraordinarily large tumor burden, the confinement of the tumor
+to the abdominal cavity makes the tumor resection efficacious in ovarian
+cancer. Therefore, optimal debulking is more likely to be achieved in cancers
+that are inherently less disseminative. Enhanced tumor metastasis may increase
+the chance of surgical inaccessible tumors and thus lower the rate of optimal
+debulking. The debulking signature developed in this study reveals the
+co-activation of TGF-$\beta$, Ras/MAPK/EGR-1 and Hedgehog pathways as well as
+stromal (TAF) activation in suboptimal debulked tumors. These changes may
+directly contribute to malignant phenotypes with elevated EMT, extracellular
+matrix remodeling and pro-angiogenic activity to facilitate tumor
+dissemination (especially parenchymal metastases) and thereby render the
+hindrance for surgical resection.
+
+POSTN is a secreted cell adhesion protein belonging to the superfamily of
+TGF-$\beta$-inducible proteins \cite{Horiuchi:1999}. Periostin binding to the
+integrins ($\alpha$v$\beta$3, $\alpha$v$\beta$5, and $\alpha$6$\beta$4)
+directly or indirectly (by recruiting RTKs such as EGFR) activates the Akt-
+and FAK-mediated signaling pathways, leading to increased cell survival,
+angiogenesis, migration, invasion, and importantly, epithelial-mesenchymal
+transition of carcinoma cells \cite{Morra:2011}. In addition to the metastatic
+initiation, POSTN is also important in the maintenance of metastatic niche for
+the efficient colonization, growing and vascularization of micrometastases, a
+speed-limit step for tumor dissemination into second sites
+\cite{Soikkeli:2010, Malanchi:2012}. POSTN is frequently overexpressed in
+ovarian cancer.  The therapeutic potential of POSTN has been demonstrated in
+an orthotropic mouse xenograft model for ovarian cancer, through a
+neutralizing antibody mediated significant reduction of tumor burden and the
+number of tumor foci \cite{Zhu:2011}.
 
 \clearpage
 \bibliographystyle{plain}
@@ -1169,6 +1218,7 @@ fit <- coxph(y~strata+tumorstage+debulking_orig,dfrcboth)
 fit.jci <-
 coxph(y~strata_jci+tumorstage+debulking_orig+Immunoreactive+Mesenchymal+Proliferative+Differentiated,dfrcboth)
 
+set.seed(1234)
 yhat <- cvRisk(fit, dfrcboth)
 yhat.jci <- cvRisk(fit.jci, dfrcboth)
 yhat.clinical <- cvRisk(fit.clinical, dfrcboth)

@@ -2,6 +2,8 @@
 ##settings for createEsetList.R
 ##-----------------------------
 
+package.name <- "curatedOvarianData"
+
 #rescale each gene to z-score?
 rescale <- TRUE
 
@@ -38,3 +40,5 @@ add.surv.y <- function(X) Surv(X$days_to_death, X$vital_status=="deceased")
 strict.checking <- FALSE
 
 impute.missing <- TRUE
+
+source("exclude.R")

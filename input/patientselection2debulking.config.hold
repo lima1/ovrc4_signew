@@ -2,6 +2,8 @@
 ##settings for createEsetList.R
 ##-----------------------------
 
+package.name <- "curatedOvarianData"
+
 #rescale each gene to z-score?
 rescale <- TRUE
 
@@ -37,3 +39,5 @@ strict.checking <- FALSE
 #if data contains missing data, should we use the impute Bioconductor package
 #to impute?
 impute.missing <- TRUE
+
+source("exclude.R")

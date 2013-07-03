@@ -339,22 +339,6 @@ cvRisk <- function(fit, data, y=data$y, linear=TRUE,...) {
 
 # remove Bonome samples, change debulking definition
 .fixTCGA <- function(esets, filename="input/bonometcgaduplicates.xls") {
-    # 10 Bonome samples were included in TCGA late-stage, high grade serous
-    btdups <- read.xls(filename, as.is=TRUE)
-    btdups <- btdups[btdups[,1] %in%
-                make.names(esets$TCGA_eset$unique_patient_ID),]
-    tcgadups <-
-        read.csv("~/Dropbox/ovrc4/RC4_levi_misc/TCGA_dups/affy_goodbad.csv",
-    as.is=TRUE) 
-    tcgadups <- tcgadups[!tcgadups$isgood,]
-    tcgadups$patientID <- make.names(substr(gsub("AFFY: ","", tcgadups$patientID),1,12))
-    tcgadups <- tcgadups$patientID[
-    tcgadups$patientID %in% sampleNames(esets$TCGA_eset)]
-    
-    btdups <- c(btdups[,1], tcgadups)
-
-    esets$TCGA_eset <- esets$TCGA_eset[,-na.omit(match(btdups,
-        make.names(esets$TCGA_eset$unique_patient_ID)))]
 
     .debulkingTCGA <- function(eset) {
         debulking <- sapply(sapply(strsplit(eset$uncurated,

@@ -49,7 +49,7 @@ rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate", only.
     }
     idx.v = c()
     if (length(idx) > 0) idx.v = -idx
-    
+    res.rma = c() 
     if (!is.null(n)) {
         res.rma = .calcRMA(idx.t, coefs, rma.method)
         pvalues = as.numeric(sapply(res.rma, function(r) try(r$pval)))
@@ -65,6 +65,7 @@ rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate", only.
             coefficients = coefficients[idx]
         }
         probesets = head(order(pvalues),n)
+        res.rma = head(res.rma[order(pvalues)],n)
         model = new("linearriskscore",
         coefficients=coefficients[probesets],modeltype=modeltype)
     } else {
@@ -73,7 +74,8 @@ rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate", only.
     xy = list(train    = .combineEsets(esets[idx.t], y, probesets),
               validate = .combineEsets(esets[idx.v], y, probesets),
               model    = model, idx.t = idx.t, idx.v = idx.v, 
-              pvalues = pvalues
+              pvalues  = pvalues,
+              rma      = res.rma
     )
     xy
 }
@@ -288,7 +290,7 @@ metaCMA.limma <- function(esets, groups, contrasts) {
     lapply(esets, .doLimma)
 }
 
-.getCoefsSubset <- function(coefs, idx, probesets=1:nrow(coefs)[[1]]) {
+.getCoefsSubset <- function(coefs, idx, probesets=1:nrow(coefs[[1]])) {
     ret <- coefs
     ret[[1]] <- ret[[1]][probesets,idx]
     ret[[2]] <- ret[[2]][probesets,idx]

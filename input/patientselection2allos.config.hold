@@ -2,6 +2,7 @@
 ##settings for createEsetList.R
 ##-----------------------------
 
+package.name <- "curatedOvarianData"
 #rescale each gene to z-score?
 rescale <- TRUE
 
@@ -31,3 +32,4 @@ add.surv.y <- function(X) Surv(X$days_to_death, X$vital_status=="deceased")
 #metadata will be remove.  If FALSE, these patients are kept.
 strict.checking <- FALSE
 
+source("exclude.R")

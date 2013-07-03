@@ -2,6 +2,8 @@
 ##settings for createEsetList.R
 ##-----------------------------
 
+package.name <- "curatedOvarianData"
+
 #rescale each gene to z-score?
 rescale <- TRUE
 
@@ -32,3 +34,5 @@ rule.4 <- c("summarygrade","^high$")
 strict.checking <- FALSE
 
 impute.missing <- TRUE
+
+source("exclude.R")
