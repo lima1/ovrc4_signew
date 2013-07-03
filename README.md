@@ -75,8 +75,9 @@ Run the analysis with knitr in R:
 ------------------------------------------------------
 # Requirements #
 
-R/Bioconductor: Tested on R 2.15.1 and Bioconductor 2.11, but the
-code should work with any relatively recent versions.
+R/Bioconductor: Tested on R 3.0.1 and Bioconductor 2.12, but the
+code should work with any relatively recent versions. The texreg package is
+required in fairly recent version.
 
 All other needed packages will be installed automatically when running
 the install scripts shown above.

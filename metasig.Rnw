@@ -50,7 +50,6 @@ library(hgu133a.db)
 library(metafor)
 library(ggplot2)
 library(xtable)
-library(survIDINRI)
 library(ROCR)
 library(RColorBrewer)
 library(lattice)
@@ -164,11 +163,12 @@ reml.opt <- metaCMA.opt(esets.f,coefs=coefs,n=200, rma.method="REML")
 \section{Leave-one-dataset-out cross-validation}
 
 Instead of arbitrarily setting aside some large and informative datasets for
-validation, we tested our models in a leave-one-dataset-out cross-validation
-procedure (Supplemental Figure~\ref{fig:flowchart}). The goal of this
-procedure is to build the best possible model by using all major datasets for
-training, and to still obtain an accurate (in particular not over-optimistic)
-estimate of how well this model will perform applied to independent data. 
+validation, we initially tested our models in a leave-one-dataset-out
+cross-validation procedure (Supplemental Figure~\ref{fig:flowchart}). The goal
+of this procedure is to build the best possible model by using all major
+datasets for training, and to still obtain an accurate (in particular not
+over-optimistic) estimate of how well this model will perform applied to
+independent data. 
 
 For the overall survival signature, we first selected the 6 largest datasets
 as training datasets. More exactly, we excluded the small datasets mostly
@@ -177,8 +177,8 @@ trained 6 different models and always excluded one dataset from training.
 These 6 models were then always validated on the corresponding excluded
 datasets. This procedure thus results in one risk prediction per patient,
 which can then be used for model evaluation by comparing the risk prediction
-with the observed outcome. This is not an over-optimistic evaluation,
-because to calculate a particular patient's risk score, only information from
+with the observed outcome. This is not an over-optimistic evaluation, because
+to calculate a particular patient's risk score, only information from
 different patient cohorts was utilized. 
 
 \begin{figure}[!htb]
@@ -957,6 +957,17 @@ The IHC was performed by two individuals including one pathologist for
 independent IHC scoring. The scoring was done blinded to the clinical data.
 
 \subsection{Multivariate Models}
+
+As regression coefficients obtained from microarray data are not directly
+translatable to qRT-PCR or IHC measurements, we only used the signs of the
+coefficients from the microarray-based signature. That means all genes were
+equally weighted, with the expression levels of down-regulated genes in
+suboptimal subtracted from the ones of up-regulated genes. Group sizes for
+patient stratification in high-, medium- and low-risk corresponded to the
+numbers of suboptimal and optimal tumors for high- and low-risk, respectively.
+The 33\% of high-risk samples with lowest risk and the 33\% of low-risk samples
+with highest risk were then classified as medium-risk.
+
 In Supplemental Table~\ref{tbl:coefficients:ihc}, we show that POSTN, pSmad2/3
 and CXCL14 are predictors debulking surgery outcome independent of tumor grade
 and stage. In the multivariate models with all three proteins, both adjusted
