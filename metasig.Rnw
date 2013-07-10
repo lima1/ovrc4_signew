@@ -471,23 +471,19 @@ PMID17290060_eset$y <- Surv(PMID17290060_eset$days_to_death / 30,
 @
 
 \begin{figure}
-<<plotmodeltcgavalidation, results='hide'>>=
-par(mfrow=c(2,2))
+<<plotmodeltcgavalidation, results='hide',fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
+par(mar=c(5,5,3,2), mfrow=c(2,2))
 
 plot(model.tcga,newdata=TCGA.validation.eset,newy=TCGA.validation.eset$y,censor.at=60,
-            cex.base=1.4,show.n.risk=FALSE, show.HR=FALSE,
             show.legend=FALSE,xlab="",ylab="Overall Survival (%)",main="TCGA test set")
 
 plot(model.tcga,newdata=GSE9891_eset,newy=GSE9891_eset$y,censor.at=60,
-            cex.base=1.4,show.n.risk=FALSE, show.HR=FALSE,
             show.legend=FALSE,xlab="",ylab="",main="Tothill")
             
 plot(model.tcga,newdata=GSE26712_eset,newy=GSE26712_eset$y,censor.at=60,
-            cex.base=1.4,show.n.risk=FALSE, show.HR=FALSE,
             show.legend=FALSE,xlab="Time (Months)",ylab="Overall Survival (%)",main="Bonome")
 
 plot(model.tcga,newdata=PMID17290060_eset,newy=PMID17290060_eset$y,censor.at=60,
-            cex.base=1.4,show.n.risk=FALSE, show.HR=FALSE,
             show.legend=FALSE,xlab="Time (Months)",ylab="",main="Dressman")
 @
 \caption{TCGA model applied to the author test sets shown in Figure 2c of the TCGA paper
@@ -706,6 +702,40 @@ violated.",
 include.aic = FALSE, include.rsquared = FALSE, include.maxrs = FALSE,
 include.zph = TRUE)
 @
+
+\section{Survival signature pathway analysis}
+
+Our survival signature did not show strong enrichments of particular pathways.
+This is probably because the biological determinant factors for patient overall
+survival are complicated and diverse.  Nevertheless, 25 genes in our 200-gene
+signature can be enriched through TGF-$\beta$ pathway, suggesting its poor
+prognostic impact on patient overall survival (Supplementary Figure \ref{fig:pathwayos}).
+Secondly, 9 genes can be linked to PDGF signaling, in which the overexpression
+of both receptor (PDGFA and PDGFB) and ligand (PDGFD) indicates poor outcome.
+The TAF activation in the OS signature, marked by COL11A1 \cite{Tothill:2008},
+is also noticed, considering the synergistic effects of TFG-$\beta$ and PDGF
+in TAF activation \cite{Cirri:2012}. Functionally, 11 genes have been
+demonstrated to be involved in EMT (SNAI2, ZEB1, BMI1, C13ORF15, EDNRA/ET-1,
+PDGFD, SERPINE1/PAI-1, PDPN, CUX1, SERPINA1 and the downregulation of SPDEF),
+which is closely related to tumor metastasis and chemoresistance to portend
+poor prognosis in ovarian cancer. Recently, the emerging roles of PDGF
+signaling (especially PDGFD) in EMT and cancer stem cell maintenance during
+tumorigenesis have been described \cite{Devarajan:2012, Wu:2013}. In
+addition, the endothelin/ET-1 pathway also positively enhance the expression of
+SNAI2, thus EMT \cite{Rosano:2010, Rosano:2011}.
+
+\begin{figure}[!htb]
+{\centering \includegraphics[width=0.75\textwidth]{input/figures/pathwayos} 
+
+}
+\caption{Pathway analysis of the OS signature. A gene is labeled in red when it
+portends poor prognosis. Conversely, genes indicate favorable outcome are
+labeled in blue. Red broken arrows: direct stimulatory modification; Orange
+arrows: TGF-$\beta$ signaling activated transcriptional regulations; Blue solid
+arrows: PDGF signaling activated transcriptional regulations; Green arrows:
+other direct regulations.}
+\label{fig:pathwayos}
+\end{figure}
 
 \section{Meta-analysis is superior to single study training}
 The training sample size was positively correlated with accuracy of patient
@@ -938,23 +968,58 @@ qRT-PCR data.}
 \clearpage
 \section{IHC and qRT-PCR validation of genes associated with surgery outcome}
 
-\subsection{Method Details}
+\subsection{Gene selection criteria}
 
-Scoring of the intensity (protein level) of each antigen was conducted by
-determining the percentage and intensity of positive cells in three different
-areas at 100x magnification for each tissue core. First, the percentage of
-positive cells in each section was scored with a 5-point scale: 0 for <5\%, 1
-for 5-25\%, 2 for 26- 50\%, 3 for 50-75\%, and 4 for over 75\%.  Second, the
-intensity of positive signal was scored with a 3-point scale: 1 for weak
-staining, 2 for moderate staining, and 3 for intense staining. The weighed
-score of staining intensity of each section was obtained by multiplying the
-percentage score by the intensity score (the maximum weighed score is
-12).Considering that each sample was represented by duplicate cores, the
-average score was calculated for the IHC intensity of each sample (listed in
-Table S1). A categorical system was then applied as follows: Grade 0 (-) score
-0-3; Grade 1 (+) score 4-6; Grade 2 (++) score 7-9; Grade 4 (+++) score 9-12.
-The IHC was performed by two individuals including one pathologist for
-independent IHC scoring. The scoring was done blinded to the clinical data.
+qRT-PCR was used to validate as best as possible the signature because the
+technique is more quantitative than arrays. Therefore, the genes were selected
+based upon the proposed biology and focused upon the identified pathways.
+Except for PTCH1, which was selected to verify the contribution of
+hyperactivated Hedgehog pathway, a potent metastasis and EMT inducer
+\cite{Li:2012}, all genes selected were involved related
+to TGF-$\beta$ signaling (increased TGFBR2 as one of the potential modulators,
+Figure 5). In addition to their direct oncogenic roles, POSTN and FAP have
+been demonstrated as markers of the activation of tumor associated
+fibroblasts, which play a definite role in tumor growth and metastasis
+\cite{Cirri:2012}. Although less details were known about the function of
+CXCL14, NUAK1 and TNFAIP6, all three genes have been shown as positive
+regulators of tumor metastasis \cite{Wente:2008, Chang:2012, Schuetz:2006}. 
+Additionally, NUAK1 mediates TGF-$\beta$ induced hypoxia
+tolerance \cite{Suzuki:2005}, which is critical for both metastatic
+initiation and the adaption of micrometastases. Upregulated CXCL14 upon TAF
+activation further enhances the potential of TAFs to support tumor metastasis
+and angiogenesis \cite{Augsten:2009}. Furthermore, the expression of
+CXCL14, NUAK1 and TNFAIP6 all predicts poor prognosis as revealed by our
+meta-analysis, indicating the potential importance of these genes in ovarian
+tumor biology. Finally, all selected genes encode secreted proteins or kinases
+and are thus `targetable'. We expect the validation will contribute
+the design of novel targeted therapeutic regime to improve the rate of optimal
+debulking.
+
+For IHC candidate selection, POSTN and CXCL14 are the two genes ranked the
+highest by fold-change and FDR in the debulking signature for which
+there were commercially available antibodies which had been used in published
+studies. In addition to these, we selected an additional protein target which
+could be used as evidence of pathway activation. Phospo-Smad2/3 was selected
+to confirm the TGF-$\beta$ hyperactivation in tumors which could not be optimally
+debulked. 
+
+\subsection{IHC Scoring}
+
+Scoring of the IHC level of each protein was conducted by determining the
+percentage and intensity of positive cells in three different areas at 100x
+magnification for each tissue core. First, the percentage of positive cells in
+each section was scored with a 5-point scale: 0 for <5\%, 1 for 5-25\%, 2 for
+26- 50\%, 3 for 50-75\%, and 4 for over 75\%.  Second, the intensity of
+positive signal was scored with a 3-point scale: 1 for weak staining, 2 for
+moderate staining, and 3 for intense staining. The weighed score of staining
+intensity of each section was obtained by multiplying the percentage score by
+the intensity score (the maximum weighed score is 12). Since each sample was
+represented by duplicate scores, the average score was calculated for the IHC
+intensity of each sample (listed in Table S1). A categorical system was then
+applied as follows: Grade 0 (-) score 0-3; Grade 1 (+) score 4-6; Grade 2 (++)
+score 7-9; Grade 3 (+++) score 9-12.  The IHC was scored by two individuals
+including one pathologist for independent IHC scoring. The scoring was done
+blinded to the clinical data.
 
 \subsection{Multivariate Models}
 
@@ -972,16 +1037,11 @@ In Supplemental Table~\ref{tbl:coefficients:ihc}, we show that POSTN, pSmad2/3
 and CXCL14 are predictors debulking surgery outcome independent of tumor grade
 and stage. In the multivariate models with all three proteins, both adjusted
 and unadjusted for stage and grade (shown in columns 1 and 2 of Supplemental
-Table~\ref{tbl:coefficients:ihc}), inclusion of CXCL4 could not further
+Table~\ref{tbl:coefficients:ihc}), inclusion of CXCL14 could not further
 improve the model.
 
 We further validated 8 genes by qRT-PCR in 78 Bonome samples not used for
-training.  The selection criteria were (i) high rank by fold-change and FDR
-and (ii) the results of our pathway analyses.  For example, PTCH1 was selected
-because a validation would demonstrate another layour of evidence of the
-hyperactivation of the Hedgehog/GLI pathway in suboptimal tumors.
-
-In Figure~\ref{fig:qrtpcr:cor}, we show the Spearman correlation of the
+training. In Figure~\ref{fig:qrtpcr:cor}, we show the Spearman correlation of the
 qRT-PCR expression values and the Affymetrix signal intensities.
 
 <<ihcpostn,fig.width=3.5,fig.height=3.5,include=FALSE>>=
@@ -1178,24 +1238,21 @@ write.table(tmp[order(abs(tmp$Weighted.Mean), decreasing=TRUE),],
 \clearpage
 \section{Role of POSTN in ovarian cancer}
 
-The biological rationale underlying the debulking signature is that the
-metastatic potential of the tumor contributes to the difficulty of the
-cytoreduction. POSTN positively drives each step of tumor metastasis
-(migration, invasion, angiogenesis, formation of the metastatic niche, and the
-growth of the micrometastases). 
-
-Even with an extraordinarily large tumor burden, the confinement of the tumor
-to the abdominal cavity makes the tumor resection efficacious in ovarian
-cancer. Therefore, optimal debulking is more likely to be achieved in cancers
-that are inherently less disseminative. Enhanced tumor metastasis may increase
-the chance of surgical inaccessible tumors and thus lower the rate of optimal
-debulking. The debulking signature developed in this study reveals the
-co-activation of TGF-$\beta$, Ras/MAPK/EGR-1 and Hedgehog pathways as well as
-stromal (TAF) activation in suboptimal debulked tumors. These changes may
-directly contribute to malignant phenotypes with elevated EMT, extracellular
-matrix remodeling and pro-angiogenic activity to facilitate tumor
+The rationale underlying the debulking signature is that the biology of the
+tumor contributes the ability to cytoreduce a patient. Even with large tumor
+burdens, the frequent confinement of ovarian cancer to the abdominal cavity
+makes it amenable to debulking.  Therefore, optimal debulking is more likely to
+be achieved in cancers that are inherently less disseminative. Enhanced tumor
+metastasis may increase the chance of surgical inaccessible tumors and thus
+lower the rate of optimal debulking. The debulking signature developed in this
+study reveals the co-activation of TGF-$\beta$, Ras/MAPK/EGR-1 and Hedgehog pathways
+as well as stromal (TAF) activation in suboptimal debulked tumors. These
+changes may directly contribute to malignant phenotypes with elevated EMT,
+extracellular matrix remodeling and pro-angiogenic activity to facilitate tumor
 dissemination (especially parenchymal metastases) and thereby render the
-hindrance for surgical resection.
+hindrance for surgical resection.  POSTN is known to positively drive each step
+of tumor metastasis (migration, invasion, angiogenesis, formation of the
+metastatic niche, and the growth of the micrometastases). 
 
 POSTN is a secreted cell adhesion protein belonging to the superfamily of
 TGF-$\beta$-inducible proteins \cite{Horiuchi:1999}. Periostin binding to the
