@@ -258,8 +258,10 @@ sig <- names(final.model@coefficients)
 esets.f.all <- esets.f
 esets.f.all$GSE32062.GPL6480_eset <- esets.validation$GSE32062.GPL6480_eset
 
-probesets <- do.call(cbind, lapply(esets.f.all, function(X)
- as.character(featureData(X)[sig,]$maxmean_probeset)))
+probesets <- do.call(cbind, lapply(esets.f.all, function(X) {
+ featureNames(X) <- make.names(featureNames(X))
+ as.character(featureData(X)[sig,]$maxmean_probeset)
+ }))
 
 tmp.df <- data.frame(Genes=sig, probesets, "Pooled Cox Coefficient"=
  final.model@coefficients,
@@ -617,21 +619,20 @@ tumorstage=Y$tumorstage),file="output/bonomesamples_NOT_used_for_training.csv")
 <<cached_medium_debulking_metas34b, cache=TRUE, results='hide'>>=
 coefs.debulking.s34b <- metaCMA.coefs(esets.debulking.f, y="debulking", family=binomial)
 res.debulking.s34b  <-
-metaCMA(esets.debulking.f,y="debulking",coefs=coefs.debulking.s34b, n=200,
-filter.fun=.debulkingFilter)
+metaCMA(esets.debulking.f,y="debulking",coefs=coefs.debulking.s34b, n=200)
 tmp <- metaCMA.opt(esets.debulking.f,
-coefs=coefs.debulking.s34b,n=200,y="debulking", filter.fun=.debulkingFilter)
+coefs=coefs.debulking.s34b,n=500,y="debulking")
 final.model.debulking <- tmp$model
 @
 
 <<cached_medium_debulking_optimizegrid, cache=TRUE,results='hide'>>=
 ma.db <- lapply(c(5,10,seq(25,250,25)), function(i)
-    metaCMA(esets.debulking.f,coefs=coefs.debulking.s34b,n=i,y="debulking",filter.fun=.debulkingFilter))
+    metaCMA(esets.debulking.f,coefs=coefs.debulking.s34b,n=i,y="debulking"))
 @
 
 <<cached_short_debulking_finalmodelall, cache=TRUE>>=
 tmpall.db <- metaCMA.opt(esets.debulking.f,
-coefs=coefs.debulking.s34b,n=nrow(esets.debulking.f[[1]]),y="debulking", filter.fun=.debulkingFilter)
+coefs=coefs.debulking.s34b,n=nrow(esets.debulking.f[[1]]),y="debulking")
 @
 
 \begin{figure}
@@ -840,8 +841,6 @@ idx.debfi <- !sapply(esets.debulking.f,.debulkingFilter)
 %treatment.label="suboptimal", huge=TRUE)
 %@
 
-%tmp.all <- metaCMA.opt(esets.debulking.f,
-%coefs=coefs.debulking.s34b,n=nrow(esets.debulking.f[[1]]),y="debulking", filter.fun=.debulkingFilter)
 
 \begin{figure}
 <<cached_short_debulking_metaplot, cache=TRUE>>=
@@ -936,7 +935,6 @@ include.aic = FALSE, include.bic = FALSE, include.deviance = FALSE, include.logl
 aucdiff <- roc.test(roc(dfrc.debulking$debulking, dfrc.debulking$risk_berchuck04), roc(dfrc.debulking$debulking, dfrc.debulking$risk),alternative="less")
 @
 
-
 ROC curves for public microarray data of our top-ranked hit \textit{POSTN} are
 shown in Supplemental Figure~\ref{fig:roc:debulking:postn}. 
 
@@ -999,7 +997,7 @@ For IHC candidate selection, POSTN and CXCL14 are the two genes ranked the
 highest by fold-change and FDR in the debulking signature for which
 there were commercially available antibodies which had been used in published
 studies. In addition to these, we selected an additional protein target which
-could be used as evidence of pathway activation. Phospo-Smad2/3 was selected
+could be used as evidence of pathway activation. Phospho-Smad2/3 was selected
 to confirm the TGF-$\beta$ hyperactivation in tumors which could not be optimally
 debulked. 
 
@@ -1125,7 +1123,7 @@ eset.qrtpcr <- ExpressionSet(impute.knn(M)$data,
 
 eset.qrtpcr$grade <- qrtpcr$Grade
 
-coefficients <- final.model.debulking@coefficients[featureNames(eset.qrtpcr)]
+coefficients <- tmpall.db$model@coefficients[featureNames(eset.qrtpcr)]
 
 model.qrtpcr <- new("linearriskscore", coefficients=sign(coefficients),
 modeltype="compoundcovariate")
@@ -1149,7 +1147,7 @@ Xs.all <- c(esets.f, esets.validation[idx])
 tmp1 <- unlist(lapply(Xs.all, function(X) { x<- exprs(X)["POSTN",]; ifelse(x <
 median(x),"Low Expression", "High Expression") } ))
 tmp.df <- .createClinical(Xs.all)
-#summary(coxph(y~as.factor(tmp1)+debulking+tumorstage, tmp.df))
+summary(coxph(y~as.factor(tmp1)+debulking+tumorstage, tmp.df))
 @
 
 
@@ -1295,37 +1293,37 @@ par(mfrow=c(3,2))
 par(mar=c(4.5, 4.1, 2.5, 1.5))
 plotKM(y=dfrcboth$y, strata=dfrcboth$strata,
         censor.at=365.25*5,
-        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.0,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="A)   Meta-Analysis Signature")
 plotKMStratifyBy("median",y=dfrcboth$y,linearriskscore=yhat,
         censor.at=365.25*5,
-        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.0,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="B)  Signature + Stage + Debulking")
 plotKMStratifyBy("median",y=dfrcboth$y,linearriskscore=yhat.clinical,
         censor.at=365.25*5,
-        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.0,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="C)  Stage and Debulking only")
 plotKM(y=dfrcboth$y, strata=dfrcboth$strata_tcga,
         censor.at=365.25*5,
-        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.0,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="D)   TCGA Signature")
 plotKM(y=dfrcboth$y, strata=dfrcboth$strata_jci,
         censor.at=365.25*5,
-        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.0,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="E)   Verhaak et al. Signature")
 plotKMStratifyBy("median", y=dfrcboth$y, linearriskscore=yhat.jci,
         censor.at=365.25*5,
-        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.1,
+        show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.0,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="F)   Verhaak et al. Multivariate")
