@@ -1,10 +1,11 @@
 cran.packages <- c("xtable", "gplots", "TeachingDemos", "logging",
                    "survival", "rmeta", "survcomp", "snow", "rlecuyer",
                    "RColorBrewer", "HGNChelper", "metafor", "ROCR", 
-                   "pROC", "maxstat", "lattice", "texreg", "limma",
+                   "pROC", "maxstat", "lattice", "texreg", 
                    "cvTools", "ez", "sampling", "impute", "knitr", "devtools")
 
-bioc.packages <- c("genefilter", "affy", "preprocessCore", "hgu133a.db")
+bioc.packages <- c("genefilter", "affy", "preprocessCore", "hgu133a.db",
+    "limma", "GSVA", "impute", "survcomp")
 
 for (pkg in cran.packages){
     if (!require( pkg, character.only=TRUE ))
