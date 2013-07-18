@@ -1,11 +1,11 @@
-# Risk Prediction for late-stage ovarian cancer by meta-analysis of 1,622 patient samples: Biologic and Clinical Correlations
+# Risk Prediction for late-stage ovarian cancer by meta-analysis of 1,525 patient samples: Biologic and Clinical Correlations
 
 To reproduce the results of the
 paper, simply fetch the entire repository using Mercurial with the
 command below (or download from the "download" link at the url
 <https://bitbucket.org/lima1/ovrc4_signew>):
 
-	hg clone ssh://hg@bitbucket.org/lima1/ovrc4_signew
+	hg clone https://lima1@bitbucket.org/lima1/ovrc4_signew
 
 
 Enter the newly created directory: 
