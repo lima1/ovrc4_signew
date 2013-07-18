@@ -29,7 +29,7 @@ options(replace.assign=TRUE,width=90)
 \renewcommand{\thetable}{S\arabic{table}}
 \setcounter{table}{1}
 
-\title{Risk Prediction for late-stage ovarian cancer by meta-analysis of 1,622
+\title{Risk Prediction for late-stage ovarian cancer by meta-analysis of 1,525
 patient samples - Supplemental Information}
 
 \author{Markus Riester, Wei Wei, Levi Waldron, Aedin Culhane, Lorenzo Trippa,
@@ -167,19 +167,20 @@ validation, we initially tested our models in a leave-one-dataset-out
 cross-validation procedure (Supplemental Figure~\ref{fig:flowchart}). The goal
 of this procedure is to build the best possible model by using all major
 datasets for training, and to still obtain an accurate (in particular not
-over-optimistic) estimate of how well this model will perform applied to
+over-optimistic) estimate of how well this model will perform when applied to
 independent data. 
 
 For the overall survival signature, we first selected the 6 largest datasets
-as training datasets. More exactly, we excluded the small datasets mostly
-because small datasets often display unusual patient characteristics. Then we
-trained 6 different models and always excluded one dataset from training.
-These 6 models were then always validated on the corresponding excluded
-datasets. This procedure thus results in one risk prediction per patient,
-which can then be used for model evaluation by comparing the risk prediction
-with the observed outcome. This is not an over-optimistic evaluation, because
-to calculate a particular patient's risk score, only information from
-different patient cohorts was utilized. 
+as training datasets. We excluded the small datasets ($< 75$)
+because small datasets often display unusual patient characteristics
+and because they have minor impact on the feature selection and are thus more
+valuable as test than as training datasets. Then we trained 6 different models
+and always excluded one dataset from training.  These 6 models were then
+validated each time on the corresponding excluded datasets. This procedure thus
+results in one risk prediction per patient, which can then be used for model
+evaluation by comparing the risk prediction with the observed outcome. This is
+not an over-optimistic evaluation, because to calculate a particular patient's
+risk score, only information from different patient cohorts was utilized. 
 
 \begin{figure}[!htb]
 {\centering \includegraphics[width=0.5\textwidth]{input/figures/flowchartLODO} 
@@ -206,10 +207,10 @@ available after quality controlling.
 Our algorithm weighs genes according their rank (see Methods).  This means
 increasing the signature size is expected to have only limited influence on
 the prediction performance at some point as the weights of the genes decrease.
-Note that increasing the number of features in an ensemble classifier such as
-the compound covariate score is not the same as overfitting in multivariate
-regression, which refers to tuning a model until it perfectly explains the
-data. All tuning parameters - algorithmic details, training datasets and gene
+Increasing the number of features in an ensemble classifier such as the
+compound covariate score is not prone to the overfitting as in multivariate
+regression, where one may optimize a model to perfectly explain the data.
+All tuning parameters - algorithmic details, training datasets and gene
 signature size - were determined beforehand to allow an unbiased use of the
 training data for testing purposes in our leave-one-dataset-out testing
 procedure.
@@ -421,17 +422,18 @@ between our and the TCGA signature was calculated with the hypergeometric
 distribution, using the number of genes common to all training datasets as
 background. 
 
-We used standard bootstrap to estimate the statistical significance of the
-observed HR differences of our signature compared to TCGA. We considered all
-cohorts excluding TCGA (\Sexpr{nrow(dfrcboth)} patients where direct
-comparison to the TCGA signature could be made) in this procedure. We
-generated 10,000 bootstrap replicates in which \Sexpr{nrow(dfrcboth)} patients
-were sampled with replacement from this pool of \Sexpr{nrow(dfrcboth)}
-patients. Confidence intervals were then estimated from this empirical
-distribution of Hazard Ratio differences. The reported p-value corresponds to
-the fraction of bootstrap samples with higher HR in TCGA. Note that the HR
-confidence intervals of the two signatures do not need to be non-overlapping
-for a statistically significant difference.
+We used standard bootstrap to assess the statistical significance of the
+difference in Hazard Ratios (HR) between our signature and TCGA's. We
+considered all cohorts together, excluding TCGA, resulting in a total of
+\Sexpr{nrow(dfrcboth)} patients where direct comparison to the TCGA signature
+could be made. We generated 10,000 bootstrap replicates using standard
+sampling with replacement from this pool of \Sexpr{nrow(dfrcboth)}  patients.
+From these replicates we estimated confidence intervals for the individual HRs
+and their difference. We reported p-value corresponding to the fraction of
+bootstrap replicates with higher HR in TCGA.  Note that the confidence
+interval of the difference in HR may exclude zero (thus resulting in a
+statistically significant difference) even though the two confidence intervals
+of the individual signatures are overlapping.
 
 The TCGA project recently published an improved gene signature called CLOVAR
 \cite{Verhaak:2013}. We could map 87 of the 100 genes of the signature to
@@ -621,7 +623,7 @@ coefs.debulking.s34b <- metaCMA.coefs(esets.debulking.f, y="debulking", family=b
 res.debulking.s34b  <-
 metaCMA(esets.debulking.f,y="debulking",coefs=coefs.debulking.s34b, n=200)
 tmp <- metaCMA.opt(esets.debulking.f,
-coefs=coefs.debulking.s34b,n=500,y="debulking")
+coefs=coefs.debulking.s34b,n=200,y="debulking")
 final.model.debulking <- tmp$model
 @
 
@@ -699,31 +701,39 @@ gene signature risk stratifications and the available
 characteristics with known overall survival association when provided by the
 authors. Numbers in brackets are standard errors. The row \\textit{PH Test} reports the p-value indicating
 whether the proportional hazards assumption of the model is
-violated.",
+violated \\cite{Grambsch:1994}.",
 include.aic = FALSE, include.rsquared = FALSE, include.maxrs = FALSE,
 include.zph = TRUE)
 @
 
 \section{Survival signature pathway analysis}
 
-Our survival signature did not show strong enrichments of particular pathways.
-This is probably because the biological determinant factors for patient overall
-survival are complicated and diverse.  Nevertheless, 25 genes in our 200-gene
-signature can be enriched through TGF-$\beta$ pathway, suggesting its poor
-prognostic impact on patient overall survival (Supplementary Figure \ref{fig:pathwayos}).
-Secondly, 9 genes can be linked to PDGF signaling, in which the overexpression
-of both receptor (PDGFA and PDGFB) and ligand (PDGFD) indicates poor outcome.
-The TAF activation in the OS signature, marked by COL11A1 \cite{Tothill:2008},
-is also noticed, considering the synergistic effects of TFG-$\beta$ and PDGF
-in TAF activation \cite{Cirri:2012}. Functionally, 11 genes have been
-demonstrated to be involved in EMT (SNAI2, ZEB1, BMI1, C13ORF15, EDNRA/ET-1,
-PDGFD, SERPINE1/PAI-1, PDPN, CUX1, SERPINA1 and the downregulation of SPDEF),
-which is closely related to tumor metastasis and chemoresistance to portend
-poor prognosis in ovarian cancer. Recently, the emerging roles of PDGF
-signaling (especially PDGFD) in EMT and cancer stem cell maintenance during
-tumorigenesis have been described \cite{Devarajan:2012, Wu:2013}. In
-addition, the endothelin/ET-1 pathway also positively enhance the expression of
-SNAI2, thus EMT \cite{Rosano:2010, Rosano:2011}.
+Pathway analysis was conducted using the Pathway studio 7.1 program (Ariadne
+Genomics). All 200 genes in the debulking signature and the overall survival
+signature were input into the program for analysis respectively. Pathway
+enrichment analysis (build-in algorithm) was used to identify significant
+pathways within the signature. A p-value less than 0.05 was considered
+significant, indicating the associated pathway identification was unlikely to
+be resulted from chance.
+
+Our survival signature did not reveal dominant pathways, unlike the debulking
+signature. This is likely related to the more complex and diverse biological
+determinant factors for patient overall survival.  Nevertheless, 25 genes in
+our 200-gene signature can be enriched through TGF-$\beta$ pathway, suggesting
+its poor prognostic impact on patient overall survival (Supplementary Figure
+\ref{fig:pathwayos}).  Secondly, 9 genes can be linked to PDGF signaling, in
+which the overexpression of both receptor (PDGFA and PDGFB) and ligand (PDGFD)
+indicates poor outcome.  The TAF activation in the OS signature, marked by
+COL11A1 \cite{Tothill:2008}, is also noticed, considering the synergistic
+effects of TFG-$\beta$ and PDGF in TAF activation \cite{Cirri:2012}.
+Functionally, 11 genes have been demonstrated to be involved in EMT (SNAI2,
+ZEB1, BMI1, C13ORF15, EDNRA/ET-1, PDGFD, SERPINE1/PAI-1, PDPN, CUX1, SERPINA1
+and SPDEF), which is closely related to tumor metastasis and chemoresistance
+to portend poor prognosis in ovarian cancer. Recently, the emerging roles of
+PDGF signaling (especially via PDGFD) in EMT and cancer stem cell maintenance
+during tumorigenesis have been described \cite{Devarajan:2012, Wu:2013}. In
+addition, the endothelin/ET-1 pathway also positively enhance the expression
+of SNAI2, thus EMT \cite{Rosano:2010, Rosano:2011}.
 
 \begin{figure}[!htb]
 {\centering \includegraphics[width=0.75\textwidth]{input/figures/pathwayos} 
@@ -836,10 +846,11 @@ titles <- .getDatasetNames(esets.debulking.f)
 idx.debfi <- !sapply(esets.debulking.f,.debulkingFilter)
 @
 
-%<<cached_medium_debulking_rankprod, cache=TRUE, results='hide'>>=
-%res.debulking.rp <- metaCMA.rankproduct(esets.debulking.f[idx.debfi], y="debulking",
-%treatment.label="suboptimal", huge=TRUE)
-%@
+<<cached_long_debulking_rankprod, cache=TRUE, results='hide'>>=
+res.debulking.rp <-
+metaCMA.rankproduct(esets.debulking.f[!sapply(esets.debulking.f,.defaultFilter)], y="debulking",
+treatment.label="suboptimal", huge=TRUE)
+@
 
 
 \begin{figure}
@@ -851,7 +862,8 @@ cross-validation. The prediction model calculates for each sample a score. The
 higher the score, the higher the probability the tumor will be not optimally
 debulkable. For each dataset, the model is trained using only the remaining
 datasets. ROC curves visualize the true and false positive rates as a function of
-the probability cutoffs. AUCs significantly ($P < 0.05$) larger than 0.5 are
+the probability cutoffs. Datasets with sample size smaller than 75 were not
+used for training. AUCs significantly ($P < 0.05$) larger than 0.5 are
 marked with an asterisk.}  
 \label{fig:roc:debulking}
 \end{figure}
@@ -1012,7 +1024,7 @@ positive signal was scored with a 3-point scale: 1 for weak staining, 2 for
 moderate staining, and 3 for intense staining. The weighed score of staining
 intensity of each section was obtained by multiplying the percentage score by
 the intensity score (the maximum weighed score is 12). Since each sample was
-represented by duplicate scores, the average score was calculated for the IHC
+represented by two tissue cores, the average score was calculated for the IHC
 intensity of each sample (listed in Table S1). A categorical system was then
 applied as follows: Grade 0 (-) score 0-3; Grade 1 (+) score 4-6; Grade 2 (++)
 score 7-9; Grade 3 (+++) score 9-12.  The IHC was scored by two individuals
@@ -1023,7 +1035,7 @@ blinded to the clinical data.
 
 As regression coefficients obtained from microarray data are not directly
 translatable to qRT-PCR or IHC measurements, we only used the signs of the
-coefficients from the microarray-based signature. That means all genes were
+coefficients from the microarray-based signature. This means that all genes were
 equally weighted, with the expression levels of down-regulated genes in
 suboptimal subtracted from the ones of up-regulated genes. Group sizes for
 patient stratification in high-, medium- and low-risk corresponded to the
@@ -1038,7 +1050,7 @@ and unadjusted for stage and grade (shown in columns 1 and 2 of Supplemental
 Table~\ref{tbl:coefficients:ihc}), inclusion of CXCL14 could not further
 improve the model.
 
-We further validated 8 genes by qRT-PCR in 78 Bonome samples not used for
+We further validated selected genes by qRT-PCR in 78 Bonome samples not used for
 training. In Figure~\ref{fig:qrtpcr:cor}, we show the Spearman correlation of the
 qRT-PCR expression values and the Affymetrix signal intensities.
 
@@ -1115,7 +1127,7 @@ include.loglik = FALSE)
 
 <<qrtpcr, fig.width=3.5,include=FALSE>>=
 qrtpcr <- read.xls("input/qrtpcr.xls", as.is=TRUE)
-M <- t(as.matrix(qrtpcr[,9:16]))
+M <- t(as.matrix(qrtpcr[,9:ncol(qrtpcr)]))
 colnames(M) <- qrtpcr[,3]
 
 eset.qrtpcr <- ExpressionSet(impute.knn(M)$data,
@@ -1123,7 +1135,8 @@ eset.qrtpcr <- ExpressionSet(impute.knn(M)$data,
 
 eset.qrtpcr$grade <- qrtpcr$Grade
 
-coefficients <- tmpall.db$model@coefficients[featureNames(eset.qrtpcr)]
+coefficients <-
+na.omit(final.model.debulking@coefficients[featureNames(eset.qrtpcr)])
 
 model.qrtpcr <- new("linearriskscore", coefficients=sign(coefficients),
 modeltype="compoundcovariate")
@@ -1131,12 +1144,14 @@ modeltype="compoundcovariate")
 .plotROCpanel(list( 
     predict(model.qrtpcr,newdata=esets.debulking$GSE26712_eset[,
         sampleNames(eset.qrtpcr)])@lp,
-    predict(model.qrtpcr,newdata=eset.qrtpcr)@lp),
+    predict(model.qrtpcr,newdata=eset.qrtpcr)@lp,
+    exprs(eset.qrtpcr)["POSTN",]),
 # should be the same
 list(as.factor(esets.debulking$GSE26712_eset[,
 sampleNames(eset.qrtpcr)]$debulking),
+as.factor(eset.qrtpcr$debulking), 
 as.factor(eset.qrtpcr$debulking)), 
-titles=c("Affymetrix", "qRT-PCR"), nrow=2, ncol=1)
+titles=c("Affymetrix", "qRT-PCR", "POSTN"), nrow=3, ncol=1)
 @
 
 <<postnkm,fig.width=4.9,fig.height=4.9, include=FALSE>>=
@@ -1241,7 +1256,7 @@ tumor contributes the ability to cytoreduce a patient. Even with large tumor
 burdens, the frequent confinement of ovarian cancer to the abdominal cavity
 makes it amenable to debulking.  Therefore, optimal debulking is more likely to
 be achieved in cancers that are inherently less disseminative. Enhanced tumor
-metastasis may increase the chance of surgical inaccessible tumors and thus
+metastasis may increase the chance of surgically inaccessible tumors and thus
 lower the rate of optimal debulking. The debulking signature developed in this
 study reveals the co-activation of TGF-$\beta$, Ras/MAPK/EGR-1 and Hedgehog pathways
 as well as stromal (TAF) activation in suboptimal debulked tumors. These

@@ -29,5 +29,3 @@ rule.1 <- c("sample_type","^tumor$")
 #if strict.checking is TRUE, patients missing any of the above
 #metadata will be remove.  If FALSE, these patients are kept.
 strict.checking <- FALSE
-
-source("exclude.R")

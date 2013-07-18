@@ -46,6 +46,8 @@ Run the analysis with knitr in R:
     * **ggplot2extras.R**: extends ggplot2 to make it look more like normal 
       R plots.   
 
+    * **count.R**: counts the samples as shown in Figure 1 
+
 
 * **input/** - input files
 

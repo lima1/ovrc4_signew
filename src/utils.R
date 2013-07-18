@@ -15,12 +15,21 @@
 # short-term survivor
 .dichotomizeshortlong <- function(eset, s=365.25, l=365.2*4,
 label="os_my_binary") {
-    eset <- eset[, eset$y[,1] > s  |
+    if (class(eset) == "ExpressionSet") {
+        eset <- eset[, eset$y[,1] > s  |
         eset$y[,2] == 1]
+    } else {
+        eset <- eset[eset$y[,1] > s  | eset$y[,2] == 1, ]
+    }
 
     eset[[label]] <- as.factor(ifelse(eset$y[,1] < s, "short",
-    ifelse(eset$y[,1] > l,"long", NA)))
-    eset[, !is.na(eset[[label]])]
+    ifelse(eset$y[,1] > l,"long", ifelse(eset$y[,2], "medium", NA))))
+    if (class(eset) == "ExpressionSet") {
+        eset <- eset[, !is.na(eset[[label]])]
+    } else {
+        eset <- eset[!is.na(eset[[label]]),]
+    }
+    eset
 }
 
 .dichotomizeshortlongdf <- function(eset, s=365.25, l=365.2,
@@ -163,7 +172,7 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
     sei <- sapply(aucs, function(auc) (auc[[2]][2]-auc[[2]][1])/(3.92/2))
     yi <- sapply(aucs, function(auc) (auc[[1]]))
     list(rma=metafor::rma(yi=yi,sei=sei,method="FE"),optimal.cutpoints=sapply(aucs,
-    function(auc) auc[[3]]),yi=yi,sei=sei)
+    function(auc) auc[[3]]),yi=yi,sei=sei,aucs=aucs)
 }
 
 .forestPlotDebulking <- function(preds1, labels, prior=NULL, titles, method="FE", ...) {
