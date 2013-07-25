@@ -611,7 +611,6 @@ X <- esets.debulking.f$GSE26712_eset
 set.seed(1234)
 s <- balancedstratification(X=cbind(1:ncol(X)),strata=paste(X$debulking,X$tumorstage),pik=rep(0.5,ncol(X)))
 idx.bonometraining <- s==1
-esets.debulking.f <- esets.debulking.f
 esets.debulking.f$GSE26712_eset <- X[, idx.bonometraining]
 Y <- X[, !idx.bonometraining]
 write.csv(data.frame(GEO=sampleNames(Y), debulking=Y$debulking,
