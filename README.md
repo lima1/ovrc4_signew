@@ -55,14 +55,13 @@ Run the analysis with knitr in R:
 
     * **patientselection2...**: various patient filters for curatedOvarianData
 
+    * **exclude.R**: filter that removes duplicated samples
+
     * **TCGA_ovsig.RData**: The TCGA model as survHD object 
 
     * **qrtpcr.xls**: The qRT-PCR data presented in the paper
 
     * **IHC.xls**: The IHC data presented in the paper
-
-    * **bonometcgaduplicates.xls**: Spreadsheet with Bonome samples included
-        in TCGA
 
     * **JCI65833sd1.xls**: The Verhaak et al. Supplemental Table with their
         signature    
