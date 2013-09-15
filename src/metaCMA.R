@@ -4,7 +4,7 @@ library(survcomp)
 library(rmeta)
 
 .combineEsets <- function(esets, y="y",
-    probesets=featureNames(esets[[1]]),ComBat=TRUE) {
+    probesets=featureNames(esets[[1]]),ComBat=FALSE) {
     if (length(esets)==0) return(NULL)
     X = do.call("cbind", lapply(esets, exprs))
     if (!is.null(y) && class(esets[[1]][[y]])=="Surv") {
@@ -15,6 +15,11 @@ library(rmeta)
     }
     batch =  as.factor(do.call(c,lapply(1:length(esets), function(i)
         rep(names(esets)[i], ncol(esets[[i]])))))
+
+    if (ComBat) {
+        X <- sva::ComBat(X[probesets,], mod = model.matrix(~(rep(1, 
+                        length(batch)))), batch = batch)
+    }
 
     l = list(X=t(X[probesets,]),y=y,batch=batch)
     colnames(l$X) = make.names(colnames(l$X), unique = FALSE)
@@ -32,7 +37,7 @@ library(rmeta)
 }
 
 .createXy <-function(idx, esets, y="y", coefs, n,
-rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate", only.sign=NULL){ 
+rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate"){ 
     probesets = featureNames(esets[[1]])
     coefficients = NULL
     model = NULL
@@ -58,14 +63,9 @@ rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate", only.
         coefficients = sapply(res.rma, function(x) x$b)
         #pvalues[!ids] = 1
         names(coefficients) = make.names(rownames(coefs$c))
-        if (!is.null(only.sign)) {
-            cat("Usign only", only.sign, "signed coefficients.")
-            idx = sign(coefficients) == sign(only.sign)
-            pvalues = pvalues[idx]
-            coefficients = coefficients[idx]
-        }
-        probesets = head(order(pvalues),n)
-        res.rma = head(res.rma[order(pvalues)],n)
+        probesets <- head(order(pvalues),n)
+        res.rma <- head(res.rma[order(pvalues)],n)
+        names(res.rma) <- names(coefficients[probesets])
         model = new("linearriskscore",
         coefficients=coefficients[probesets],modeltype=modeltype)
     } else {
@@ -81,10 +81,10 @@ rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate", only.
 }
 
 metaCMA.train <- function(i, esets, y="y", coefs, n, method=NULL, rma.method="FE",
-verbose=FALSE, filter.fun=.defaultFilter, modeltype="compoundcovariate", only.sign=NULL,...) {
+verbose=FALSE, filter.fun=.defaultFilter, modeltype="compoundcovariate", ...) {
     if (verbose) cat("Dataset", i, "of", length(esets),"...\n")
     tmp <- .createXy(-i,  esets, y, coefs, n, rma.method,
-    filter.fun,modeltype=modeltype, only.sign=only.sign)
+    filter.fun,modeltype=modeltype)
     if (is.null(tmp)) {
         return(list)
     } else if (is.null(method)) {
@@ -130,12 +130,11 @@ metaCMA.opt <- function(esets, ...) {
 
 metaCMA <- function(esets, y="y",  coefs=NULL, n, method=NULL,
 rma.method="FE", filter.fun=.defaultFilter, modeltype="compoundcovariate",
-only.sign=NULL, ... ) {
+... ) {
     if (is.null(coefs)) coefs = metaCMA.coefs(esets, y)
     fits  = lapply(1:length(esets), metaCMA.train, esets=esets, y=y, coefs=coefs,
     n=n, method=method,
-    rma.method=rma.method,filter.fun=filter.fun, modeltype=modeltype,
-    only.sign=only.sign, ...)
+    rma.method=rma.method,filter.fun=filter.fun, modeltype=modeltype, ...)
     names(fits) = names(esets)
     list(fits=fits, y=y, rma.method=rma.method)
 }
@@ -278,7 +277,7 @@ metaCMA.censor <- function(esets, y="y", censor.at=NULL) {
 metaCMA.limma <- function(esets, groups, contrasts) {
     require(limma)
     .doLimma <- function(eset) {
-        TS <- as.factor(eset[[groups]])
+        TS <- as.factor(as.character(eset[[groups]]))
         design <- model.matrix(~0+TS)
         colnames(design) <- levels(TS)
         fit <- lmFit(exprs(eset), design = design)
@@ -290,7 +289,7 @@ metaCMA.limma <- function(esets, groups, contrasts) {
     lapply(esets, .doLimma)
 }
 
-.getCoefsSubset <- function(coefs, idx, probesets=1:nrow(coefs[[1]])) {
+.getCoefsSubset <- function(coefs, idx=1:ncol(coefs[[1]]), probesets=1:nrow(coefs[[1]])) {
     ret <- coefs
     ret[[1]] <- ret[[1]][probesets,idx]
     ret[[2]] <- ret[[2]][probesets,idx]
@@ -331,5 +330,33 @@ treatment.label=levels(as.factor(esets[[1]][[y]]))[1],
     if (sum(cl) == 0 || sum(cl) == length(cl)) stop("Invalid treatment.label.")
 
     RP.adv.out <- RPadvance(t(esets.c$X),cl,as.numeric(esets.c$batch),...)
+}
+
+metaCMA.foldchanges <- function(esets, model, groups,
+contrasts) {
+    res <- metaCMA.limma(lapply(esets, function(X)
+        X[names(model@coefficients),]), groups,
+        contrasts)
+    resM <- do.call(cbind, lapply(res, function(r)
+    topTable(r,number=nrow(esets[[1]]),
+        sort.by="none")[,2]))
+    resM <- cbind(resM, Weighted.Mean=apply(resM,1, weighted.mean, w=sqrt(sapply(
+        esets, ncol))))
+    rownames(resM) <- names(model@coefficients)
+    resM <- 2^resM
+    resM <- apply(resM,c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
+    resM    
+}
+
+metaCMA.compare <- function(fe.model, re.model, esets, coefs, ...) {
+
+    fe.all2 <- metaCMA.opt(esets, coefs=coefs, ..., n=nrow(esets[[1]]))
+    re.all2 <- metaCMA.opt(esets, coefs=coefs, ..., n=nrow(esets[[1]]),
+    rma.method="REML")
+
+    genes <- union(names(fe.model@coefficients), names(re.model@coefficients))
+    genes <- genes[genes %in% featureNames(esets[[1]])]
+
+    list(genes = genes, fe = fe.all2, re = re.all2)
 }
 

@@ -180,6 +180,12 @@ for (strEset in strEsets){
         loginfo(paste("excluding",strEset,"(min.number.of.genes)"))
         next
     }
+
+    if (exists("platform") && !grepl(platform, annotation(eset))) {
+        loginfo(paste("excluding",strEset,"(platform)"))
+        next
+    }
+
     ##filter genes with standard deviation below the required quantile
     if(exists("quantile.cutoff") && quantile.cutoff > 0 && quantile.cutoff < 1){
         eset <- filterQuantile(eset, q=quantile.cutoff)

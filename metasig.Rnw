@@ -63,6 +63,8 @@ library(GSVA)
 library(ez)
 library(sampling)
 library(impute)
+library(LeviRmisc)
+library(RankProd)
 
 # only to print the version number in the Appendix. We load the data generated
 # with the createEsetsList script
@@ -407,6 +409,174 @@ dfrcboth$strata_jci <-  unlist(lapply(c(res.lodo.jci,res.val.jci[-4]), function(
 @
 
 \clearpage
+\section{Fixed- vs. random-effects survival signature}
+\label{sec:fixed}
+In this section, we demonstrate how two different options for pooling the
+regression coefficients across datasets affect the final overall survival
+model. We compared a simple fixed-effects meta-analysis, in which coefficients
+are weighted by the inverse of their squared standard errors, with a
+random-effects model. For the random-effects model fitting, we used the
+restricted maximum-likelihood method, the default method in the
+\texttt{metafor} R package \cite{Viechtbauer:2005}).
+
+<<cached_medium_fevsre, cached=TRUE>>=
+fe.model <- final.model
+re.model <- reml.opt$model
+a <- metaCMA.compare(fe.model, re.model, esets.f, coefs=coefs)
+@
+
+<<fevsre_cnt>>=
+hetgenes <- sapply(a$genes, function(g) a$fe$rma[[g]]$QEp)
+hetgenes <- names(hetgenes[hetgenes < 0.05])
+nhet <- length(hetgenes) 
+nint <- length(intersect(names(fe.model@coefficients),
+    names(re.model@coefficients)))
+nunion <- length(union(names(fe.model@coefficients),
+    names(re.model@coefficients)))
+@
+
+The overlap of the gene signatures obtained with a fixed- and a random-effects
+gene ranking is shown in Supplemental Figure~\ref{fig:effects:venn}. Out of
+the 200 genes in each signature, \Sexpr{nint} were present in both signatures.
+The choice of the meta-analysis method had no significant impact on the pooled
+Cox regression coefficients; the \Sexpr{nunion} genes utilized in the two
+signatures had highly similar coefficients in a fixed- and random-effects
+meta-analysis (Supplemental Figure~\ref{fig:effects:coef}).  Supplemental
+Figure~\ref{fig:effects:hm1} to \ref{fig:effects:hm3} show the Cox regression
+coefficients in all datasets from the genes present in only the fixed-effects,
+only the random-effects and present in both signatures, respectively
+(corresponding to the 3 sections of the Venn diagram). Genes
+with significant heterogeneity are marked in black in the heatmap.  In the
+fixed-effects signature, \Sexpr{nhet} genes displayed significant
+heterogeneity ($P < 0.05$, Q-Test \cite{Hedges:1985}).  When accounting for
+heterogeneity, probesets with heterogeneity drop in their ranks and are
+replaced in the random-effects signature with probesets displaying little
+heterogeneity (Supplemental Figure~\ref{fig:effects:hm2}). 
+
+<<intcor, cache=TRUE, results='hide'>>=
+xx1 <- esets.f[idx][[1]]
+xx2 <- esets.f[idx][[2]]
+xx4 <- esets.f[idx][[4]]
+xx6 <- esets.f[idx][[6]]
+xxx <- mergeExprs(xx1,xx2,xx4,xx6)
+ic1b <- intcor(xxx[c(1,3)])
+ic2b <- intcor(xxx[c(2,3)])
+ic1t <- intcor(xxx[c(1,4)])
+ic2t <- intcor(xxx[c(2,4)])
+@
+
+<<intocoravg>>=
+ic1 <- apply(cbind(ic1b[[1]],ic1t[[1]]),1,mean)
+ic2 <- apply(cbind(ic2b[[1]],ic2t[[1]]),1,mean)
+@
+
+\begin{figure}
+\centering
+\subfigure[Venn diagram signature overlaps]{
+\label{fig:effects:venn}
+<<fevsre_plotting_venn, out.width="0.38\\textwidth">>=
+venn(list("Random-Effects"=names(re.model@coefficients), 
+     "Fixed-Effects"=names(fe.model@coefficients)),small=1.5)
+@
+}
+\subfigure[Comparison of pooled regression coefficients]{
+\label{fig:effects:coef}
+<<fevsre_plotting_corcoef, out.width="0.38\\textwidth">>=
+ plot(sapply(a$fe$rma[a$genes], function(x) x$b), sapply(a$re$rma[a$genes],
+ function(x) x$b), xlab="Pooled Cox regression coefficients (fixed-effects)",
+ ylab="Pooled Cox regression coefficients (random-effects)", las=1,
+ cex.axis=1.4, cex.lab=1.45 )
+@
+}\\
+\subfigure[Genes only in FE signature]{
+\label{fig:effects:hm1}
+<<fevsre_plotting_1, out.width="0.38\\textwidth">>=
+difffe <- setdiff(names(fe.model@coefficients), names(re.model@coefficients))
+difffe <- difffe[ difffe %in% rownames(coefs[[1]])]
+
+cols <- ifelse(difffe %in% a$genes[sapply(a$genes, function(g) a$fe$rma[[g]]$QEp) < 0.05], "black", "white")
+idx <- !sapply(esets.f, .defaultFilter)
+x <- coefs[[1]][difffe,idx]
+colnames(x) <- paste(.getDatasetNames(esets.f[idx]),"  ")
+heatmap.3(x, margins=c(10,5), RowSideColors=cols, col.srt=45)
+@
+}
+\subfigure[Genes only in RE signature]{
+\label{fig:effects:hm2}
+<<fevsre_plotting_2, out.width="0.38\\textwidth">>=
+diffre <- setdiff(names(re.model@coefficients), names(fe.model@coefficients))
+diffre <- diffre[ diffre %in% rownames(coefs[[1]])]
+
+cols <- ifelse(diffre %in% a$genes[sapply(a$genes, function(g) a$re$rma[[g]]$QEp) < 0.05], "black", "white")
+x <- coefs[[1]][diffre,idx]
+colnames(x) <- paste(.getDatasetNames(esets.f[idx]),"  ")
+heatmap.3(x, margins=c(10,5), RowSideColors=cols, col.srt=45)
+@
+}\\
+\subfigure[Genes in both FE and RE signature]{
+\label{fig:effects:hm3}
+<<fevsre_plotting_3, out.width="0.38\\textwidth">>=
+intersectrefe <- intersect(names(re.model@coefficients), names(fe.model@coefficients))
+intersectrefe <- intersectrefe[ intersectrefe %in% rownames(coefs[[1]])]
+
+cols <- ifelse(intersectrefe %in% a$genes[sapply(a$genes, function(g) a$re$rma[[g]]$QEp) < 0.05], "black", "white")
+x <- coefs[[1]][intersectrefe,idx]
+colnames(x) <- paste(.getDatasetNames(esets.f[idx]),"  ")
+heatmap.3(x, margins=c(10,5), RowSideColors=cols, col.srt=45)
+@
+}
+\subfigure[Integrative Correlation Analysis]{
+\label{fig:effects:intcor}
+<<intcorplot, out.width="0.38\\textwidth">>=
+pdiff <- round(t.test(c( ic1[diffre],  ic2[diffre])  ,c( ic1[hetgenes]
+    ,ic2[hetgenes]  ))$p.value, digits=2)
+
+d.f <- rbind( data.frame(IntCor=ic1[diffre], Dataset=.getDatasetNames(esets.f)[1],
+Method="RE"),
+data.frame(IntCor=ic1[hetgenes], Dataset=.getDatasetNames(esets.f)[1],
+Method="FE"),
+data.frame(IntCor=ic2[diffre], Dataset=.getDatasetNames(esets.f)[3],
+Method="RE"),
+data.frame(IntCor=ic2[hetgenes], Dataset=.getDatasetNames(esets.f)[3],
+Method="FE"))
+d.f$Method <- factor(d.f$Method, levels=c("FE", "RE"))
+ggplot(d.f,aes(Method,IntCor,fill=Dataset))+geom_boxplot()+
+ylab("Integrative Correlation")+theme_classic2(15)
+@
+}
+\caption{Comparison of a fixed- (FE) and a random-effects (RE) ranking of genes. See
+main text for a description of the panels.}
+\label{fig:effects}
+\end{figure}
+
+The observed heteogeneity is almost exclusively caused by differences in the
+Yoshihara 2010 and the Bentink et al. datasets. Thus the random-effects
+analysis removed genes with strong effect in most training datasets, but no or
+inverse estimated effect in either of these two studies. The random-effects model then
+replaced these genes with ones that have slightly weaker, but more consistent
+effect. 
+
+To test the hypothesis that technical issues in these studies are the main
+sources of heterogeneity, we used Integrative Correlation Analysis
+\cite{Parmigiani:2004}.  This method tests whether a gene is correlated to
+genes it is usually correlated to. A low integrative correlation of a gene
+indicates unusual expression when compared to two reference datasets (Bonome
+and TCGA). The reported results are the averaged results using once the Bonome
+and once the TCGA dataset as reference. 
+
+The analysis was done utilizing the \texttt{MergeMaid} \cite{manZhong} and
+\texttt{metaArray} \cite{manGosh} R packages with default Pearson
+Correlation. We then tested whether the genes with heterogeneity have lower
+integrative correlation, or unusual expression, compared to the genes
+exclusively found in the random-effects signature (Supplemental
+Figure~\ref{fig:effects:intcor}). The analysis was performed independently for
+both Yoshihara 2010 and the Bentink datasets. We see a trend in both datasets
+that genes with heterogeneity have lower integrative correlation than genes
+without, indicating that technical issues are at least partly a source of
+heterogeneity. The difference was however not significant ($P =
+\Sexpr{pdiff}$, two-sided Student t-test).
+
+\clearpage
 
 \section{Comparison with the TCGA signatures}
 
@@ -594,7 +764,7 @@ selection.
 The Pearson correlation of the risk scores of our meta-analysis signature and both
 TCGA signatures (for Verhaak et al. based on the CLOVAR signature only, not
 the multivariate predictions) are shown in Supplemental Figure~\ref{fig:cor:risk}. 
-In this figure, we further compare the models with a random-effects variant of
+In this figure, we further compare the models with the random-effects variant of
 our model, in which the univariate Cox regression coefficients were pooled
 with a random-effects model as implemented in the \texttt{metafor} package.
 The predictions from the random-effects model were very similar compared to
@@ -621,9 +791,15 @@ tumorstage=Y$tumorstage),file="output/bonomesamples_NOT_used_for_training.csv")
 coefs.debulking.s34b <- metaCMA.coefs(esets.debulking.f, y="debulking", family=binomial)
 res.debulking.s34b  <-
 metaCMA(esets.debulking.f,y="debulking",coefs=coefs.debulking.s34b, n=200)
-tmp <- metaCMA.opt(esets.debulking.f,
+res.debulking.s34b.opt <- metaCMA.opt(esets.debulking.f,
 coefs=coefs.debulking.s34b,n=200,y="debulking")
-final.model.debulking <- tmp$model
+final.model.debulking <- res.debulking.s34b.opt$model
+@
+
+<<cached_medium_debulking_metas34b_reml, cache=TRUE, results='hide'>>=
+tmp <- metaCMA.opt(esets.debulking.f,
+coefs=coefs.debulking.s34b,n=200,y="debulking",rma.method="REML")
+final.model.debulking.reml <- tmp$model
 @
 
 <<cached_medium_debulking_optimizegrid, cache=TRUE,results='hide'>>=
@@ -770,28 +946,28 @@ coefs.fx <- metaCMA.coefs(esets.fx)
 @
 
 <<cached_long_datasetshr2, cache=TRUE>>=
-ret.hr <- lapply(1:length(esets.fx), metaCMA.allcombinations, esets=esets.fx,
-    coefs=coefs.fx, n=200,eval.fun=.allCombsEval )
+ret.hr <- lapply(1:length(esets.fx), metaCMA.allcombinations,
+esets=metaCMA.censor(esets.fx, censor.at=365.25*5), coefs=coefs.fx, n=200,eval.fun=.allCombsEval )
 @
 
 <<plotdatasetshrprepare>>=
-# remove the Yoshihara 2012 data to get the 6 datasets we used for training
-.filterfx <- function(eset) { 
-    pubMedIds(eset)=="22241791" | .defaultFilter(eset)
-}
-
 df.hr <- do.call(rbind, lapply(1:length(esets.fx),
 function(i) data.frame(.getDatasetNames(esets.fx)[i], unlist(ret.hr[[i]]$n),
   sapply(ret.hr[[i]]$evaluation, function(y) 1/y[2]))))
  
 colnames(df.hr) <-c("Dataset", "n", "HR")
 
-filtered <- names(esets.fx)[which(sapply(esets.fx, .filterfx))]
+training <- c(!sapply(esets.fx[1:8], .defaultFilter), GSE32062.GPL6480_eset=FALSE)
+
 .psContains <- function(i, esets) {
 
     .doPS <- function(ps) {
-        idx <- (1:length(esets))[-i][ps]
-        ifelse(sum(filtered %in% names(esets)[idx])>0, "No", "Yes")
+        idx <- 1:length(esets) %in% c(i,(1:length(esets))[-i][ps])
+        allt <- sum(!training[idx]) == 0 && sum(training[!idx])==0
+        idx <- 1:length(esets) %in% (1:length(esets))[-i][ps]
+        allt <- allt | sum(!training[idx]) == 0 && sum(training[!idx])==0
+
+        ifelse(allt, "Yes", "No")
      }
      pss <- metaCMA.powerset(length(esets[-i]))
      ret <- lapply(pss, .doPS)
@@ -799,21 +975,30 @@ filtered <- names(esets.fx)[which(sapply(esets.fx, .filterfx))]
 
 df.hr$meta <- unlist(lapply(1:length(esets.fx), .psContains, esets.fx))
 
+df.hr$meta[df.hr$meta == "Yes"] <- "6 largest datasets"
+
+#add original TCGA model
+
+df.hr$size <- ifelse(df.hr$meta=="No", 1,2)
+df.hr$meta[df.hr$meta == "No"] <- "Others"
+
+df.hr$meta <- factor(df.hr$meta, levels=c("6 largest datasets", 
+"Others"))
+
 #df.hr <- df.hr[df.hr$meta=="Yes",]
 
 p <-ggplot(df.hr, aes(n,HR))
-#p <- p +geom_point(aes(col=meta,shape=meta),size=1.3)
-p <- p +geom_point(size=0.75)
-p <- p +facet_wrap(~Dataset)+coord_cartesian(ylim= c(0.75, 2.9))+ylab("Hazard Ratio")+xlab("Total Training Sample Size")
-#p <- p+ scale_shape(solid=FALSE, name = "Only Training Datasets")
-#p <- p+ scale_colour_discrete( name = "Only Training Datasets")
+p <- p +geom_point(aes(col=meta,size=size))
+p <- p +facet_wrap(~Dataset)+coord_cartesian(ylim= c(0.75,3.25))+ylab("Hazard Ratio")+xlab("Total Training Sample Size")
+p <- p+ scale_size( name = "Training datasets", guide="none")
+p <- p+ scale_colour_discrete( name = "Training datasets")
 p <-p +geom_smooth(method="lm")
-p <- p +theme(axis.text.x=element_text(angle=45,hjust=1))
 @
 
 \begin{figure}
 <<plotdatasetshr>>=
-facetAdjust(p+theme_classic2(14)+theme(axis.text.x = element_text(angle = 45, hjust = 1)))
+facetAdjust(p+theme_classic2(14)+theme(axis.text.x = element_text(angle = 45,
+hjust = 1),legend.position="bottom"))
 @
 \caption{Prediction accuracy as a function of training sample sizes. This plot
 shows the improvement of predictions when training samples sizes were
@@ -822,9 +1007,10 @@ using the remaining 8 datasets only. These 255 ($2^8-1$) models correspond to
 all possible combinations of the 8 remaining datasets. Each point in the plot
 represents a training dataset combination and the combination's total sample
 size is shown on the x-axis, its Hazard Ratio (HR) in the validation data on
-the y-axis. This analysis showed that increasing the sample size via
+the y-axis. The results of our training datasets, the 6 large studies published
+before March 2012, are marked with a red dot. This analysis showed that increasing the sample size via
 meta-analysis typically increased the model HRs. TCGA data was further
-identified as an extremely difficult validation dataset.}
+identified as a difficult validation dataset. }
 \label{fig:samplesize}
 \end{figure}
 
@@ -846,6 +1032,7 @@ idx.debfi <- !sapply(esets.debulking.f,.debulkingFilter)
 @
 
 <<cached_long_debulking_rankprod, cache=TRUE, results='hide'>>=
+set.seed(1234)
 res.debulking.rp <-
 metaCMA.rankproduct(esets.debulking.f[!sapply(esets.debulking.f,.defaultFilter)], y="debulking",
 treatment.label="suboptimal", huge=TRUE)
@@ -972,6 +1159,137 @@ leave-one-dataset-out cross-validated performance in the 93 samples used for
 training. See main text for the AUCs of the Bonome validation Affymetrix and
 qRT-PCR data.}
 \label{fig:cutoff:debulking}
+\end{figure}
+
+\section{Fixed- vs. random-effects debulking signature}
+
+<<cached_short_debulking_fevsre, cached=TRUE>>=
+fe.model <- final.model.debulking
+re.model <- final.model.debulking.reml
+a <- metaCMA.compare(fe.model, re.model, esets.f, coefs=coefs.debulking.s34b,
+y="debulking")
+@
+
+<<debulking_fevsre_cnt>>=
+hetgenes <- sapply(a$genes, function(g) a$fe$rma[[g]]$QEp)
+hetgenes <- names(hetgenes[hetgenes < 0.05])
+nhet <- length(hetgenes) 
+nint <- length(intersect(names(fe.model@coefficients),
+    names(re.model@coefficients)))
+nunion <- length(union(names(fe.model@coefficients),
+    names(re.model@coefficients)))
+@
+
+As in section \ref{sec:fixed}, we examined the overlap of the gene signatures
+obtained with a fixed- and a random-effects gene ranking (Supplemental
+Figure~\ref{fig:effects:db:venn}). We further compared both fixed-effects and
+random-effects signature with a signature obtained with the Rank Products
+method \cite{Breitling:2004}, a frequently used alternative microarray
+meta-analysis method. The Rank Products method currently does not support
+censored outcome and could not be compared to the overall survival signatures.
+The Rank Products signature was more similar to the fixed-effects (overlap of
+114 genes) than to the random-effects signature (overlap of 76 genes), most
+likely because Rank Product also weights datasets strictly according their
+sample size.
+
+We observed a slightly higher number of genes with heterogeneity in the
+fixed-effects signature (\Sexpr{nhet} genes) compared to the overall survival
+signature. This is again expected, since surgery outcome is not a clearly
+defined phenotype in contrast to time to death. The Yoshihara 2010 and the
+Bentink et al. datasets were again the most common source of
+heterogeneity, albeit less clear than for the overall survival signature
+(Supplemental Figures~\ref{fig:effects:db:hm1}-\ref{fig:effects:db:hm3}.
+
+Integrative correlation analysis \cite{Parmigiani:2004} showed that there were
+no systematic differences between the genes with significant heterogeneity and
+the ones without (Supplemental Figure~\ref{fig:effects:db:intcor}).  We
+expect, however, that the largest datasets (most importantly the Bonome
+dataset published from our lab and the TCGA samples) are similar to our
+validation samples in terms of surgical procedures and pathologic review.
+Accounting for heterogeneity with a random-effects model will overweight
+smaller studies for which we have only limited surgery information.
+
+\begin{figure}[!htb]
+\centering
+\subfigure[Venn diagram signature overlaps]{
+\label{fig:effects:db:venn}
+<<debulking_fevsre_plotting_venn, out.width="0.38\\textwidth">>=
+final.signature.debulking.rp <-
+names(head(sort(apply(res.debulking.rp[[2]],1,min)),200))
+venn(list("Random-Effects"=names(re.model@coefficients),"Fixed-Effects"=names(fe.model@coefficients),
+  "Rank Product"=final.signature.debulking.rp))
+
+@
+}
+\subfigure[Comparison of pooled regression coefficients]{
+\label{fig:effects:db:coef}
+<<debulking_fevsre_plotting_corcoef, out.width="0.38\\textwidth">>=
+ plot(sapply(a$fe$rma[a$genes], function(x) x$b), sapply(a$re$rma[a$genes],
+ function(x) x$b), xlab="Pooled Cox regression coefficients (fixed-effects)",
+ ylab="Pooled Cox regression coefficients (random-effects)", las=1,
+ cex.axis=1.4, cex.lab=1.45 )
+@
+}\\
+\subfigure[Genes only in FE signature]{
+\label{fig:effects:db:hm1}
+<<debulking_fevsre_plotting_1, out.width="0.38\\textwidth">>=
+difffe <- setdiff(names(fe.model@coefficients), names(re.model@coefficients))
+difffe <- difffe[ difffe %in% rownames(coefs[[1]])]
+
+cols <- ifelse(difffe %in% a$genes[sapply(a$genes, function(g) a$fe$rma[[g]]$QEp) < 0.05], "black", "white")
+idx <- !sapply(esets.f, .defaultFilter)
+x <- coefs[[1]][difffe,idx]
+colnames(x) <- paste(.getDatasetNames(esets.f[idx]),"  ")
+heatmap.3(x, margins=c(10,5), RowSideColors=cols, col.srt=45)
+@
+}
+\subfigure[Genes only in RE signature]{
+\label{fig:effects:db:hm2}
+<<debulking_fevsre_plotting_2, out.width="0.38\\textwidth">>=
+diffre <- setdiff(names(re.model@coefficients), names(fe.model@coefficients))
+diffre <- diffre[ diffre %in% rownames(coefs[[1]])]
+
+cols <- ifelse(diffre %in% a$genes[sapply(a$genes, function(g) a$re$rma[[g]]$QEp) < 0.05], "black", "white")
+x <- coefs[[1]][diffre,idx]
+colnames(x) <- paste(.getDatasetNames(esets.f[idx]),"  ")
+heatmap.3(x, margins=c(10,5), RowSideColors=cols, col.srt=45)
+@
+}\\
+\subfigure[Genes in both FE and RE signature]{
+\label{fig:effects:db:hm3}
+<<debulking_fevsre_plotting_3, out.width="0.38\\textwidth">>=
+intersectrefe <- intersect(names(re.model@coefficients), names(fe.model@coefficients))
+intersectrefe <- intersectrefe[ intersectrefe %in% rownames(coefs[[1]])]
+
+cols <- ifelse(intersectrefe %in% a$genes[sapply(a$genes, function(g) a$re$rma[[g]]$QEp) < 0.05], "black", "white")
+x <- coefs[[1]][intersectrefe,idx]
+colnames(x) <- paste(.getDatasetNames(esets.f[idx]),"  ")
+heatmap.3(x, margins=c(10,5), RowSideColors=cols, col.srt=45)
+@
+}
+\subfigure[Integrative Correlation Analysis]{
+\label{fig:effects:db:intcor}
+<<debulking_intcorplot, out.width="0.38\\textwidth">>=
+pdiff <- t.test(c( ic1[diffre],  ic2[diffre])  ,c( ic1[hetgenes]
+    ,ic2[hetgenes]  ))$p.value
+
+d.f <- rbind( data.frame(IntCor=ic1[diffre], Dataset=.getDatasetNames(esets.f)[1],
+Method="RE"),
+data.frame(IntCor=ic1[hetgenes], Dataset=.getDatasetNames(esets.f)[1],
+Method="FE"),
+data.frame(IntCor=ic2[diffre], Dataset=.getDatasetNames(esets.f)[3],
+Method="RE"),
+data.frame(IntCor=ic2[hetgenes], Dataset=.getDatasetNames(esets.f)[3],
+Method="FE"))
+d.f$Method <- factor(d.f$Method, levels=c("FE", "RE"))
+ggplot(d.f,aes(Method,IntCor,fill=Dataset))+geom_boxplot()+
+ylab("Integrative Correlation")+theme_classic2(15)
+
+@
+}
+\caption{Comparison of a fixed- (FE) and a random-effects (RE) ranking of genes
+associated with debulking status. See main text as well as Supplemental
+Figure~\ref{fig:effects} and accompanying text for description of the panels.}
 \end{figure}
 
 \clearpage
@@ -1209,22 +1527,8 @@ ids <- sampleNames(esets.debulking.f$GSE26712_eset)[
 
 esets.db$GSE26712_eset <- esets.db$GSE26712_eset[,ids]
 
-.getFoldChanges <- function(esets.db, model, groups="debulking",
-contrasts="suboptimal-optimal") {
-    res <- metaCMA.limma(lapply(esets.db, function(X)
-        X[names(model@coefficients),]), groups,
-        contrasts)
-    resM <- do.call(cbind, lapply(res, function(r) topTable(r,number=200,
-        sort.by="none")[,2]))
-    resM <- cbind(resM, Weighted.Mean=apply(resM,1, weighted.mean, w=sqrt(sapply(
-        esets.db, ncol))))
-    rownames(resM) <- names(model@coefficients)
-    resM <- 2^resM
-    resM <- apply(resM,c(1,2),function(x) ifelse(x<1, 1/(x*-1),x))
-    resM    
-}
-
-resM <- .getFoldChanges(esets.db, final.model.debulking)
+resM <- metaCMA.foldchanges(esets.db, final.model.debulking, groups="debulking",
+contrasts="suboptimal-optimal")
 @
 
 <<cached_short_debulking_finalmodel,cache=TRUE>>=
@@ -1237,15 +1541,15 @@ probesets <- do.call(cbind, lapply(esets.debulking.f, function(X)
 tmp <- data.frame(Genes=sig, probesets, 
 "Pooled LogIt Coefficient"=
 final.model.debulking@coefficients,
-"Mean Optimal"= apply(tmp$train$X[which(tmp$train$y=="optimal"),],2,mean),
-"Mean Suboptimal"= apply(tmp$train$X[which(tmp$train$y=="suboptimal"),],2,mean),
- P=head(sort(tmp$pvalues),length(sig)),
- FDR=head(sort(p.adjust(tmp$pvalues,method="BH")),length(sig)), resM)
+"Mean Optimal"= apply(res.debulking.s34b.opt$train$X[which(res.debulking.s34b.opt$train$y=="optimal"),],2,mean),
+"Mean Suboptimal"= apply(res.debulking.s34b.opt$train$X[which(res.debulking.s34b.opt$train$y=="suboptimal"),],2,mean),
+ P=head(sort(res.debulking.s34b.opt$pvalues),length(sig)),
+ FDR=head(sort(p.adjust(res.debulking.s34b.opt$pvalues,method="BH")),length(sig)), resM)
 
 write.csv(tmp[order(abs(tmp$Weighted.Mean), decreasing=TRUE),],
  file="output/final_signature_debulking.csv",row.names=FALSE)
-write.table(tmp[order(abs(tmp$Weighted.Mean), decreasing=TRUE),],
- file="output/final_signature_debulking.tsv",row.names=FALSE,sep="\t")
+#write.table(res.debulking.s34b.opt[order(abs(res.debulking.s34b.opt$Weighted.Mean), decreasing=TRUE),],
+# file="output/final_signature_debulking.tsv",row.names=FALSE,sep="\t")
 @
 \clearpage
 \section{Role of POSTN in ovarian cancer}
@@ -1365,6 +1669,11 @@ strata=dfrcboth$strata, strata_tcga=dfrcboth$strata_tcga)
 
 hrdiffemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
 hrdiffci <- quantile(hrdiffemp,c(0.025,0.975))
+@
+
+<<cached_medium_cdiffconfint, cache=TRUE>>=
+cci <- Inf.Cval.Delta(as.matrix(dfrcboth$y), dfrcboth$risk,
+    dfrcboth$risk_tcga, tau=365.25*4)  
 @
 
 <<cached_medium_hrdiffconfintjci, cache=TRUE>>=

@@ -267,7 +267,7 @@ censor.at = 365.25 * 5, cutpoint=NULL, plot=TRUE,...) {
 }
 
 .boostrapHRs <- function(data, r1="strata", r2="strata_tcga", n=500,
-inverse=FALSE) {
+inverse=FALSE, concordance=FALSE) {
     .doBS <- function(i) {
         idx <- sample(nrow(data), replace=TRUE)
         ldata <- data.frame(y=Surv(data[,1], data[,2]), r1=data[[r1]], r2=data[[r2]])
@@ -276,6 +276,9 @@ inverse=FALSE) {
 
         f1 <- coxph(y~r1,ldata)
         f2 <- coxph(y~r2,ldata)
+        if (concordance) {
+            return(summary(f1)$concordance-summary(f2)$concordance)
+        }
         if (inverse) hrdiff <- 1/summary(f1)$conf.int[1] - 1/summary(f2)$conf.int[1]
         else hrdiff <- summary(f1)$conf.int[1] - summary(f2)$conf.int[1]
         hrdiff
