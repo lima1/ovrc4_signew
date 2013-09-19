@@ -162,7 +162,7 @@ at = NULL, concordance=TRUE, xlab=ifelse(concordance, "Concordance", "Hazard rat
         return(res.rma)
     } else {
         coefs = sapply(1:length(esets), function(i)
-        summary(coxph(esets[[i]][[y]]~esets[[i]][[label]]))$coefficients[c(1,3)])   
+        .defaultCoef(esets[[i]][[label]], esets[[i]][[y]],family="binomial"))
         res.rma = metafor::rma(yi = coefs[1,], sei = coefs[2,], method=rma.method)
         if (is.null(at)) at = log(c(0.25,1,4,20))
         forest.rma(res.rma, 
@@ -234,9 +234,10 @@ summary=TRUE, mlab="Overall",concordance=TRUE,inverse=FALSE,cols=c("darkblue", "
 }
 
 metaCMA.forest.probeset <- function(esets, y="y",
-probeset="208079_s_at", mlab="Overall", rma.method="FE",...) {
+probeset, mlab="Overall", rma.method="FE", trans.fun = function(x) x, ...) {
     esets = esets[sapply(esets, function(x) probeset %in% featureNames(x))]
-    esets = lapply(esets, function(x) { x[[probeset]] = exprs(x)[probeset,]; x })
+    esets = lapply(esets, function(x) { x[[probeset]] =
+    trans.fun(exprs(x)[probeset,]); x })
 
     .forestplot(esets, y, label=probeset, rma.method=rma.method, mlab=mlab, ...)
 }

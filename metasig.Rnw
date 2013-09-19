@@ -443,10 +443,10 @@ Cox regression coefficients; the \Sexpr{nunion} genes utilized in the two
 signatures had highly similar coefficients in a fixed- and random-effects
 meta-analysis (Supplemental Figure~\ref{fig:effects:coef}).  Supplemental
 Figure~\ref{fig:effects:hm1} to \ref{fig:effects:hm3} show the Cox regression
-coefficients in all datasets from the genes present in only the fixed-effects,
-only the random-effects and present in both signatures, respectively
-(corresponding to the 3 sections of the Venn diagram). Genes
-with significant heterogeneity are marked in black in the heatmap.  In the
+coefficients in all datasets from the genes present in only the fixed-effects
+signature, only the random-effects signature and present in both signatures,
+respectively (corresponding to the 3 sections of the Venn diagram). Genes with
+significant heterogeneity are marked in black in the heatmap.  In the
 fixed-effects signature, \Sexpr{nhet} genes displayed significant
 heterogeneity ($P < 0.05$, Q-Test \cite{Hedges:1985}).  When accounting for
 heterogeneity, probesets with heterogeneity drop in their ranks and are
@@ -1194,7 +1194,7 @@ sample size.
 
 We observed a slightly higher number of genes with heterogeneity in the
 fixed-effects signature (\Sexpr{nhet} genes) compared to the overall survival
-signature. This is again expected, since surgery outcome is not a clearly
+signature. This was expected, since surgery outcome is not a clearly
 defined phenotype in contrast to time to death. The Yoshihara 2010 and the
 Bentink et al. datasets were again the most common source of
 heterogeneity, albeit less clear than for the overall survival signature
@@ -1206,7 +1206,7 @@ the ones without (Supplemental Figure~\ref{fig:effects:db:intcor}).  We
 expect, however, that the largest datasets (most importantly the Bonome
 dataset published from our lab and the TCGA samples) are similar to our
 validation samples in terms of surgical procedures and pathologic review.
-Accounting for heterogeneity with a random-effects model will overweight
+Accounting for heterogeneity with a random-effects model would overweight
 smaller studies for which we have only limited surgery information.
 
 \begin{figure}[!htb]
