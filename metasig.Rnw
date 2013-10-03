@@ -33,7 +33,7 @@ options(replace.assign=TRUE,width=90)
 patient samples - Supplemental Information}
 
 \author{Markus Riester, Wei Wei, Levi Waldron, Aedin Culhane, Lorenzo Trippa,
-\\ Franziska Michor, Curtis Huttenhower, Esther Olivia, Sung-hoon Kim,\\
+\\ Esther Olivia, Sung-hoon Kim, Franziska Michor, Curtis Huttenhower, \\
 Giovanni Parmigiani, Michael Birrer}
 \maketitle
 
@@ -192,58 +192,6 @@ risk score, only information from different patient cohorts was utilized.
 \label{fig:flowchart}
 \end{figure}
 
-\section{Survival gene signature size}
-
-In all our analyses, we fixed the gene signature size to 200 genes. This size
-was motivated by the fact that this size is sufficiently small to be
-practically useful in a clinical test and by the performance of validated and
-random signatures (Waldron et al., submitted). It was shown in Waldron et al.
-that smaller signatures tend to be less robust than large signatures.
-Furthermore, larger signatures allow the use of pathway enrichment tools,
-which are often useful for prioritizing genes for further experimental validation.
-Finally, because we plan to apply the models to a large cohort of FFPE
-specimens, we decided for a larger signature to provide some redundancy.  This
-is important as we expect that some genes in the signatures will not be
-available after quality controlling.
-
-Our algorithm weighs genes according their rank (see Methods).  This means
-increasing the signature size is expected to have only limited influence on
-the prediction performance at some point as the weights of the genes decrease.
-Increasing the number of features in an ensemble classifier such as the
-compound covariate score is not prone to the overfitting as in multivariate
-regression, where one may optimize a model to perfectly explain the data.
-All tuning parameters - algorithmic details, training datasets and gene
-signature size - were determined beforehand to allow an unbiased use of the
-training data for testing purposes in our leave-one-dataset-out testing
-procedure.
-
-In Supplemental Figure~\ref{fig:cutoff:train} we confirm that the signature
-size had only modest impact on the prediction accuracy in our algorithm, as
-long as the signature size was larger than 100 genes.  In this figure, the
-prediction accuracy is reported with the C-Index metric. The C-Index is a
-pairwise comparison of patients, summarizing the fraction of pairs where the
-patient predicted to be at higher risk in fact has shorter survival.  A
-C-Index of 0.5 would correspond to a random model, and a C-Index of 1.0 of to
-a perfect model. Such a perfect model would predict the correct order in which
-patients die. We chose this performance measure here instead of Hazard Ratios
-because it has an easy interpretation, is essentially parameter free and does
-not require a dichotomization of the prediction scores.
-
-\begin{figure}[!htb]
-<<cached_short_validate, out.width='0.75\\textwidth', cache=TRUE>>=
-yi <- lapply(ma, function(x) sapply(1:length(esets.f), function(i)
-    evaluate(x$fits[[i]]$risk, measure=new("UnoC"),
-    newy=esets.f[[i]]$y,add=list(tau=365.25*4) )))
-
-facetAdjust(.plotN(esets.f, yi))
-@
-\caption{We used for all our gene signatures a fixed gene signature size of
-200 genes. Here we show the influence of this cutoff on the prediction
-concordance of the overall survival signature. Each point represents the
-prediction concordance of a model with $x$ genes in the corresponding dataset
-that was trained using the remaining datasets only.}
-\label{fig:cutoff:train}
-\end{figure}
 
 % This now uses all datasets for calculating the final model.
 <<cached_short_finalmodel,cache=TRUE>>=
@@ -411,13 +359,13 @@ dfrcboth$strata_jci <-  unlist(lapply(c(res.lodo.jci,res.val.jci[-4]), function(
 \clearpage
 \section{Fixed- vs. random-effects survival signature}
 \label{sec:fixed}
-In this section, we demonstrate how two different options for pooling the
+In this section, we explore how two different options for pooling the
 regression coefficients across datasets affect the final overall survival
-model. We compared a simple fixed-effects meta-analysis, in which coefficients
+model. We compared a fixed-effects meta-analysis, in which coefficients
 are weighted by the inverse of their squared standard errors, with a
-random-effects model. For the random-effects model fitting, we used the
+random-effects model, which uses the
 restricted maximum-likelihood method, the default method in the
-\texttt{metafor} R package \cite{Viechtbauer:2005}).
+\texttt{metafor} R package \cite{Viechtbauer:2005}.
 
 <<cached_medium_fevsre, cached=TRUE>>=
 fe.model <- final.model
@@ -438,19 +386,19 @@ nunion <- length(union(names(fe.model@coefficients),
 The overlap of the gene signatures obtained with a fixed- and a random-effects
 gene ranking is shown in Supplemental Figure~\ref{fig:effects:venn}. Out of
 the 200 genes in each signature, \Sexpr{nint} were present in both signatures.
-The choice of the meta-analysis method had no significant impact on the pooled
+The choice of the meta-analysis method had no marked impact on the pooled
 Cox regression coefficients; the \Sexpr{nunion} genes utilized in the two
-signatures had highly similar coefficients in a fixed- and random-effects
+signatures had highly similar coefficients across the fixed- and random-effects
 meta-analysis (Supplemental Figure~\ref{fig:effects:coef}).  Supplemental
 Figure~\ref{fig:effects:hm1} to \ref{fig:effects:hm3} show the Cox regression
-coefficients in all datasets from the genes present in only the fixed-effects
+coefficients in all datasets, focussing on the genes present in only the fixed-effects
 signature, only the random-effects signature and present in both signatures,
-respectively (corresponding to the 3 sections of the Venn diagram). Genes with
-significant heterogeneity are marked in black in the heatmap.  In the
+respectively (these cases correspond to the 3 sections of the Venn diagram). Genes with
+relatively higher heterogeneity across studies are marked in black in the heatmap.  In the
 fixed-effects signature, \Sexpr{nhet} genes displayed significant
 heterogeneity ($P < 0.05$, Q-Test \cite{Hedges:1985}).  When accounting for
 heterogeneity, probesets with heterogeneity drop in their ranks and are
-replaced in the random-effects signature with probesets displaying little
+replaced in the random-effects signature with probesets displaying less
 heterogeneity (Supplemental Figure~\ref{fig:effects:hm2}). 
 
 <<intcor, cache=TRUE, results='hide'>>=
@@ -550,33 +498,88 @@ main text for a description of the panels.}
 \end{figure}
 
 The observed heteogeneity is almost exclusively caused by differences in the
-Yoshihara 2010 and the Bentink et al. datasets. Thus the random-effects
-analysis removed genes with strong effect in most training datasets, but no or
-inverse estimated effect in either of these two studies. The random-effects model then
-replaced these genes with ones that have slightly weaker, but more consistent
-effect. 
+effects estimates from the Yoshihara 2010 and the Bentink et al. datasets. As
+a result, the random-effects analysis removed genes that have strong effect in
+most training datasets, but no effect or a discordant effect in either of
+these two studies. The random-effects model then replaced these genes with
+ones that have slightly weaker, but more consistent effect. This can be an
+advantage or a disadvantage depending on whether the heterogeneity
+is indicative of biological variation or of technology driven study-specific
+artifact.
 
-To test the hypothesis that technical issues in these studies are the main
+To explore whether technical issues in these studies are the main
 sources of heterogeneity, we used Integrative Correlation Analysis
-\cite{Parmigiani:2004}.  This method tests whether a gene is correlated to
-genes it is usually correlated to. A low integrative correlation of a gene
-indicates unusual expression when compared to two reference datasets (Bonome
-and TCGA). The reported results are the averaged results using once the Bonome
+\cite{Parmigiani:2004}.  A low integrative correlation of a gene
+indicates unusual pattern of expression correlations when compared to two reference datasets (Bonome
+and TCGA). We reported averaged results using once the Bonome
 and once the TCGA dataset as reference. 
 
 The analysis was done utilizing the \texttt{MergeMaid} \cite{manZhong} and
 \texttt{metaArray} \cite{manGosh} R packages with default Pearson
 Correlation. We then tested whether the genes with heterogeneity have lower
-integrative correlation, or unusual expression, compared to the genes
+integrative correlation, indicative of unusual expression, compared to the genes
 exclusively found in the random-effects signature (Supplemental
 Figure~\ref{fig:effects:intcor}). The analysis was performed independently for
-both Yoshihara 2010 and the Bentink datasets. We see a trend in both datasets
-that genes with heterogeneity have lower integrative correlation than genes
+both the Yoshihara 2010 and the Bentink datasets. In both datasets,
+genes with heterogeneity tend to have lower integrative correlation than genes
 without, indicating that technical issues are at least partly a source of
 heterogeneity. The difference was however not significant ($P =
 \Sexpr{pdiff}$, two-sided Student t-test).
 
 \clearpage
+
+\section{Survival gene signature size}
+
+In all our analyses, we fixed the gene signature size to 200 genes. This size
+was motivated by the fact that this size is sufficiently small to be
+practically useful in a clinical test and by the performance of validated and
+random signatures (Waldron et al., submitted). It was shown in Waldron et al.
+that smaller signatures tend to be less robust than large signatures.
+Furthermore, larger signatures allow the use of pathway enrichment tools,
+which are often useful for prioritizing genes for further experimental validation.
+Finally, because we plan to apply the models to a large cohort of FFPE
+specimens, we decided for a larger signature to provide some redundancy.  This
+is important as we expect that some genes in the signatures will not be
+available after quality controlling.
+
+Our algorithm weighs genes according their rank (see Methods).  This means
+increasing the signature size is expected to have only limited influence on
+the prediction performance at some point as the weights of the genes decrease.
+Increasing the number of features in an ensemble classifier such as the
+compound covariate score is not prone to the overfitting as in multivariate
+regression, where one may optimize a model to perfectly explain the data.
+All tuning parameters - algorithmic details, training datasets and gene
+signature size - were determined beforehand to allow an unbiased use of the
+training data for testing purposes in our leave-one-dataset-out testing
+procedure.
+
+In Supplemental Figure~\ref{fig:cutoff:train} we confirm that the signature
+size had only modest impact on the prediction accuracy in our algorithm, as
+long as the signature size was larger than 100 genes.  In this figure, the
+prediction accuracy is reported with the C-Index metric. The C-Index is a
+pairwise comparison of patients, summarizing the fraction of pairs where the
+patient predicted to be at higher risk in fact has shorter survival.  A
+C-Index of 0.5 would correspond to a random model, and a C-Index of 1.0 of to
+a perfect model. Such a perfect model would predict the correct order in which
+patients die. We chose this performance measure here instead of Hazard Ratios
+because it has an easy interpretation, is essentially parameter free and does
+not require a dichotomization of the prediction scores.
+
+\begin{figure}[!htb]
+<<cached_short_validate, out.width='0.75\\textwidth', cache=TRUE>>=
+yi <- lapply(ma, function(x) sapply(1:length(esets.f), function(i)
+    evaluate(x$fits[[i]]$risk, measure=new("UnoC"),
+    newy=esets.f[[i]]$y,add=list(tau=365.25*4) )))
+
+facetAdjust(.plotN(esets.f, yi))
+@
+\caption{We used for all our gene signatures a fixed gene signature size of
+200 genes. Here we show the influence of this cutoff on the prediction
+concordance of the overall survival signature. Each point represents the
+prediction concordance of a model with $x$ genes in the corresponding dataset
+that was trained using the remaining datasets only.}
+\label{fig:cutoff:train}
+\end{figure}
 
 \section{Comparison with the TCGA signatures}
 
@@ -1138,28 +1141,6 @@ shown in Supplemental Figure~\ref{fig:roc:debulking:postn}.
 
 \clearpage
 
-\section{Debulking gene signature size}
-
-\begin{figure}[!htb]
-<<cached_short_debulking_sigsize, out.width='0.75\\textwidth', cache=TRUE>>=
-res <- lapply(1:length(ma.db), function(i)
-.plotROCpanel(preds=lapply(ma.db[[i]]$fits, function(x) x$risk@lp)[idx.debfi],
-labels=lapply(esets.debulking.f[idx.debfi], function(x)
-x$debulking),nrow=3,ncol=3,titles=.getDatasetNames(esets.debulking.f)[idx.debfi],plot=FALSE))
-
-yi <- lapply(res, function(x) x$yi)
-facetAdjust(.plotN(esets.debulking.f[idx.debfi], yi, ylab="AUC"))
-@
-\caption{We used for all our gene signatures a fixed gene signature size of
-200 genes. Here we show the influence of this cutoff on the prediction
-accuracy of the debulking signature. Each point represents the AUC of a model
-with $x$ genes in the corresponding dataset that was trained using the
-remaining datasets only. For the Bonome et al. dataset, this shows the
-leave-one-dataset-out cross-validated performance in the 93 samples used for
-training. See main text for the AUCs of the Bonome validation Affymetrix and
-qRT-PCR data.}
-\label{fig:cutoff:debulking}
-\end{figure}
 
 \section{Fixed- vs. random-effects debulking signature}
 
@@ -1290,6 +1271,31 @@ ylab("Integrative Correlation")+theme_classic2(15)
 \caption{Comparison of a fixed- (FE) and a random-effects (RE) ranking of genes
 associated with debulking status. See main text as well as Supplemental
 Figure~\ref{fig:effects} and accompanying text for description of the panels.}
+\end{figure}
+
+\clearpage
+
+\section{Debulking gene signature size}
+
+\begin{figure}[!htb]
+<<cached_short_debulking_sigsize, out.width='0.75\\textwidth', cache=TRUE>>=
+res <- lapply(1:length(ma.db), function(i)
+.plotROCpanel(preds=lapply(ma.db[[i]]$fits, function(x) x$risk@lp)[idx.debfi],
+labels=lapply(esets.debulking.f[idx.debfi], function(x)
+x$debulking),nrow=3,ncol=3,titles=.getDatasetNames(esets.debulking.f)[idx.debfi],plot=FALSE))
+
+yi <- lapply(res, function(x) x$yi)
+facetAdjust(.plotN(esets.debulking.f[idx.debfi], yi, ylab="AUC"))
+@
+\caption{We used for all our gene signatures a fixed gene signature size of
+200 genes. Here we show the influence of this cutoff on the prediction
+accuracy of the debulking signature. Each point represents the AUC of a model
+with $x$ genes in the corresponding dataset that was trained using the
+remaining datasets only. For the Bonome et al. dataset, this shows the
+leave-one-dataset-out cross-validated performance in the 93 samples used for
+training. See main text for the AUCs of the Bonome validation Affymetrix and
+qRT-PCR data.}
+\label{fig:cutoff:debulking}
 \end{figure}
 
 \clearpage
@@ -1596,16 +1602,18 @@ number of tumor foci \cite{Zhu:2011}.
 
 <<comptcga,fig.width=5.33,fig.height=8,out.width="0.467\\textwidth",out.height="0.7\\textwidth",results='hide',include=FALSE>>=
 
-fit.clinical <- coxph(y~tumorstage+debulking_orig,dfrcboth)
+X.td <- dfrcboth[!is.na(dfrcboth$tumorstage) & !is.na(dfrcboth$debulking_orig),]
 
-fit <- coxph(y~strata+tumorstage+debulking_orig,dfrcboth)
+fit.noclinical <- coxph(y~strata,X.td)
+fit.clinical <- coxph(y~tumorstage+debulking_orig,X.td)
+fit <- coxph(y~strata+tumorstage+debulking_orig,X.td)
 fit.jci <-
-coxph(y~strata_jci+tumorstage+debulking_orig+Immunoreactive+Mesenchymal+Proliferative+Differentiated,dfrcboth)
+coxph(y~strata_jci+tumorstage+debulking_orig+Immunoreactive+Mesenchymal+Proliferative+Differentiated,X.td)
 
 set.seed(1234)
-yhat <- cvRisk(fit, dfrcboth)
-yhat.jci <- cvRisk(fit.jci, dfrcboth)
-yhat.clinical <- cvRisk(fit.clinical, dfrcboth)
+yhat <- cvRisk(fit, X.td)
+yhat.jci <- cvRisk(fit.jci, X.td)
+yhat.clinical <- cvRisk(fit.clinical, X.td)
 
 par(mfrow=c(3,2))
 par(mar=c(4.5, 4.1, 2.5, 1.5))
@@ -1615,13 +1623,13 @@ plotKM(y=dfrcboth$y, strata=dfrcboth$strata,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="A)   Meta-Analysis Signature")
-plotKMStratifyBy("median",y=dfrcboth$y,linearriskscore=yhat,
+plotKMStratifyBy("median",y=X.td$y,linearriskscore=yhat,
         censor.at=365.25*5,
         show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.0,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="B)  Signature + Stage + Debulking")
-plotKMStratifyBy("median",y=dfrcboth$y,linearriskscore=yhat.clinical,
+plotKMStratifyBy("median",y=X.td$y,linearriskscore=yhat.clinical,
         censor.at=365.25*5,
         show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.0,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
@@ -1639,7 +1647,7 @@ plotKM(y=dfrcboth$y, strata=dfrcboth$strata_jci,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
         cex.base=1.4,main="E)   Verhaak et al. Signature")
-plotKMStratifyBy("median", y=dfrcboth$y, linearriskscore=yhat.jci,
+plotKMStratifyBy("median", y=X.td$y, linearriskscore=yhat.jci,
         censor.at=365.25*5,
         show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.0,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
