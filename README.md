@@ -1,4 +1,4 @@
-# Risk Prediction for late-stage ovarian cancer by meta-analysis of 1,525 patient samples: Biologic and Clinical Correlations
+# Risk Prediction for late-stage ovarian cancer by meta-analysis of 1,525 patient samples
 
 To reproduce the results of the
 paper, simply fetch the entire repository using Mercurial with the
