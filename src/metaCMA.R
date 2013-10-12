@@ -361,3 +361,7 @@ metaCMA.compare <- function(fe.model, re.model, esets, coefs, ...) {
     list(genes = genes, fe = fe.all2, re = re.all2)
 }
 
+metaCMA.bootstrap <- function(esets) { 
+    lapply(esets, function(X) X[,sample(ncol(X), replace=TRUE)])
+}
+

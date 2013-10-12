@@ -1173,13 +1173,13 @@ The Rank Products signature was more similar to the fixed-effects (overlap of
 likely because Rank Product also weights datasets strictly according their
 sample size.
 
-We observed a slightly higher number of genes with heterogeneity in the
+We observed a slightly higher number of genes with marked heterogeneity in the
 fixed-effects signature (\Sexpr{nhet} genes) compared to the overall survival
 signature. This was expected, since surgery outcome is not a clearly
 defined phenotype in contrast to time to death. The Yoshihara 2010 and the
 Bentink et al. datasets were again the most common source of
 heterogeneity, albeit less clear than for the overall survival signature
-(Supplemental Figures~\ref{fig:effects:db:hm1}-\ref{fig:effects:db:hm3}.
+(Supplemental Figures~\ref{fig:effects:db:hm1}-\ref{fig:effects:db:hm3}).
 
 Integrative correlation analysis \cite{Parmigiani:2004} showed that there were
 no systematic differences between the genes with significant heterogeneity and
@@ -1187,7 +1187,7 @@ the ones without (Supplemental Figure~\ref{fig:effects:db:intcor}).  We
 expect, however, that the largest datasets (most importantly the Bonome
 dataset published from our lab and the TCGA samples) are similar to our
 validation samples in terms of surgical procedures and pathologic review.
-Accounting for heterogeneity with a random-effects model would overweight
+Accounting for heterogeneity with a random-effects model may overly weight
 smaller studies for which we have only limited surgery information.
 
 \begin{figure}[!htb]
@@ -1349,8 +1349,8 @@ intensity of each section was obtained by multiplying the percentage score by
 the intensity score (the maximum weighed score is 12). Since each sample was
 represented by two tissue cores, the average score was calculated for the IHC
 intensity of each sample (listed in Table S1). A categorical system was then
-applied as follows: Grade 0 (-) score 0-3; Grade 1 (+) score 4-6; Grade 2 (++)
-score 7-9; Grade 3 (+++) score 9-12.  The IHC was scored by two individuals
+applied as follows: Class 0 (-) score 0-3; Class 1 (+) score 4-6; Class 2 (++)
+score 7-9; Class 3 (+++) score 9-12.  The IHC was scored by two individuals
 including one pathologist for independent IHC scoring. The scoring was done
 blinded to the clinical data.
 
@@ -1691,6 +1691,7 @@ strata=dfrcboth$strata_jci, strata_tcga=dfrcboth$strata_tcga)
 hrdiffjciemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
 hrdiffjcici <- quantile(hrdiffjciemp,c(0.025,0.975))
 @
+
 \clearpage
 \section{Session Info}
 <<sessioninfo, results='asis', echo=FALSE>>=
