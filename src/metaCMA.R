@@ -365,3 +365,12 @@ metaCMA.bootstrap <- function(esets) {
     lapply(esets, function(X) X[,sample(ncol(X), replace=TRUE)])
 }
 
+metaCMA.boxplot <- function(esets, y, probeset, titles) {
+    d.f <- do.call(rbind, lapply(1:length(esets), function(i) 
+        data.frame(Expression=exprs(esets[[i]])[probeset,], Title=titles[i],
+        y=esets[[i]][[y]]))) 
+    ggplot(d.f, aes(y,
+        Expression))+geom_boxplot()+geom_jitter()+facet_wrap(~Title)
+}
+
+
