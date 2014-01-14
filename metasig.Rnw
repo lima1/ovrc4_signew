@@ -396,7 +396,7 @@ coefficients in all datasets, focussing on the genes present in only the fixed-e
 signature, only the random-effects signature and present in both signatures,
 respectively (these cases correspond to the 3 sections of the Venn diagram). Genes with
 relatively higher heterogeneity across studies are marked in black in the heatmap.  In the
-fixed-effects signature, \Sexpr{nhet} genes displayed significant
+fixed-effects signature, \Sexpr{nhet} genes displayed statistically significant
 heterogeneity ($P < 0.05$, Q-Test \cite{Hedges:1985}).  When accounting for
 heterogeneity, probesets with heterogeneity drop in their ranks and are
 replaced in the random-effects signature with probesets displaying less
@@ -524,7 +524,7 @@ Figure~\ref{fig:effects:intcor}). The analysis was performed independently for
 both the Yoshihara 2010 and the Bentink datasets. In both datasets,
 genes with heterogeneity tend to have lower integrative correlation than genes
 without, indicating that technical issues are at least partly a source of
-heterogeneity. The difference was however not significant ($P =
+heterogeneity. The difference was however not statistically significant ($P =
 \Sexpr{pdiff}$, two-sided Student t-test).
 
 \clearpage
@@ -534,20 +534,20 @@ heterogeneity. The difference was however not significant ($P =
 In all our analyses, we fixed the gene signature size to 200 genes. This size
 was motivated by the fact that this size is sufficiently small to be
 practically useful in a clinical test and by the performance of validated and
-random signatures (Waldron et al., submitted). It was shown in Waldron et al.
-that smaller signatures tend to be less robust than large signatures.
-Furthermore, larger signatures allow the use of pathway enrichment tools,
-which are often useful for prioritizing genes for further experimental validation.
-Finally, because we plan to apply the models to a large cohort of FFPE
-specimens, we decided for a larger signature to provide some redundancy.  This
-is important as we expect that some genes in the signatures will not be
-available after quality controlling.
+random signatures \cite{Waldron:2014}. It was shown in Waldron et al.  that
+smaller signatures tend to be less robust than large signatures.  Furthermore,
+larger signatures allow the use of pathway enrichment tools, which are often
+useful for prioritizing genes for further experimental validation.  Finally,
+because we plan to apply the models to a large cohort of FFPE specimens, we
+decided for a larger signature to provide some redundancy.  This is important
+as we expect that some genes in the signatures will not be available after
+quality controlling.
 
 Our algorithm weighs genes according their rank (see Methods).  This means
 increasing the signature size is expected to have only limited influence on
 the prediction performance at some point as the weights of the genes decrease.
 Increasing the number of features in an ensemble classifier such as the
-compound covariate score is not prone to the overfitting as in multivariate
+compound covariate score is not prone to the overfitting as in multivariable
 regression, where one may optimize a model to perfectly explain the data.
 All tuning parameters - algorithmic details, training datasets and gene
 signature size - were determined beforehand to allow an unbiased use of the
@@ -596,6 +596,15 @@ between our and the TCGA signature was calculated with the hypergeometric
 distribution, using the number of genes common to all training datasets as
 background. 
 
+<<cached_medium_cdiffconfint, cache=TRUE>>=
+cci <- Inf.Cval.Delta(as.matrix(dfrcboth$y), dfrcboth$risk,
+    dfrcboth$risk_tcga, tau=365.25*4)  
+@
+
+<<cdiff>>=
+ccir <- round(cci, digits=3)
+@
+
 We used standard bootstrap to assess the statistical significance of the
 difference in Hazard Ratios (HR) between our signature and TCGA's. We
 considered all cohorts together, excluding TCGA, resulting in a total of
@@ -607,7 +616,67 @@ and their difference. We reported p-value corresponding to the fraction of
 bootstrap replicates with higher HR in TCGA.  Note that the confidence
 interval of the difference in HR may exclude zero (thus resulting in a
 statistically significant difference) even though the two confidence intervals
-of the individual signatures are overlapping.
+of the individual signatures are overlapping. We further calculated the
+improvement in C-Index of our model compared to TCGA and found only a moderately,
+not statistically significant improvement from \Sexpr{ccir[1,1]} for TCGA to
+\Sexpr{ccir[2,1]} for our model. 
+
+<<cached_medium_hrvscindex,cache=TRUE, results='hide', fig.keep='none'>>=
+.eval <- function(X) {
+    cindex <- Est.Cval(cbind(X$y, X$risk), tau=365.25*4)$Dhat
+    logtest <-  summary(coxph(y~risk,X))$logtest[1]
+    c(cindex, logtest)
+}      
+
+.swap <- function(X) {
+    x <- sample(nrow(X),1)
+    X[x,]$risk <- sort(dfrcboth$risk)[sample(nrow(X),1)]
+    X
+}
+
+.hr <- function(X) {
+as.numeric(gsub("^HR |;.*$","", plotKMStratifyBy("median", y=X$y,X$risk,
+censor.at=365.25*5)$hr))
+}
+
+.optimize <- function(X, n, max.cindex=0.64,oi="", verbose=TRUE) {
+best <- .eval(X)
+for (i in 1:n) {
+    
+    Xnew <- .swap(X)
+    res <- .eval(Xnew)
+    if (verbose) cat(oi, max.cindex, res,"\n")
+    if (res[2] > best[2]) { 
+        X <- Xnew
+        best <- res
+    }    
+    if (res[1] >= max.cindex) break 
+}
+.hr(X) 
+}
+
+set.seed(1234)
+res.opt <- sapply(1:25, function(i) .optimize(dfrcboth, 10000, max.cindex=cci[2,1]+cci[3,4], oi=i))
+res.opt <- res.opt - .hr(dfrcboth)
+mres <- round(mean(res.opt), digits=2)
+@
+
+Since the C-Index is widely known to be relatively insensitive to prediction
+improvements \cite{Pepe:2013}, we tried to estimate the required improvement
+in Hazard Ratio to achieve significance on the C-Index scale. To this end, we
+simulated better versions of our model with statistically significantly
+improved C-Index. We utilized a greedy Monte Carlo optimization (start with
+our risk scores; randomly select a patient; sample a new risk score for this
+patient from our risk score distribution; accept the change if the Cox model
+is improved; stop when the C-Index improvement over TCGA achieves
+significance; repeat this simulation 25 times). We observe that in these
+simulations, an additional HR improvement of \Sexpr{mres} over the 2.19 of our
+model (to 2.46, compared to 1.83 for TCGA, see Figure 4 in the main paper)
+would be needed to achieve a statistically significant improvement in C-Index.
+Note this simulation assumes independence of risk scores (patients with similar
+expression profile would have similar risk scores, however), but the only
+purpose of this simulation is to illustrate the relationship of the scales of
+HR and C-Index.
 
 The TCGA project recently published an improved gene signature called CLOVAR
 \cite{Verhaak:2013}. We could map 87 of the 100 genes of the signature to
@@ -673,7 +742,7 @@ blue curves to low risk patients.}
 
 \clearpage
 
-\section{Comparison with the CLOVAR multivariate model}
+\section{Comparison with the CLOVAR multivariable model}
 
 <<accuracytcga>>=
 x <- table(esets.f$TCGA_eset$tcga_subtype_official, esets.f$TCGA_eset$tcga_subtype)
@@ -752,12 +821,12 @@ Mesenchymal.}
 \end{figure}
 
 
-Verhaak et al. proposed a multi-variate model including tumor stage,
+Verhaak et al. proposed a multivariable model including tumor stage,
 debulking status, BRCA1/2 mutation status and ssGSEA scores for the
 immunoreactive and mesenchymal subtypes.  BRCA1/2 mutation status was
 unavailable for our validation datasets. As the survival association of the
 ssGSEA scores were discovered in most of our validation datasets, we tested a
-multivariate model using the CLOVAR patient stratifications in high- and
+multivariable model using the CLOVAR patient stratifications in high- and
 low-risk (based on the median of CLOVAR risk scores in all datasets except the
 validation data), tumor stage, debulking status and ssGSEA scores for all 4
 subtypes. This model was then 5-fold cross-validated using all datasets
@@ -767,7 +836,7 @@ selection.
 
 The Pearson correlation of the risk scores of our meta-analysis signature and both
 TCGA signatures (for Verhaak et al. based on the CLOVAR signature only, not
-the multivariate predictions) are shown in Supplemental Figure~\ref{fig:cor:risk}. 
+the multivariable predictions) are shown in Supplemental Figure~\ref{fig:cor:risk}. 
 In this figure, we further compare the models with the random-effects variant of
 our model, in which the univariate Cox regression coefficients were pooled
 with a random-effects model as implemented in the \texttt{metafor} package.
@@ -837,12 +906,12 @@ risk score histograms are shown on the matrix diagonal.}
 \section{Comparison with clinical characteristics}
 
 In the main text, we presented a Kaplan-Meier analysis of our risk
-stratifications (Figure 4a) and of a multivariate model utilizing these
+stratifications (Figure 4a) and of a multivariable model utilizing these
 stratification together with debulking status (optimal vs. suboptimal) and
 tumor stage (III vs. IV), the most important and commonly available
 characteristics with known survival association. In Supplemental
 Table~\ref{tbl:reg:all}, we provide the Cox regression coefficients (the
-log-transformed Hazard Ratios) for the multivariate models. For datasets with
+log-transformed Hazard Ratios) for the multivariable models. For datasets with
 available age at time of diagnosis, we included age in the model.
 
 <<tblregall, results='asis'>>=
@@ -875,7 +944,7 @@ label="tbl:reg:all", tight=FALSE, use.packages=FALSE, float.pos="!htb",
 custom.coef.names=c(risk="Gene Signature (Low- vs high-risk)",
 "Debulking (subopt. vs. opt.)",
 "Stage (IV vs III)","Age"), sideways=TRUE, scriptsize=TRUE, booktabs=TRUE,
-caption="Cox regression coefficients for multivariate models utilizing the
+caption="Cox regression coefficients for multivariable models utilizing the
 gene signature risk stratifications and the available
 characteristics with known overall survival association when provided by the
 authors. Numbers in brackets are standard errors. The row \\textit{PH Test} reports the p-value indicating
@@ -890,10 +959,10 @@ include.zph = TRUE)
 Pathway analysis was conducted using the Pathway studio 7.1 program (Ariadne
 Genomics). All 200 genes in the debulking signature and the overall survival
 signature were input into the program for analysis respectively. Pathway
-enrichment analysis (build-in algorithm) was used to identify significant
-pathways within the signature. A p-value less than 0.05 was considered
-significant, indicating the associated pathway identification was unlikely to
-be resulted from chance.
+enrichment analysis (build-in algorithm) was used to identify statistically
+significant pathways within the signature. A p-value less than 0.05 was
+considered significant, indicating the associated pathway identification was
+unlikely to be resulted from chance.
 
 Our survival signature did not reveal dominant pathways, unlike the debulking
 signature. This is likely related to the more complex and diverse biological
@@ -1053,8 +1122,8 @@ higher the score, the higher the probability the tumor will be not optimally
 debulkable. For each dataset, the model is trained using only the remaining
 datasets. ROC curves visualize the true and false positive rates as a function of
 the probability cutoffs. Datasets with sample size smaller than 75 were not
-used for training. AUCs significantly ($P < 0.05$) larger than 0.5 are
-marked with an asterisk.}  
+used for training. AUCs statistically significantly ($P < 0.05$) larger than
+0.5 are marked with an asterisk.}  
 \label{fig:roc:debulking}
 \end{figure}
 
@@ -1162,17 +1231,17 @@ nunion <- length(union(names(fe.model@coefficients),
     names(re.model@coefficients)))
 @
 
-As in section \ref{sec:fixed}, we examined the overlap of the gene signatures
-obtained with a fixed- and a random-effects gene ranking (Supplemental
-Figure~\ref{fig:effects:db:venn}). We further compared both fixed-effects and
-random-effects signature with a signature obtained with the Rank Products
-method \cite{Breitling:2004}, a frequently used alternative microarray
-meta-analysis method. The Rank Products method currently does not support
-censored outcome and could not be compared to the overall survival signatures.
-The Rank Products signature was more similar to the fixed-effects (overlap of
-114 genes) than to the random-effects signature (overlap of 76 genes), most
-likely because Rank Product also weights datasets strictly according their
-sample size.
+As in section \ref{sec:fixed}, we examined the overlap of the debulking gene
+signatures obtained with a fixed- and a random-effects gene ranking
+(Supplemental Figure~\ref{fig:effects:db:venn}). We further compared both
+fixed-effects and random-effects signature with a signature obtained with the
+Rank Products method \cite{Breitling:2004}, a frequently used alternative
+microarray meta-analysis method. The Rank Products method currently does not
+support censored outcome and could not be compared to the overall survival
+signatures.  The Rank Products signature was more similar to the fixed-effects
+(overlap of 114 genes) than to the random-effects signature (overlap of 76
+genes), most likely because Rank Product also weights datasets strictly
+according their sample size.
 
 We observed a lower number of genes with marked heterogeneity in the
 fixed-effects signature (\Sexpr{nhet} genes) compared to the overall survival
@@ -1182,13 +1251,14 @@ survival signature (Supplemental
 Figures~\ref{fig:effects:db:hm1}-\ref{fig:effects:db:hm3}).
 
 Integrative correlation analysis \cite{Parmigiani:2004} showed that there were
-no systematic differences between the genes with significant heterogeneity and
-the ones without (Supplemental Figure~\ref{fig:effects:db:intcor}).  We
-expect, however, that the largest datasets (most importantly the Bonome
-dataset published from our lab and the TCGA samples) are similar to our
-validation samples in terms of surgical procedures and pathologic review.
-Accounting for heterogeneity with a random-effects model may overly weight
-smaller studies for which we have only limited surgery information.
+no systematic differences between the genes with statistically significant
+heterogeneity and the ones without (Supplemental
+Figure~\ref{fig:effects:db:intcor}).  We expect, however, that the largest
+datasets (most importantly the Bonome dataset published from our lab and the
+TCGA samples) are similar to our validation samples in terms of surgical
+procedures and pathologic review.  Accounting for heterogeneity with a
+random-effects model may overly weight smaller studies for which we have only
+limited surgery information.
 
 \begin{figure}[!htb]
 \centering
@@ -1354,7 +1424,7 @@ score 7-9; Class 3 (+++) score 9-12.  The IHC was scored by two individuals
 including one pathologist for independent IHC scoring. The scoring was done
 blinded to the clinical data.
 
-\subsection{Multivariate Models}
+\subsection{Multivariable Models}
 
 As regression coefficients obtained from microarray data are not directly
 translatable to qRT-PCR or IHC measurements, we only used the signs of the
@@ -1368,7 +1438,7 @@ with highest risk were then classified as medium-risk.
 
 In Supplemental Table~\ref{tbl:coefficients:ihc}, we show that POSTN, pSmad2/3
 and CXCL14 are predictors debulking surgery outcome independent of tumor grade
-and stage. In the multivariate models with all three proteins, both adjusted
+and stage. In the multivariable models with all three proteins, both adjusted
 and unadjusted for stage and grade (shown in columns 1 and 2 of Supplemental
 Table~\ref{tbl:coefficients:ihc}), inclusion of CXCL14 could not further
 improve the model.
@@ -1402,7 +1472,7 @@ ihc$Debulking <- as.factor(ihc$Debulking)
 .plotROC(ihc$CXCL14, ihc$Debulking)
 @
 
-<<ihcmultivariate,fig.width=3.5,fig.height=3.5,include=FALSE>>=
+<<ihcmultivariable,fig.width=3.5,fig.height=3.5,include=FALSE>>=
 .plotROC(ihc$POSTN+ihc$pSmad2+ihc$CXCL14, ihc$Debulking)
 @
 
@@ -1438,8 +1508,8 @@ fit.CXCL14 <- glm(as.factor(Debulking)~CXCL14+Grade+Stage,
 texreg(list(fit, fit.adj, fit.POSTN, fit.pSmad23,
     fit.CXCL14),custom.model.names=c("IHC", "IHC adj.", "POSTN adj.", 
     "pSmad2/3 adj.", "CXCL14 adj."), 
-    caption=paste("Multivariate prediction of debulking status.", 
-    "Shown are multivariate models based on IHC staining only and",
+    caption=paste("Multivariable prediction of debulking status.", 
+    "Shown are multivariable models based on IHC staining only and",
     "models adjusted (adj.) for tumor stage (III vs. IV) and grade (2 vs. 3).",
     "Numbers in brackets are standard errors."), booktabs=TRUE,
     label="tbl:coefficients:ihc", use.packages=FALSE, float.pos="!htb",
@@ -1514,8 +1584,8 @@ facetAdjust(ggplot(tmp.df, aes(Affymetrix,
 \caption{Validation of selected genes by qRT-PCR in the Bonome validation
 dataset, a subset of 78 samples (39 optimal and 39 suboptimal tumors). Points
 represent patients, the x-axis shows the Affymetrix fRMA normalized intensities,
-the y-axis the qRT-PCR level. The Spearman correlation of platforms was highly
-significant for all genes ($P < 0.001$).}
+the y-axis the qRT-PCR level. The Spearman correlation of platforms was
+statistically highly significant for all genes ($P < 0.001$).}
 \label{fig:qrtpcr:cor}
 \end{figure}
 
@@ -1589,7 +1659,7 @@ speed-limit step for tumor dissemination into second sites
 \cite{Soikkeli:2010, Malanchi:2012}. POSTN is frequently overexpressed in
 ovarian cancer.  The therapeutic potential of POSTN has been demonstrated in
 an orthotropic mouse xenograft model for ovarian cancer, through a
-neutralizing antibody mediated significant reduction of tumor burden and the
+neutralizing antibody mediated substantial reduction of tumor burden and the
 number of tumor foci \cite{Zhu:2011}.
 
 \clearpage
@@ -1652,7 +1722,7 @@ plotKMStratifyBy("median", y=X.td$y, linearriskscore=yhat.jci,
         show.n.risk=TRUE,show.legend=FALSE,show.HR=TRUE,cex.HR=1.0,
         show.PV=FALSE,cex.n.risk=0.7,cex.lab=0.9,
         xlab="Time (Days)",
-        cex.base=1.4,main="F)   Verhaak et al. Multivariate")
+        cex.base=1.4,main="F)   Verhaak et al. Multivariable")
 
 @
 
@@ -1677,11 +1747,6 @@ strata=dfrcboth$strata, strata_tcga=dfrcboth$strata_tcga)
 
 hrdiffemp <- .boostrapHRs(d.f,n=10000,inverse=TRUE)
 hrdiffci <- quantile(hrdiffemp,c(0.025,0.975))
-@
-
-<<cached_medium_cdiffconfint, cache=TRUE>>=
-cci <- Inf.Cval.Delta(as.matrix(dfrcboth$y), dfrcboth$risk,
-    dfrcboth$risk_tcga, tau=365.25*4)  
 @
 
 <<cached_medium_hrdiffconfintjci, cache=TRUE>>=
