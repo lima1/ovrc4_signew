@@ -683,6 +683,7 @@ The TCGA project recently published an improved gene signature called CLOVAR
 probesets used in curatedOvarianData. 21 of these genes overlapped with our
 gene signature ($P < 0.001$). 
 
+
 % Validate the TCGA model. Stolen from Levi's paper supplement.
 <<cached_short_validatetcgamodel, cache=TRUE,results='hide'>>=
 data(TCGA_eset, package="curatedOvarianData")
@@ -752,7 +753,8 @@ x <- round(sum(sapply(1:4, function(i) x[i,i]))/sum(!is.na(esets.f$TCGA_eset$tcg
 We classified all datasets by TCGA subtype using a single sample GSEA variant
 as implemented in the GSVA package. Subtype specific gene sets were first
 identified with the limma package in the TCGA data using the official TCGA
-subtype labels. Final subtype scores were obtained by subtracting the ssGSEA
+subtype labels\footnote{\url{https://tcga-data.nci.nih.gov/tcgafiles/ftp_auth/distro_ftpusers/anonymous/other/publications/ov_exp/TCGA_489_UE.k4.txt}}. 
+Final subtype scores were obtained by subtracting the ssGSEA
 scores for the down-regulated gene sets from the up-regulated genes. We again
 used default gene set sizes of 200 genes for each subtype (100 up- and 100
 down-regulated genes per subtype). Applied back to the TCGA data, this
@@ -777,6 +779,30 @@ tbl.aocs <- table( esets.f$GSE9891_eset$aocs_subtype,
 colnames(tbl.aocs) <- rownames(gsva.res[[1]])
 @
 
+<<cached_short_loadjci2, cache=TRUE, results='hide'>>=
+x <- read.xls("input/JCI65833sd1.xls", skip=1)
+
+# extract the official CLOVAR subtype scores and compare with our implementation
+.getScores <- function(dataset, field="alt_sample_name", subtype="Mesenchymal") {
+    idx.df <- grep(dataset, .getDatasetNames(esets.f))
+    idx.v <- grep(dataset, x$DATASET, ignore.case=TRUE)
+    idx.w <- grep(dataset, dfrcboth$batch, ignore.case=TRUE)
+
+    if (field == "id") {
+        ids <- match(x[idx.v,1], sampleNames(esets.f[idx.df]))
+    } else {
+        ids <- match(tolower(x[idx.v,1]), gsub("ovarian cancer ", "", tolower(dfrcboth[idx.w, field])))
+    }
+
+    tmp <- cbind(dfrcboth[idx.w,][ids,subtype], x[idx.v, paste(subtype, ".ssGSEA.normalized.score", sep="")])
+    tmp <- tmp[complete.cases(tmp),]
+    list(data.frame(tmp, Subtype=subtype), cor(tmp[,1], tmp[,2]))
+}
+
+d.f.verhaak <- do.call(rbind,unlist(lapply(c("Mesenchymal", "Immunoreactive"), function(subtype) list(.getScores("Bonome", field="alt_sample_name", subtype)[[1]], .getScores("Tothill", field="id", subtype)[[1]], .getScores("Yoshihara", field="id", subtype)[[1]])), recursive=FALSE))
+
+@
+
 \begin{figure}
 <<subtypesosdiff,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
 par(mar=c(5,5,3,2), mfrow=c(2,2))
@@ -786,14 +812,23 @@ plotKM(y=esets.f$TCGA_eset$y, strata=esets.f$TCGA_eset$tcga_subtype,
 censor.at=365.25*5,main="B)  TCGA")
 plotKM(y=esets.f$GSE9891_eset$y, strata=esets.f$GSE9891_eset$aocs_subtype,
 censor.at=365.25*5,main="C)  AOCS Subtypes in Tothill et al.")
+plot(d.f.verhaak$X1,d.f.verhaak$X2, col=as.factor(d.f.verhaak$Subtype), main="D)   Comparison of ssGSEA subtype scores", xlab="Our subtype score", ylab="Verhaak et al. subtype score"); legend("bottomright", levels(factor(d.f.verhaak$Subtype)),col=1:2, pch=1)
 @
-\caption{Association of subtype and overall survival.  (A) All training and
-validation datasets excluding TCGA. (B) Stratification of TCGA samples by
-subtype. (C) Kaplan-Meier curves of the subtypes proposed by the Australian
-Ovarian Cancer Study Group (AOCS) in Tothill et al \cite{Tothill:2008}. This
-analysis corresponds to Figure 5B of the Tothill study, with the difference
-that here we show only the late-stage, high-grade, serous tumors used in our
-meta-analysis.}
+\caption{Association of subtype and overall survival. The model proposed by
+Verhaak et al. \cite{Verhaak:2013} utilizes a subtype score and the purpose of
+this figure is to demonstrates the correctness of our subtype model
+implementation. (A) All training and validation datasets excluding TCGA. Note
+the very similar survival curves in the corresponding figure 2B in Verhaak et
+al. \cite{Verhaak:2013}. (B) Stratification of TCGA samples by subtype. (C)
+Kaplan-Meier curves of the subtypes proposed by the Australian Ovarian Cancer
+Study Group (AOCS) in Tothill et al. \cite{Tothill:2008}. This analysis
+corresponds to Figure 5B of the Tothill study, with the difference that here we
+show only the late-stage, high-grade, serous tumors used in our meta-analysis.
+(D) This scatterplot shows the high correlation of both the Mesenchymal and
+Immunoreactive ssGSEA subtype scores from our implementation and the official
+scores we extracted from the Verhaak et al. Supplement. The Mesenchymal and
+Immunoreactive scores are utilized in the Verhaak et al. model. Shown are the scores
+for the Tothill, Bonome, and Yoshihara samples.}
 \label{fig:km:subtypesos}
 \end{figure}
 
