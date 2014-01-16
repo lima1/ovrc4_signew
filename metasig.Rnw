@@ -30,7 +30,7 @@ options(replace.assign=TRUE,width=90)
 \setcounter{table}{1}
 
 \title{Risk Prediction for late-stage ovarian cancer by meta-analysis of 1,525
-patient samples - Supplemental Information}
+patient samples - Supplementary Information}
 
 \author{Markus Riester, Wei Wei, Levi Waldron, Aedin Culhane, Lorenzo Trippa,
 \\ Esther Olivia, Sung-hoon Kim, Franziska Michor, Curtis Huttenhower, \\
@@ -167,7 +167,7 @@ reml.opt <- metaCMA.opt(esets.f,coefs=coefs,n=200, rma.method="REML")
 
 Instead of arbitrarily setting aside some large and informative datasets for
 validation, we initially tested our models in a leave-one-dataset-out
-cross-validation procedure (Supplemental Figure~\ref{fig:flowchart}). The goal
+cross-validation procedure (Supplementary Figure~\ref{fig:flowchart}). The goal
 of this procedure is to build the best possible model by using all major
 datasets for training, and to still obtain an accurate (in particular not
 over-optimistic) estimate of how well this model will perform when applied to
@@ -385,12 +385,12 @@ nunion <- length(union(names(fe.model@coefficients),
 @
 
 The overlap of the gene signatures obtained with a fixed- and a random-effects
-gene ranking is shown in Supplemental Figure~\ref{fig:effects:venn}. Out of
+gene ranking is shown in Supplementary Figure~\ref{fig:effects:venn}. Out of
 the 200 genes in each signature, \Sexpr{nint} were present in both signatures.
 The choice of the meta-analysis method had no marked impact on the pooled
 Cox regression coefficients; the \Sexpr{nunion} genes utilized in the two
 signatures had highly similar coefficients across the fixed- and random-effects
-meta-analysis (Supplemental Figure~\ref{fig:effects:coef}).  Supplemental
+meta-analysis (Supplementary Figure~\ref{fig:effects:coef}).  Supplementary
 Figure~\ref{fig:effects:hm1} to \ref{fig:effects:hm3} show the Cox regression
 coefficients in all datasets, focussing on the genes present in only the fixed-effects
 signature, only the random-effects signature and present in both signatures,
@@ -400,7 +400,7 @@ fixed-effects signature, \Sexpr{nhet} genes displayed statistically significant
 heterogeneity ($P < 0.05$, Q-Test \cite{Hedges:1985}).  When accounting for
 heterogeneity, probesets with heterogeneity drop in their ranks and are
 replaced in the random-effects signature with probesets displaying less
-heterogeneity (Supplemental Figure~\ref{fig:effects:hm2}). 
+heterogeneity (Supplementary Figure~\ref{fig:effects:hm2}). 
 
 <<intcor, cache=TRUE, results='hide'>>=
 idx <- !sapply(esets.f, .defaultFilter)
@@ -519,7 +519,7 @@ The analysis was done utilizing the \texttt{MergeMaid} \cite{manZhong} and
 \texttt{metaArray} \cite{manGosh} R packages with default Pearson
 Correlation. We then tested whether the genes with heterogeneity have lower
 integrative correlation, indicative of unusual expression, compared to the genes
-exclusively found in the random-effects signature (Supplemental
+exclusively found in the random-effects signature (Supplementary
 Figure~\ref{fig:effects:intcor}). The analysis was performed independently for
 both the Yoshihara 2010 and the Bentink datasets. In both datasets,
 genes with heterogeneity tend to have lower integrative correlation than genes
@@ -554,7 +554,7 @@ signature size - were determined beforehand to allow an unbiased use of the
 training data for testing purposes in our leave-one-dataset-out testing
 procedure.
 
-In Supplemental Figure~\ref{fig:cutoff:train} we confirm that the signature
+In Supplementary Figure~\ref{fig:cutoff:train} we confirm that the signature
 size had only modest impact on the prediction accuracy in our algorithm, as
 long as the signature size was larger than 100 genes.  In this figure, the
 prediction accuracy is reported with the C-Index metric. The C-Index is a
@@ -589,7 +589,7 @@ TCGA signature across microarray platforms, we matched the 193 probe sets in
 the signature to 185 unique gene symbols \cite{Seal:2011} used in
 curatedOvarianData. We first reproduced the reported performance of this model
 in the three TCGA test datasets \cite{Bonome:2008,Dressman:2007,Tothill:2008}
-to ensure the correctness of our model implementation (Supplemental
+to ensure the correctness of our model implementation (Supplementary
 Figure~\ref{fig:tcga:reproduce}). Among the 200 genes in our signature, 17
 overlapped with the TCGA signature ($P < 0.001$).  The p-value of this overlap
 between our and the TCGA signature was calculated with the hypergeometric
@@ -674,7 +674,7 @@ simulations, an additional HR improvement of \Sexpr{mres} over the 2.19 of our
 model (to 2.46, compared to 1.83 for TCGA, see Figure 4 in the main paper)
 would be needed to achieve a statistically significant improvement in C-Index.
 Note this simulation assumes independence of risk scores (patients with similar
-expression profile would have similar risk scores, however), but the only
+expression profile would have similar risk scores, however), but the main
 purpose of this simulation is to illustrate the relationship of the scales of
 HR and C-Index.
 
@@ -760,7 +760,7 @@ used default gene set sizes of 200 genes for each subtype (100 up- and 100
 down-regulated genes per subtype). Applied back to the TCGA data, this
 approach classified \Sexpr{x}\% of the samples correctly. Note that TCGA used
 unified expression measures obtained from multiple platforms for training, not
-the Affymetrix data we used in our meta-analysis. In Supplemental
+the Affymetrix data we used in our meta-analysis. In Supplementary
 Figure~\ref{fig:km:subtypesos}, we show an association of subtype with overall
 survival in all datasets except TCGA consistent with the report of Verhaak et
 al. \cite{Verhaak:2013}. The immunoreactive subtype had in both TCGA and the
@@ -789,18 +789,26 @@ x <- read.xls("input/JCI65833sd1.xls", skip=1)
     idx.w <- grep(dataset, dfrcboth$batch, ignore.case=TRUE)
 
     if (field == "id") {
-        ids <- match(x[idx.v,1], sampleNames(esets.f[idx.df]))
+        ids <- match(make.names(x[idx.v,1]), sampleNames(esets.f[idx.df]))
     } else {
         ids <- match(tolower(x[idx.v,1]), gsub("ovarian cancer ", "", tolower(dfrcboth[idx.w, field])))
     }
 
-    tmp <- cbind(dfrcboth[idx.w,][ids,subtype], x[idx.v, paste(subtype, ".ssGSEA.normalized.score", sep="")])
+    tmp <- cbind(dfrcboth[idx.w,][ids,subtype], x[idx.v, paste(subtype,
+    ".ssGSEA.normalized.score", sep="")])
     tmp <- tmp[complete.cases(tmp),]
     list(data.frame(tmp, Subtype=subtype), cor(tmp[,1], tmp[,2]))
 }
 
-d.f.verhaak <- do.call(rbind,unlist(lapply(c("Mesenchymal", "Immunoreactive"), function(subtype) list(.getScores("Bonome", field="alt_sample_name", subtype)[[1]], .getScores("Tothill", field="id", subtype)[[1]], .getScores("Yoshihara", field="id", subtype)[[1]])), recursive=FALSE))
+d.f.verhaak <- do.call(rbind,unlist(lapply(c("Mesenchymal", "Immunoreactive"),
+function(subtype) list(
+    .getScores("Bonome", field="alt_sample_name", subtype)[[1]], 
+    .getScores("Tothill", field="id", subtype)[[1]],
+    .getScores("Yoshihara", field="id", subtype)[[1]], 
+    .getScores("Dressman", field="id", subtype)[[1]]
+)), recursive=FALSE))
 
+verhaak.cor <-round( cor(d.f.verhaak[,1], d.f.verhaak[,2]), digits=2)
 @
 
 \begin{figure}
@@ -822,24 +830,31 @@ the very similar survival curves in the corresponding figure 2B in Verhaak et
 al. \cite{Verhaak:2013}. (B) Stratification of TCGA samples by subtype. (C)
 Kaplan-Meier curves of the subtypes proposed by the Australian Ovarian Cancer
 Study Group (AOCS) in Tothill et al. \cite{Tothill:2008}. This analysis
-corresponds to Figure 5B of the Tothill study, with the difference that here we
-show only the late-stage, high-grade, serous tumors used in our meta-analysis.
-(D) This scatterplot shows the high correlation of both the Mesenchymal and
-Immunoreactive ssGSEA subtype scores from our implementation and the official
-scores we extracted from the Verhaak et al. Supplement. The Mesenchymal and
-Immunoreactive scores are utilized in the Verhaak et al. model. Shown are the scores
-for the Tothill, Bonome, and Yoshihara samples.}
+corresponds to Figure 5B of the Tothill study, with the difference that here
+we show only the late-stage, high-grade, serous tumors used in our
+meta-analysis.  (D) This scatterplot shows the high correlation of both the
+Mesenchymal and Immunoreactive ssGSEA subtype scores from our implementation
+and the official scores we extracted from the Verhaak et al. Supplement.  The
+Mesenchymal and Immunoreactive scores are utilized in the Verhaak et al.
+model. Shown are the scores for the Bonome, Dressman, Tothill and Yoshihara
+samples.}
 \label{fig:km:subtypesos}
 \end{figure}
 
 We then tested for consistent overlaps with the Australian Ovarian Cancer
 Study Group (AOCS) subtypes as published by Tothill et al.
 \cite{Tothill:2008}. All mesenchymal samples were assigned to the AOCS cluster
-c1, which had poor prognosis in the Tothill data (Supplemental
+c1, which had poor prognosis in the Tothill data (Supplementary
 Figures~\ref{fig:km:subtypesos}C and \ref{fig:overlap:aocstcga}). Most
 immunoreactive samples were assigned to the c2 cluster and c2 samples had
 consistent with our results better outcome in the Tothill dataset.
 
+Verhaak et al. provided ssGSEA scores for various public datasets in their
+Supplement and we compared these scores with the scores of our implementation.
+We found a high correlation of scores ($\rho = \Sexpr{verhaak.cor}$, Supplementary
+Figure~\ref{fig:km:subtypesos}D). Note that a
+perfect correlation is not expected, since we used a different pre-processing
+protocol of the public data and utilized different probesets.
 
 \begin{figure}
 <<subtypesaocsoverlap,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=
@@ -871,7 +886,7 @@ selection.
 
 The Pearson correlation of the risk scores of our meta-analysis signature and both
 TCGA signatures (for Verhaak et al. based on the CLOVAR signature only, not
-the multivariable predictions) are shown in Supplemental Figure~\ref{fig:cor:risk}. 
+the multivariable predictions) are shown in Supplementary Figure~\ref{fig:cor:risk}. 
 In this figure, we further compare the models with the random-effects variant of
 our model, in which the univariate Cox regression coefficients were pooled
 with a random-effects model as implemented in the \texttt{metafor} package.
@@ -944,7 +959,7 @@ In the main text, we presented a Kaplan-Meier analysis of our risk
 stratifications (Figure 4a) and of a multivariable model utilizing these
 stratification together with debulking status (optimal vs. suboptimal) and
 tumor stage (III vs. IV), the most important and commonly available
-characteristics with known survival association. In Supplemental
+characteristics with known survival association. In Supplementary
 Table~\ref{tbl:reg:all}, we provide the Cox regression coefficients (the
 log-transformed Hazard Ratios) for the multivariable models. For datasets with
 available age at time of diagnosis, we included age in the model.
@@ -1034,7 +1049,7 @@ other direct regulations.}
 \section{Meta-analysis is superior to single study training}
 The training sample size was positively correlated with accuracy of patient
 risk stratifications, up to the maximum training sample sizes of 1,250
-(Supplemental Figure~\ref{fig:samplesize}). This finding demonstrated that (i)
+(Supplementary Figure~\ref{fig:samplesize}). This finding demonstrated that (i)
 a meta-analysis of microarray datasets even from different platforms is
 superior compared to single study training and (ii) our leave-one-dataset-out
 approach, in which we removed training datasets to obtain unbiased estimates
@@ -1128,7 +1143,7 @@ identified as a difficult validation dataset. }
 
 We generated a gene signature for suboptimal debulking surgery and validated
 this signature by \textit{leave-one-dataset-out} cross-validation.  The
-meta-analysis summary is shown in Supplemental
+meta-analysis summary is shown in Supplementary
 Figure~\ref{fig:roc:debulking} as ROC curves.
 
 <<debulking_meta>>=
@@ -1174,7 +1189,7 @@ aucs.db.berchuck <-
 .plotROCpanel(preds.berchuck04[idx.debfi][-7],labels[idx.debfi][-7],titles[idx.debfi][-7],3,3)
 @
 \caption{Prediction of debulking status with the Berchuck et al. signature
-\cite{Berchuck:2004} as in Supplemental Figure~\ref{fig:roc:debulking}. The
+\cite{Berchuck:2004} as in Supplementary Figure~\ref{fig:roc:debulking}. The
 Dressman data was excluded because a subset of Dressman samples was used for
 training.}
 \label{fig:roc:debulking:berchuck04}
@@ -1185,7 +1200,7 @@ training.}
 aucs.postn <- .plotROCpanel(preds.postn[idx.debfi],labels[idx.debfi],titles[idx.debfi],3,3)
 @
 \caption{Prediction of debulking status with the POSTN expression alone
-as in Supplemental Figure~\ref{fig:roc:debulking}.}
+as in Supplementary Figure~\ref{fig:roc:debulking}.}
 \label{fig:roc:debulking:postn}
 \end{figure}
 
@@ -1196,7 +1211,7 @@ save(final.model, final.model.debulking, file="output/models.rda")
 
 We compared our results to the only published model predicting debulking
 success \cite{Berchuck:2004} we were aware of, with the corresponding ROC
-curves shown in Supplemental Figure~\ref{fig:roc:debulking:berchuck04}.
+curves shown in Supplementary Figure~\ref{fig:roc:debulking:berchuck04}.
 Because Berchuck et al. did not provide the coefficients of their model, we
 subtracted the average expression of genes down-regulated in suboptimal from
 the average of up-regulated genes. The authors further did not specify the
@@ -1206,7 +1221,7 @@ symbols for the genes. We could map 21 of the 32 genes utilized in their model
 to probes used in curatedOvarianData. None of these 21 genes overlapped with
 our two signatures. 
 
-In Supplemental Table~\ref{tbl:reg:debulking}, we show the logistic regression
+In Supplementary Table~\ref{tbl:reg:debulking}, we show the logistic regression
 coefficients of the gene signature risk scores adjusted for FIGO stage (III
 vs. IV). 
 
@@ -1242,7 +1257,7 @@ aucdiff <- roc.test(roc(dfrc.debulking$debulking, dfrc.debulking$risk_berchuck04
 @
 
 ROC curves for public microarray data of our top-ranked hit \textit{POSTN} are
-shown in Supplemental Figure~\ref{fig:roc:debulking:postn}. 
+shown in Supplementary Figure~\ref{fig:roc:debulking:postn}. 
 
 \clearpage
 
@@ -1268,7 +1283,7 @@ nunion <- length(union(names(fe.model@coefficients),
 
 As in section \ref{sec:fixed}, we examined the overlap of the debulking gene
 signatures obtained with a fixed- and a random-effects gene ranking
-(Supplemental Figure~\ref{fig:effects:db:venn}). We further compared both
+(Supplementary Figure~\ref{fig:effects:db:venn}). We further compared both
 fixed-effects and random-effects signature with a signature obtained with the
 Rank Products method \cite{Breitling:2004}, a frequently used alternative
 microarray meta-analysis method. The Rank Products method currently does not
@@ -1282,12 +1297,12 @@ We observed a lower number of genes with marked heterogeneity in the
 fixed-effects signature (\Sexpr{nhet} genes) compared to the overall survival
 signature. The Yoshihara 2010 and the Bentink et al. datasets were again the
 most common source of heterogeneity, albeit less clear than for the overall
-survival signature (Supplemental
+survival signature (Supplementary
 Figures~\ref{fig:effects:db:hm1}-\ref{fig:effects:db:hm3}).
 
 Integrative correlation analysis \cite{Parmigiani:2004} showed that there were
 no systematic differences between the genes with statistically significant
-heterogeneity and the ones without (Supplemental
+heterogeneity and the ones without (Supplementary
 Figure~\ref{fig:effects:db:intcor}).  We expect, however, that the largest
 datasets (most importantly the Bonome dataset published from our lab and the
 TCGA samples) are similar to our validation samples in terms of surgical
@@ -1374,7 +1389,7 @@ ylab("Integrative Correlation")+theme_classic2(15)
 @
 }
 \caption{Comparison of a fixed- (FE) and a random-effects (RE) ranking of genes
-associated with debulking status. See main text as well as Supplemental
+associated with debulking status. See main text as well as Supplementary
 Figure~\ref{fig:effects} and accompanying text for description of the panels.}
 \end{figure}
 
@@ -1471,10 +1486,10 @@ numbers of suboptimal and optimal tumors for high- and low-risk, respectively.
 The 33\% of high-risk samples with lowest risk and the 33\% of low-risk samples
 with highest risk were then classified as medium-risk.
 
-In Supplemental Table~\ref{tbl:coefficients:ihc}, we show that POSTN, pSmad2/3
+In Supplementary Table~\ref{tbl:coefficients:ihc}, we show that POSTN, pSmad2/3
 and CXCL14 are predictors debulking surgery outcome independent of tumor grade
 and stage. In the multivariable models with all three proteins, both adjusted
-and unadjusted for stage and grade (shown in columns 1 and 2 of Supplemental
+and unadjusted for stage and grade (shown in columns 1 and 2 of Supplementary
 Table~\ref{tbl:coefficients:ihc}), inclusion of CXCL14 could not further
 improve the model.
 
