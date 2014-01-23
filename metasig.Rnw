@@ -244,6 +244,15 @@ esets.f$TCGA_eset$tcga_subtype_official <-
 X <- esets.f$TCGA_eset[, !is.na(esets.f$TCGA_eset$tcga_subtype_official)]
 genesets <- .getFingerprintGeneSets(X, as.factor(X$tcga_subtype_official), p.value=0.001,
 lfc=log2(1.45), number=100)
+
+
+# to replace with the original Verhaak signature, use this 
+# (we did not use this, because not all genes were available on all platforms, 
+# the results are very similar though)
+#x <- read.xls("input/JCI65833sd1.xls", sheet=7, skip=1)
+#genesets <- lapply(levels(x$CLASS), function(y) { y <- as.character(x[x$CLASS==y,1]); y[y
+#    %in% featureNames(esets.f[[1]])] } )
+#names(genesets) <-  levels(esets.f[[1]]$tcga_subtype)
 @
 
 <<cached_short_subtypes_classifyesets,cache=TRUE,results='hide'>>=
@@ -760,7 +769,10 @@ used default gene set sizes of 200 genes for each subtype (100 up- and 100
 down-regulated genes per subtype). Applied back to the TCGA data, this
 approach classified \Sexpr{x}\% of the samples correctly. Note that TCGA used
 unified expression measures obtained from multiple platforms for training, not
-the Affymetrix data we used in our meta-analysis. In Supplementary
+the Affymetrix data we used in our meta-analysis. 
+
+
+In Supplementary
 Figure~\ref{fig:km:subtypesos}, we show an association of subtype with overall
 survival in all datasets except TCGA consistent with the report of Verhaak et
 al. \cite{Verhaak:2013}. The immunoreactive subtype had in both TCGA and the
@@ -794,7 +806,10 @@ x <- read.xls("input/JCI65833sd1.xls", skip=1)
         ids <- match(tolower(x[idx.v,1]), gsub("ovarian cancer ", "", tolower(dfrcboth[idx.w, field])))
     }
 
-    tmp <- cbind(dfrcboth[idx.w,][ids,subtype], x[idx.v, paste(subtype,
+    #tmp <- cbind(dfrcboth[idx.w,][ids,subtype], x[idx.v, paste(subtype,
+    #".ssGSEA.normalized.score", sep="")])
+    tmp <- cbind(gsva.res[[idx.df]][ match(subtype,
+    rownames(gsva.res[[idx.df]])), ids], x[idx.v, paste(subtype,
     ".ssGSEA.normalized.score", sep="")])
     tmp <- tmp[complete.cases(tmp),]
     list(data.frame(tmp, Subtype=subtype), cor(tmp[,1], tmp[,2]))
@@ -824,7 +839,7 @@ plot(d.f.verhaak$X1,d.f.verhaak$X2, col=as.factor(d.f.verhaak$Subtype), main="D)
 @
 \caption{Association of subtype and overall survival. The model proposed by
 Verhaak et al. \cite{Verhaak:2013} utilizes a subtype score and the purpose of
-this figure is to demonstrates the correctness of our subtype model
+this figure is to demonstrate the correctness of our subtype model
 implementation. (A) All training and validation datasets excluding TCGA. Note
 the very similar survival curves in the corresponding figure 2B in Verhaak et
 al. \cite{Verhaak:2013}. (B) Stratification of TCGA samples by subtype. (C)
@@ -854,7 +869,7 @@ Supplement and we compared these scores with the scores of our implementation.
 We found a high correlation of scores ($\rho = \Sexpr{verhaak.cor}$, Supplementary
 Figure~\ref{fig:km:subtypesos}D). Note that a
 perfect correlation is not expected, since we used a different pre-processing
-protocol of the public data and utilized different probesets.
+protocol for the public data and utilized different probesets.
 
 \begin{figure}
 <<subtypesaocsoverlap,fig.width=10,fig.height=10,out.width="0.96\\textwidth",out.height="0.96\\textwidth">>=

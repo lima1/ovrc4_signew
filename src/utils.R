@@ -318,11 +318,15 @@ p.value,lfc,number) {
     genesets[order(gsub(".*_","",names(genesets)),decreasing=TRUE)]
 }
 
-.classifyGSVA <- function(X=NULL, eset, genesets,...) {
+.classifyGSVA <- function(X=NULL, eset, genesets, ...) {
     if (is.null(X)) X <- gsva(exprs(eset),
     genesets,mx.diff=TRUE,parallel.sz=1,...)[[1]]
-    Y <- X[1:4,] - X[5:8,]
-    rownames(Y) <- gsub("_Up","", rownames(Y))
+    if (length(genesets)==8) {
+        Y <- X[1:4,] - X[5:8,]
+        rownames(Y) <- gsub("_Up","", rownames(Y))
+    } else {
+        Y <- X
+    }
     Y
 }
 
