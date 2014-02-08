@@ -38,7 +38,7 @@ Run the analysis with knitr in R:
     library(knitr)
     knit("metasig.Rnw")
 
-# Validation of our models in independent data
+## Validation of our models in independent data
 
 If you want to apply our models to other datasets, you can do that easily. All
 you need is to install the survHD package (see above).
@@ -69,7 +69,7 @@ The following example should help you with setting up our model:
 
 
 
-# Summary of files and directories
+## Summary of files and directories
 
 * **src/**  - additional source code
 
@@ -108,7 +108,7 @@ The following example should help you with setting up our model:
     * **berchuck04.csv**: The manually extracted Berchuck 2004 signature.
 
 
-# Requirements #
+## Requirements 
 
 R/Bioconductor: Tested on R 3.0.1 and Bioconductor 2.12, but the
 code should work with any relatively recent versions. The texreg package is
