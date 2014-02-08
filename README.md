@@ -38,6 +38,38 @@ Run the analysis with knitr in R:
     library(knitr)
     knit("metasig.Rnw")
 
+------------------------------------------------------
+------------------------------------------------------
+# Validation of our models in independent data
+
+If you want to apply our models to other datasets, you can do that easily. All
+you need is to install the survHD package (see above).
+
+The following example should help you with setting up our model:
+
+    library(survHD)
+
+    # load our models
+    load("output/models.rda")
+
+    # use the Yoshihara 2012 dataset as example
+    library(curatedOvarianData)
+    data(GSE32062.GPL6480_eset)
+    
+    # the weights in our model assume expression values transformed to
+    # z-scores. 
+    exprs(GSE32062.GPL6480_eset) <- t(scale(t(exprs(GSE32062.GPL6480_eset))))
+
+    # use the final overall survival model and calculcate risk scores for each
+    # patient
+    x <- predict(final.model, newdata=GSE32062.GPL6480_eset)@lp
+
+    # Kaplan-Meier plot
+    plotKMStratifyBy("median", y=Surv(GSE32062.GPL6480_eset$days_to_death,
+        GSE32062.GPL6480_eset$vital_status=="deceased"), linearriskscore=x,
+        censor.at=365.25*5)
+
+
 
 ------------------------------------------------------
 ------------------------------------------------------
