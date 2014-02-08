@@ -2,13 +2,13 @@ cran.packages <- c("xtable", "gplots", "TeachingDemos", "logging",
                    "survival", "rmeta", "survcomp", "snow", "rlecuyer",
                    "RColorBrewer", "HGNChelper", "metafor", "ROCR", 
                    "pROC", "maxstat", "lattice", "texreg",
-                   "CoxBoost", "gbm", "survIDINRI",
+                   "CoxBoost", "gbm", "survIDINRI", "gdata",
                    "randomSurvivalForest", "uniCox", "superpc", "pensim",
                    "RUnit", "cvTools", "ez", "sampling", "impute", "knitr", "devtools")
 
 bioc.packages <- c("genefilter", "affy", "preprocessCore", "hgu133a.db",
     "limma", "GSVA", "impute", "survcomp", "GEOquery", "hu6800.db",
-    "multtest","graphite", "genomes"
+    "multtest","graphite", "genomes", "RankProd"
     )
 
 for (pkg in cran.packages){
