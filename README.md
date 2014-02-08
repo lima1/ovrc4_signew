@@ -12,7 +12,14 @@ Enter the newly created directory:
 
      cd ovrc4_signew
 
-Install dependencies in R:
+Install Bioconductor if necessary:
+
+    R
+    source("http://bioconductor.org/biocLite.R")
+    biocLite()
+    q()
+
+Install required packages:
 
     R    
     source("src/install_needed_packages.R")
