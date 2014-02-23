@@ -38,6 +38,11 @@ Run the analysis with knitr in R:
     library(knitr)
     knit("metasig.Rnw")
 
+Generate PDF:
+
+    pdflatex metasig
+	
+
 ## Validation of our models in independent data
 
 If you want to apply our models to other datasets, you can do that easily. All
@@ -117,3 +122,5 @@ required in fairly recent version.
 All other needed packages will be installed automatically when running
 the install scripts shown above.
 
+To generate the final PDF, a complete LaTeX standard installation is required
+(including math and extra or recommended packages).

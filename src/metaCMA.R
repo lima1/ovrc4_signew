@@ -340,7 +340,7 @@ contrasts) {
         contrasts)
     resM <- do.call(cbind, lapply(res, function(r)
     topTable(r,number=nrow(esets[[1]]),
-        sort.by="none")[,2]))
+        sort.by="none")$logFC))
     resM <- cbind(resM, Weighted.Mean=apply(resM,1, weighted.mean, w=sqrt(sapply(
         esets, ncol))))
     rownames(resM) <- names(model@coefficients)

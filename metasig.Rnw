@@ -49,6 +49,7 @@ library(annotate)
 library(hgu133a.db)
 library(metafor)
 library(ggplot2)
+library(scales)
 library(xtable)
 library(ROCR)
 library(RColorBrewer)
@@ -66,6 +67,8 @@ library(impute)
 library(LeviRmisc)
 library(RankProd)
 library(gdata)
+library(MergeMaid)
+library(metaArray)
 
 # only to print the version number in the Appendix. We load the data generated
 # with the createEsetsList script
@@ -411,7 +414,7 @@ heterogeneity, probesets with heterogeneity drop in their ranks and are
 replaced in the random-effects signature with probesets displaying less
 heterogeneity (Supplementary Figure~\ref{fig:effects:hm2}). 
 
-<<intcor, cache=TRUE, results='hide'>>=
+<<cached_short_intcor, cache=TRUE, results='hide'>>=
 idx <- !sapply(esets.f, .defaultFilter)
 xx1 <- esets.f[idx][[1]]
 xx3 <- esets.f[idx][[3]]

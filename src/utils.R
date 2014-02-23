@@ -308,8 +308,8 @@ p.value,lfc,number) {
     filtered.res <- lapply(limma.res, function(x) topTable(x,
     number=5000,p.value=p.value,lfc=lfc)[,1:2])
     genesets <- lapply(filtered.res, function(x)
-    list(Up=utils::head(x[x[,2]>0,1],number),
-        Down=utils::head(x[x[,2]<0,1],number)))
+    list(Up=utils::head(rownames(x[x[,1]>0,]),number),
+        Down=utils::head(rownames(x[x[,1]<0,]),number)))
     for (i in 1:length(genesets)) {
         names(genesets[[i]]) <- paste(levels(labels)[i], names(genesets[[i]]),
         sep="_")
