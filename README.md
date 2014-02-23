@@ -37,6 +37,7 @@ Run the analysis with knitr in R:
     R    
     library(knitr)
     knit("metasig.Rnw")
+    q()	
 
 Generate PDF:
 
